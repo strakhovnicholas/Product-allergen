@@ -2,6 +2,7 @@ package ru.productallergen.userservice.userInfo.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,8 +12,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import ru.productallergen.userservice.userInfo.dto.NoteDto;
+import ru.productallergen.userservice.userInfo.mapper.NoteMapper;
 import ru.productallergen.userservice.userInfo.service.NoteService;
+import ru.productallergen.userservice.userInfo.web.NoteWebDto;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -22,37 +24,57 @@ import java.util.UUID;
 @RequestMapping("/api")
 @RequiredArgsConstructor
 public class NoteController {
-
     private final NoteService service;
+    private final NoteMapper mapper;
 
-    @PostMapping("/feelings/notes/create")
-    public NoteDto create(@RequestParam UUID userId,
-                          @RequestBody NoteDto request) {
-        return service.create(userId, request);
+    private UUID getUserId(Authentication authentication) {
+        return UUID.fromString(authentication.getName());
     }
 
-    @PutMapping("/feelings/notes/{id}")
-    public NoteDto update(@PathVariable("id") UUID id,
-                          @RequestBody NoteDto request) {
-        return service.update(id, request);
+    @PostMapping("/feelings/notes")
+    public NoteWebDto create(@RequestBody NoteWebDto request,
+                             Authentication authentication) {
+        UUID userId = getUserId(authentication);
+
+        return mapper.toWebDto(service.create(userId, mapper.toDto(request)));
     }
 
-    @GetMapping("/feelings/notes/{id}")
-    public List<NoteDto> getAll(@PathVariable("id") UUID userId) {
-        return service.getAll(userId);
+    @GetMapping("/feelings/notes")
+    public List<NoteWebDto> getAll(Authentication authentication) {
+        UUID userId = getUserId(authentication);
+
+        return service.getAll(userId)
+                .stream()
+                .map(mapper::toWebDto)
+                .toList();
     }
 
-    @GetMapping("/feelings/notes/{date}")
-    public List<NoteDto> getByDate(@RequestParam UUID userId,
-                                   @PathVariable
-                                   @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-                                   LocalDate date) {
-        return service.getByDate(userId, date);
+    @GetMapping("/feelings/notes/date")
+    public List<NoteWebDto> getByDate(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                                      Authentication authentication) {
+        UUID userId = getUserId(authentication);
+
+        return service.getByDate(userId, date)
+                .stream()
+                .map(mapper::toWebDto)
+                .toList();
     }
 
-    @DeleteMapping("/{id}")
-    public void delete(@PathVariable("id") UUID id) {
-        service.delete(id);
+    @PutMapping("/feelings/notes/{noteId}")
+    public NoteWebDto update(@PathVariable UUID noteId,
+                             @RequestBody NoteWebDto request,
+                             Authentication authentication) {
+
+        UUID userId = getUserId(authentication);
+
+        return mapper.toWebDto(service.update(userId, noteId, mapper.toDto(request)));
+    }
+
+    @DeleteMapping("/feelings/notes/{noteId}")
+    public void delete(@PathVariable UUID noteId,
+                       Authentication authentication) {
+
+        UUID userId = getUserId(authentication);
+        service.delete(userId, noteId);
     }
 }
-

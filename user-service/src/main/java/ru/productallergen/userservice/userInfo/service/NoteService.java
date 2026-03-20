@@ -1,7 +1,6 @@
 package ru.productallergen.userservice.userInfo.service;
 
 import lombok.RequiredArgsConstructor;
-import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 import ru.productallergen.userservice.userInfo.dao.NoteRepository;
 import ru.productallergen.userservice.userInfo.dto.NoteDto;
@@ -22,51 +21,44 @@ public class NoteService {
     private final NoteMapper mapper;
 
     public NoteDto create(UUID userId, NoteDto dto) {
-        NoteDto withUser = NoteDto.builder()
-                .noteId(dto.getNoteId())
-                .userId(userId)
-                .content(dto.getContent())
-                .date(dto.getDate())
-                .build();
-        NoteEntity entity = mapper.toEntity(withUser, new ObjectId());
+        NoteEntity entity = mapper.toEntity(dto, userId);
         return mapper.toDto(repository.save(entity));
     }
 
-    public NoteDto update(UUID id, NoteDto dto) {
-        NoteEntity existing = repository.findAll().stream()
-                .filter(e -> id.equals(e.noteId()))
-                .findFirst()
-                .orElseThrow();
-        NoteEntity updated = new NoteEntity(
-                existing.id(),
-                existing.noteId(),
-                existing.userId(),
-                dto.getContent(),
-                dto.getDate()
-        );
-        return mapper.toDto(repository.save(updated));
-    }
-
     public List<NoteDto> getAll(UUID userId) {
-        return repository.findAllByUserId(userId).stream()
+        return repository.findAllByUserId(userId)
+                .stream()
                 .map(mapper::toDto)
                 .toList();
     }
 
     public List<NoteDto> getByDate(UUID userId, LocalDate date) {
-        ZoneId zone = ZoneId.systemDefault();
-        ZonedDateTime from = date.atStartOfDay(zone);
-        ZonedDateTime to = from.plusDays(1);
-        return repository.findAllByUserIdAndDateBetween(userId, from, to).stream()
+        ZonedDateTime start = date.atStartOfDay(ZoneId.systemDefault());
+        ZonedDateTime end = start.plusDays(1);
+
+        return repository.findAllByUserIdAndDateBetween(userId, start, end)
+                .stream()
                 .map(mapper::toDto)
                 .toList();
     }
 
-    public void delete(UUID noteId) {
-        repository.findAll().stream()
-                .filter(e -> noteId.equals(e.noteId()))
-                .findFirst()
-                .ifPresent(repository::delete);
+    public NoteDto update(UUID userId, UUID noteId, NoteDto dto) {
+        NoteEntity entity = repository.findByUserIdAndNoteId(userId, noteId)
+                .orElseThrow(() -> new RuntimeException("Not found"));
+
+        NoteEntity updated = new NoteEntity(
+                entity.id(),
+                entity.noteId(),
+                entity.userId(),
+                dto.getContent(),
+                dto.getDate()
+        );
+
+        return mapper.toDto(repository.save(updated));
+    }
+
+    public void delete(UUID userId, UUID noteId) {
+        repository.deleteByUserIdAndNoteId(userId, noteId);
     }
 }
 

@@ -6,6 +6,7 @@ import ru.productallergen.userservice.userInfo.entity.NoteEntity;
 
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface NoteRepository extends MongoRepository<NoteEntity, ObjectId> {
@@ -13,5 +14,8 @@ public interface NoteRepository extends MongoRepository<NoteEntity, ObjectId> {
     List<NoteEntity> findAllByUserId(UUID userId);
 
     List<NoteEntity> findAllByUserIdAndDateBetween(UUID userId, ZonedDateTime from, ZonedDateTime to);
-}
 
+    Optional<NoteEntity> findByUserIdAndNoteId(UUID userId, UUID noteId);
+
+    void deleteByUserIdAndNoteId(UUID userId, UUID noteId);
+}
