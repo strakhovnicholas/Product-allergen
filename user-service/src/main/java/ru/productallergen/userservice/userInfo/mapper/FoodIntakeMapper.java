@@ -12,6 +12,7 @@ import java.util.UUID;
 
 @Component
 public class FoodIntakeMapper {
+
     public FoodIntakeEntity toEntity(FoodIntakeDto dto, UUID userId) {
         return new FoodIntakeEntity(
                 null,

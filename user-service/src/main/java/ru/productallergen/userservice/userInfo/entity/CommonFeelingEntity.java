@@ -6,6 +6,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.ZonedDateTime;
 import java.util.UUID;
+
 @Document(collection = "common_feelings")
 public record CommonFeelingEntity(@Id ObjectId id,
                                   UUID feelingId,

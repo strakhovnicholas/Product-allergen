@@ -1,7 +1,6 @@
 package ru.productallergen.userservice.userInfo.service;
 
 import lombok.RequiredArgsConstructor;
-import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 import ru.productallergen.userservice.userInfo.dao.CommonFeelingRepository;
 import ru.productallergen.userservice.userInfo.dto.CommonFeelingDto;
@@ -21,34 +20,47 @@ public class CommonFeelingService {
     private final CommonFeelingRepository repository;
     private final CommonFeelingMapper mapper;
 
-    public CommonFeelingDto create(UUID userId, CommonFeelingDto dto) {
-        CommonFeelingDto withUser = CommonFeelingDto.builder()
-                .feelingId(dto.getFeelingId())
-                .userId(userId)
-                .dateTime(dto.getDateTime())
-                .wellbeingScore(dto.getWellbeingScore())
-                .mood(dto.getMood())
-                .energyLevel(dto.getEnergyLevel())
-                .comment(dto.getComment())
-                .build();
-
-        CommonFeelingEntity entity = mapper.toEntity(withUser, new ObjectId());
+    public CommonFeelingDto createCommonFeeling(UUID userId, CommonFeelingDto dto) {
+        CommonFeelingEntity entity = mapper.toEntity(dto, userId);
         return mapper.toDto(repository.save(entity));
     }
 
-    public List<CommonFeelingDto> getByUserAndDate(UUID userId, LocalDate date) {
-        ZoneId zone = ZoneId.systemDefault();
-        ZonedDateTime from = date.atStartOfDay(zone);
-        ZonedDateTime to = from.plusDays(1);
-        return repository.findAllByUserIdAndDateTimeBetween(userId, from, to).stream()
+    public List<CommonFeelingDto> getAllCommonFeelings(UUID userId) {
+        return repository.findAllByUserId(userId)
+                .stream()
                 .map(mapper::toDto)
                 .toList();
     }
 
-    public void delete(UUID feelingId) {
-        repository.findAll().stream()
-                .filter(e -> feelingId.equals(e.feelingId()))
-                .findFirst()
-                .ifPresent(repository::delete);
+    public List<CommonFeelingDto> getCommonFeelingByDate(UUID userId, LocalDate date) {
+        ZonedDateTime start = date.atStartOfDay(ZoneId.systemDefault());
+        ZonedDateTime end = start.plusDays(1);
+
+        return repository.findAllByUserIdAndDateTimeBetween(userId, start, end)
+                .stream()
+                .map(mapper::toDto)
+                .toList();
+    }
+
+    public CommonFeelingDto updateCommonFeeling(UUID userId, UUID feelingId, CommonFeelingDto dto) {
+        CommonFeelingEntity entity = repository.findByUserIdAndFeelingId(userId, feelingId)
+                .orElseThrow(() -> new RuntimeException("Not found"));
+
+        CommonFeelingEntity updated = new CommonFeelingEntity(
+                entity.id(),
+                entity.feelingId(),
+                entity.userId(),
+                dto.getDateTime(),
+                dto.getWellbeingScore(),
+                dto.getMood(),
+                dto.getEnergyLevel(),
+                dto.getComment()
+        );
+
+        return mapper.toDto(repository.save(updated));
+    }
+
+    public void deleteCommonFeeling(UUID userId, UUID feelingId) {
+        repository.deleteByUserIdAndFeelingId(userId, feelingId);
     }
 }

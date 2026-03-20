@@ -9,6 +9,7 @@ import java.util.UUID;
 
 @Component
 public class NoteMapper {
+
     public NoteEntity toEntity(NoteDto dto, UUID userId) {
         return new NoteEntity(
                 null,

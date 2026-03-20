@@ -6,6 +6,7 @@ import ru.productallergen.userservice.userInfo.entity.CommonFeelingEntity;
 
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface CommonFeelingRepository extends MongoRepository<CommonFeelingEntity, ObjectId> {
@@ -13,5 +14,8 @@ public interface CommonFeelingRepository extends MongoRepository<CommonFeelingEn
     List<CommonFeelingEntity> findAllByUserId(UUID userId);
 
     List<CommonFeelingEntity> findAllByUserIdAndDateTimeBetween(UUID userId, ZonedDateTime from, ZonedDateTime to);
-}
 
+    Optional<CommonFeelingEntity> findByUserIdAndFeelingId(UUID userId, UUID feelingId);
+
+    void deleteByUserIdAndFeelingId(UUID userId, UUID feelingId);
+}
