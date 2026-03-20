@@ -1,6 +1,5 @@
 package ru.productallergen.userservice.userInfo.mapper;
 
-import org.bson.types.ObjectId;
 import org.springframework.stereotype.Component;
 import ru.productallergen.userservice.userInfo.ChronicDisease;
 import ru.productallergen.userservice.userInfo.Gender;
@@ -109,7 +108,7 @@ public class UserInfoMapper {
     }
 
     public void updateEntity(UserInfoEntity entity, UserInfoDto dto) {
-        entity = new UserInfoEntity(
+        new UserInfoEntity(
                 entity.id(),
                 entity.userId(),
                 dto.getFullName(),

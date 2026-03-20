@@ -9,11 +9,13 @@ import java.util.List;
 import java.util.UUID;
 
 public interface SymptomsRepository extends MongoRepository<SymptomsEntity, ObjectId> {
-
     List<SymptomsEntity> findAllByUserId(UUID userId);
 
-    List<SymptomsEntity> findAllByUserIdAndSymptomNameContainingIgnoreCase(UUID userId, String symptomName);
+    List<SymptomsEntity> findAllByUserIdAndStartTimeBetween(
+            UUID userId,
+            ZonedDateTime from,
+            ZonedDateTime to
+    );
 
-    List<SymptomsEntity> findAllByUserIdAndStartTimeBetween(UUID userId, ZonedDateTime from, ZonedDateTime to);
+    void deleteSymptomsId(UUID userId, UUID symptomsId);
 }
-
