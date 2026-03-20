@@ -20,19 +20,19 @@ public class NoteService {
     private final NoteRepository repository;
     private final NoteMapper mapper;
 
-    public NoteDto create(UUID userId, NoteDto dto) {
+    public NoteDto createNode(UUID userId, NoteDto dto) {
         NoteEntity entity = mapper.toEntity(dto, userId);
         return mapper.toDto(repository.save(entity));
     }
 
-    public List<NoteDto> getAll(UUID userId) {
+    public List<NoteDto> getAllNods(UUID userId) {
         return repository.findAllByUserId(userId)
                 .stream()
                 .map(mapper::toDto)
                 .toList();
     }
 
-    public List<NoteDto> getByDate(UUID userId, LocalDate date) {
+    public List<NoteDto> getNodeByDate(UUID userId, LocalDate date) {
         ZonedDateTime start = date.atStartOfDay(ZoneId.systemDefault());
         ZonedDateTime end = start.plusDays(1);
 
@@ -42,7 +42,7 @@ public class NoteService {
                 .toList();
     }
 
-    public NoteDto update(UUID userId, UUID noteId, NoteDto dto) {
+    public NoteDto updateNode(UUID userId, UUID noteId, NoteDto dto) {
         NoteEntity entity = repository.findByUserIdAndNoteId(userId, noteId)
                 .orElseThrow(() -> new RuntimeException("Not found"));
 
@@ -57,8 +57,7 @@ public class NoteService {
         return mapper.toDto(repository.save(updated));
     }
 
-    public void delete(UUID userId, UUID noteId) {
+    public void deleteNode(UUID userId, UUID noteId) {
         repository.deleteByUserIdAndNoteId(userId, noteId);
     }
 }
-

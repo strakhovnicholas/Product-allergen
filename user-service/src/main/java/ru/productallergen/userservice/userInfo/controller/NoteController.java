@@ -32,49 +32,49 @@ public class NoteController {
     }
 
     @PostMapping("/feelings/notes")
-    public NoteWebDto create(@RequestBody NoteWebDto request,
+    public NoteWebDto createNode(@RequestBody NoteWebDto request,
                              Authentication authentication) {
         UUID userId = getUserId(authentication);
 
-        return mapper.toWebDto(service.create(userId, mapper.toDto(request)));
+        return mapper.toWebDto(service.createNode(userId, mapper.toDto(request)));
     }
 
     @GetMapping("/feelings/notes")
-    public List<NoteWebDto> getAll(Authentication authentication) {
+    public List<NoteWebDto> getAllNods(Authentication authentication) {
         UUID userId = getUserId(authentication);
 
-        return service.getAll(userId)
+        return service.getAllNods(userId)
                 .stream()
                 .map(mapper::toWebDto)
                 .toList();
     }
 
     @GetMapping("/feelings/notes/date")
-    public List<NoteWebDto> getByDate(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+    public List<NoteWebDto> getNodeByDate(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                                       Authentication authentication) {
         UUID userId = getUserId(authentication);
 
-        return service.getByDate(userId, date)
+        return service.getNodeByDate(userId, date)
                 .stream()
                 .map(mapper::toWebDto)
                 .toList();
     }
 
     @PutMapping("/feelings/notes/{noteId}")
-    public NoteWebDto update(@PathVariable UUID noteId,
+    public NoteWebDto updateNode(@PathVariable UUID noteId,
                              @RequestBody NoteWebDto request,
                              Authentication authentication) {
 
         UUID userId = getUserId(authentication);
 
-        return mapper.toWebDto(service.update(userId, noteId, mapper.toDto(request)));
+        return mapper.toWebDto(service.updateNode(userId, noteId, mapper.toDto(request)));
     }
 
     @DeleteMapping("/feelings/notes/{noteId}")
-    public void delete(@PathVariable UUID noteId,
+    public void deleteNode(@PathVariable UUID noteId,
                        Authentication authentication) {
 
         UUID userId = getUserId(authentication);
-        service.delete(userId, noteId);
+        service.deleteNode(userId, noteId);
     }
 }

@@ -6,14 +6,20 @@ import ru.productallergen.userservice.userInfo.entity.FoodIntakeEntity;
 
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface FoodIntakeRepository extends MongoRepository<FoodIntakeEntity, ObjectId> {
 
     List<FoodIntakeEntity> findAllByUserId(UUID userId);
 
-    List<FoodIntakeEntity> findAllByUserIdAndFoodNameContainingIgnoreCase(UUID userId, String foodName);
+    List<FoodIntakeEntity> findAllByUserIdAndIntakeTimeBetween(
+            UUID userId,
+            ZonedDateTime from,
+            ZonedDateTime to
+    );
 
-    List<FoodIntakeEntity> findAllByUserIdAndIntakeTimeBetween(UUID userId, ZonedDateTime from, ZonedDateTime to);
+    void deleteByUserIdAndFoodIntakeId(UUID userId, UUID foodIntakeId);
+
+    Optional<FoodIntakeEntity> findByUserIdAndFoodIntakeId(UUID userId, UUID foodIntakeId);
 }
-

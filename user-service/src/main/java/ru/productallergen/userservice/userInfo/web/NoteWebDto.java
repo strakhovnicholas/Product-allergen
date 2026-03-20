@@ -15,10 +15,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class NoteWebDto {
-
     private UUID noteId;
-
     private String content;
-
     private ZonedDateTime date;
 }
