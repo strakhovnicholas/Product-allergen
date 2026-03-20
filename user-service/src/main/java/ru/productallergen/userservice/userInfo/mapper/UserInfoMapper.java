@@ -8,12 +8,39 @@ import ru.productallergen.userservice.userInfo.dto.UserInfoDto;
 import ru.productallergen.userservice.userInfo.entity.UserInfoEntity;
 import ru.productallergen.userservice.userInfo.web.UserInfoWebDto;
 
+import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.UUID;
+
 @Component
 public class UserInfoMapper {
 
-    public UserInfoDto toDto(UserInfoEntity entity) {
-        if (entity == null) return null;
+    public UserInfoEntity toEntity(UserInfoDto dto, UUID userId) {
+        return new UserInfoEntity(
+                null,
+                userId,
+                dto.getFullName(),
+                dto.getAge(),
+                dto.getWeight(),
+                dto.getHeight(),
+                dto.getGender() != null ? dto.getGender().name() : null,
+                dto.getCountry(),
+                dto.getSmoker(),
+                dto.getAlcohol(),
+                dto.getSports(),
+                dto.getChronicDiseases() != null
+                        ? dto.getChronicDiseases().stream().map(Enum::name).toList()
+                        : List.of(),
+                dto.getAllergies(),
+                dto.getPredisposition(),
+                dto.getMedicationsRegular(),
+                dto.getDoctorNotes(),
+                dto.getRegisteredAt(),
+                dto.getUpdatedAt()
+        );
+    }
 
+    public UserInfoDto toDto(UserInfoEntity entity) {
         return UserInfoDto.builder()
                 .userId(entity.userId())
                 .fullName(entity.fullName())
@@ -26,10 +53,8 @@ public class UserInfoMapper {
                 .alcohol(entity.alcohol())
                 .sports(entity.sports())
                 .chronicDiseases(entity.chronicDiseases() != null
-                        ? entity.chronicDiseases().stream()
-                        .map(ChronicDisease::valueOf)
-                        .toList()
-                        : null)
+                        ? entity.chronicDiseases().stream().map(ChronicDisease::valueOf).toList()
+                        : List.of())
                 .allergies(entity.allergies())
                 .predisposition(entity.predisposition())
                 .medicationsRegular(entity.medicationsRegular())
@@ -39,38 +64,9 @@ public class UserInfoMapper {
                 .build();
     }
 
-    public UserInfoEntity toEntity(UserInfoDto dto, ObjectId id) {
-        if (dto == null) return null;
-
-        return new UserInfoEntity(
-                id,
-                dto.getUserId(),
-                dto.getFullName(),
-                dto.getAge(),
-                dto.getWeight(),
-                dto.getHeight(),
-                dto.getGender() != null ? dto.getGender().name() : null,
-                dto.getCountry(),
-                dto.getSmoker(),
-                dto.getAlcohol(),
-                dto.getSports(),
-                dto.getChronicDiseases() != null
-                        ? dto.getChronicDiseases().stream().map(Enum::name).toList()
-                        : null,
-                dto.getAllergies(),
-                dto.getPredisposition(),
-                dto.getMedicationsRegular(),
-                dto.getDoctorNotes(),
-                dto.getRegisteredAt(),
-                dto.getUpdatedAt()
-        );
-    }
-
-    public UserInfoDto toDtoFromWeb(UserInfoWebDto webDto) {
-        if (webDto == null) {
-            return null;
-        }
+    public UserInfoDto toDto(UserInfoWebDto webDto) {
         return UserInfoDto.builder()
+                .userId(webDto.getUserId())
                 .fullName(webDto.getFullName())
                 .age(webDto.getAge())
                 .weight(webDto.getWeight())
@@ -85,13 +81,12 @@ public class UserInfoMapper {
                 .predisposition(webDto.getPredisposition())
                 .medicationsRegular(webDto.getMedicationsRegular())
                 .doctorNotes(webDto.getDoctorNotes())
+                .registeredAt(webDto.getRegisteredAt())
+                .updatedAt(webDto.getUpdatedAt())
                 .build();
     }
 
     public UserInfoWebDto toWebDto(UserInfoDto dto) {
-        if (dto == null) {
-            return null;
-        }
         return UserInfoWebDto.builder()
                 .userId(dto.getUserId())
                 .fullName(dto.getFullName())
@@ -111,5 +106,30 @@ public class UserInfoMapper {
                 .registeredAt(dto.getRegisteredAt())
                 .updatedAt(dto.getUpdatedAt())
                 .build();
+    }
+
+    public void updateEntity(UserInfoEntity entity, UserInfoDto dto) {
+        entity = new UserInfoEntity(
+                entity.id(),
+                entity.userId(),
+                dto.getFullName(),
+                dto.getAge(),
+                dto.getWeight(),
+                dto.getHeight(),
+                dto.getGender() != null ? dto.getGender().name() : entity.gender(),
+                dto.getCountry(),
+                dto.getSmoker(),
+                dto.getAlcohol(),
+                dto.getSports(),
+                dto.getChronicDiseases() != null
+                        ? dto.getChronicDiseases().stream().map(Enum::name).toList()
+                        : entity.chronicDiseases(),
+                dto.getAllergies(),
+                dto.getPredisposition(),
+                dto.getMedicationsRegular(),
+                dto.getDoctorNotes(),
+                entity.registeredAt(),
+                ZonedDateTime.now()
+        );
     }
 }

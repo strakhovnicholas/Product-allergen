@@ -11,5 +11,5 @@ public interface UserInfoRepository extends MongoRepository<UserInfoEntity, Obje
 
     Optional<UserInfoEntity> findByUserId(UUID userId);
 
-    Optional<UserInfoEntity> findByFullName(String fullName);
+    void deleteByUserId(UUID userId);
 }
