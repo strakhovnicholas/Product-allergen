@@ -1,4 +1,4 @@
-package ru.productallergen.userservice.exeption;
+package ru.productallergen.userservice.exception;
 
 public class UserServiceException extends RuntimeException {
     public UserServiceException(String message) {
