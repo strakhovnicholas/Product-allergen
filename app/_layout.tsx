@@ -23,9 +23,22 @@ function RootNavigation() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       {!isAuthenticated ? (
-        <Stack.Screen name="login" />
+        <>
+          <Stack.Screen name="auth" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="register" />
+        </>
       ) : (
-        <Stack.Screen name="(tabs)" />
+        <>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="edit-profile" />
+          <Stack.Screen name="profile-setup" />
+          <Stack.Screen name="add-common" />
+          <Stack.Screen name="add-symptom" />
+          <Stack.Screen name="add-medicine" />
+          <Stack.Screen name="add-food" />
+          <Stack.Screen name="add-note" />
+        </>
       )}
     </Stack>
   );

@@ -5,69 +5,29 @@ import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } fr
 import { useAuth } from '../../src/context/AuthContext';
 
 const profileInfo = [
-  {
-    id: 1,
-    label: 'ФИО',
-    value: 'Киреев Михаил Валериевич',
-    icon: 'person-outline',
-  },
-  {
-    id: 2,
-    label: 'Возраст',
-    value: '23 год',
-    icon: 'calendar-outline',
-  },
-  {
-    id: 3,
-    label: 'Вес',
-    value: '82 кг',
-    icon: 'barbell-outline',
-  },
-  {
-    id: 4,
-    label: 'Рост',
-    value: '180 см',
-    icon: 'resize-outline',
-  },
+  { id: 1, label: 'ФИО', value: 'Киреев Михаил Валериевич', icon: 'person-outline' },
+  { id: 2, label: 'Возраст', value: '23 год', icon: 'calendar-outline' },
+  { id: 3, label: 'Вес', value: '82 кг', icon: 'barbell-outline' },
+  { id: 4, label: 'Рост', value: '180 см', icon: 'resize-outline' },
 ];
 
 const lifeStyle = [
-  {
-    id: 1,
-    title: 'Курение',
-    value: 'Нет',
-    color: '#2DCB70',
-    bg: '#EAF8F0',
-  },
-  {
-    id: 2,
-    title: 'Алкоголь',
-    value: 'Редко',
-    color: '#D4A017',
-    bg: '#FCF8E8',
-  },
-  {
-    id: 3,
-    title: 'Спорт',
-    value: 'Да',
-    color: '#2F6690',
-    bg: '#EAF1F7',
-  },
-  {
-    id: 4,
-    title: 'Наследственность',
-    value: 'Есть',
-    color: '#E63946',
-    bg: '#FCEBED',
-  },
+  { id: 1, title: 'Курение', value: 'Нет', color: '#2DCB70', bg: '#EAF8F0' },
+  { id: 2, title: 'Алкоголь', value: 'Редко', color: '#D4A017', bg: '#FCF8E8' },
+  { id: 3, title: 'Спорт', value: 'Да', color: '#2F6690', bg: '#EAF1F7' },
+  { id: 4, title: 'Наследственность', value: 'Есть', color: '#E63946', bg: '#FCEBED' },
 ];
 
 export default function ProfileScreen() {
   const { logout } = useAuth();
 
   const handleLogout = async () => {
-    await logout();
-    router.replace('/login' as any);
+    try {
+      await logout();
+      router.replace('/auth' as any);
+    } catch (error) {
+      console.log('Ошибка выхода:', error);
+    }
   };
 
   return (
@@ -95,7 +55,6 @@ export default function ProfileScreen() {
 
         <View style={styles.cardSection}>
           <Text style={styles.sectionTitle}>Основная информация</Text>
-
           <View style={styles.infoList}>
             {profileInfo.map((item) => (
               <View key={item.id} style={styles.infoRow}>
@@ -103,7 +62,6 @@ export default function ProfileScreen() {
                   <View style={styles.infoIconWrap}>
                     <Ionicons name={item.icon as any} size={20} color="#2F6690" />
                   </View>
-
                   <View>
                     <Text style={styles.infoLabel}>{item.label}</Text>
                     <Text style={styles.infoValue}>{item.value}</Text>
@@ -116,7 +74,6 @@ export default function ProfileScreen() {
 
         <View style={styles.cardSection}>
           <Text style={styles.sectionTitle}>Образ жизни</Text>
-
           <View style={styles.tagsGrid}>
             {lifeStyle.map((item) => (
               <View key={item.id} style={[styles.tagCard, { backgroundColor: item.bg }]}>
@@ -126,24 +83,20 @@ export default function ProfileScreen() {
             ))}
           </View>
         </View>
+
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.85}>
+          <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
+          <Text style={styles.logoutText}>Выйти из аккаунта</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F5F5F7',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F7',
-  },
-  contentContainer: {
-    padding: 16,
-    paddingBottom: 120,
-  },
+  safeArea: { flex: 1, backgroundColor: '#F5F5F7' },
+  container: { flex: 1, backgroundColor: '#F5F5F7' },
+  contentContainer: { padding: 16, paddingBottom: 120 },
   topSection: {
     backgroundColor: '#2F6690',
     borderRadius: 28,
@@ -166,6 +119,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 6,
+    textAlign: 'center',
   },
   userEmail: {
     fontSize: 14,
@@ -203,9 +157,7 @@ const styles = StyleSheet.create({
     color: '#233142',
     marginBottom: 18,
   },
-  infoList: {
-    gap: 14,
-  },
+  infoList: { gap: 14 },
   infoRow: {
     backgroundColor: '#F8FAFC',
     borderRadius: 18,
@@ -255,27 +207,6 @@ const styles = StyleSheet.create({
   tagValue: {
     fontSize: 20,
     fontWeight: '700',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 16,
-    marginBottom: 12,
-  },
-  actionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  actionText: {
-    marginLeft: 12,
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#233142',
   },
   logoutButton: {
     marginTop: 20,

@@ -2,27 +2,31 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
+import { useAuth } from '../src/context/AuthContext';
+
 export default function RegisterScreen() {
+  const { register } = useAuth();
+
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleRegister = () => {
-    if (!fullName || !email || !password || !confirmPassword) {
-      Alert.alert('Ошибка', 'Заполните все поля');
+  const handleRegister = async () => {
+    if (!email || !password || !confirmPassword) {
+      Alert.alert('Ошибка', 'Заполните обязательные поля');
       return;
     }
 
@@ -31,8 +35,23 @@ export default function RegisterScreen() {
       return;
     }
 
-    Alert.alert('Успешно', 'Аккаунт создан (пока без API)');
-    router.replace('/profile-setup' as any);
+    try {
+      await register({
+        email,
+        password,
+        fullName: fullName || undefined,
+        country: 'RU',
+        timezone: 'Europe/Moscow',
+      });
+
+      Alert.alert('Успешно', 'Аккаунт создан');
+      router.replace('/profile-setup' as any);
+    } catch (error) {
+      Alert.alert(
+        'Ошибка регистрации',
+        error instanceof Error ? error.message : 'Не удалось зарегистрироваться'
+      );
+    }
   };
 
   return (

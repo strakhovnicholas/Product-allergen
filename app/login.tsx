@@ -2,15 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import { useAuth } from '../src/context/AuthContext';
@@ -23,13 +24,21 @@ export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Ошибка', 'Введите email и пароль');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      await login();
-      router.replace('/(tabs)');
+      await login(email, password);
+      router.replace('/(tabs)' as any);
     } catch (error) {
-      console.log(error);
+      Alert.alert(
+        'Ошибка входа',
+        error instanceof Error ? error.message : 'Не удалось выполнить вход'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -92,15 +101,13 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-             style={styles.registerButton}
-             activeOpacity={0.8}
-             onPress={() => router.replace('/register' as any)}>
-             <Text style={styles.registerText}>Создать аккаунт</Text>
-        </TouchableOpacity>
+            style={styles.registerButton}
+            activeOpacity={0.8}
+            onPress={() => router.replace('/register' as any)}>
+            <Text style={styles.registerText}>Создать аккаунт</Text>
+          </TouchableOpacity>
 
-          <Text style={styles.demoText}>
-             Позже подключим настоящую авторизацию.
-          </Text>
+          <Text style={styles.demoText}>Теперь экран готов для реальной авторизации.</Text>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
