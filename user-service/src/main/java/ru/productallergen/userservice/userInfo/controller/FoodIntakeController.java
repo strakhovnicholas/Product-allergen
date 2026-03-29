@@ -1,7 +1,12 @@
 package ru.productallergen.userservice.userInfo.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +29,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
+@Tag(name = "Управление приёмами пищи", description = "API для управления записями о приёмах пищи пользователя")
 public class FoodIntakeController {
 
     private final FoodIntakeService service;
@@ -33,54 +39,76 @@ public class FoodIntakeController {
         return UUID.fromString(authentication.getName());
     }
 
+    @Operation(summary = "Создать запись о приёме пищи",
+            description = "Добавляет новую запись о приёме пищи в систему")
     @PostMapping("/feelings/food")
-    public FoodIntakeWebDto create(@RequestBody FoodIntakeWebDto request,
-                                   Authentication authentication) {
+    public ResponseEntity<FoodIntakeWebDto> create(
+            @Parameter(description = "Данные для создания записи о приёме пищи", required = true)
+            @RequestBody FoodIntakeWebDto request,
+            Authentication authentication) {
 
         UUID userId = getUserId(authentication);
-
-        return mapper.toWebDto(service.createFoodIntake(userId, mapper.toDto(request)));
+        FoodIntakeWebDto response = mapper.toWebDto(
+                service.createFoodIntake(userId, mapper.toDto(request)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @Operation(summary = "Получить все записи о приёмах пищи",
+            description = "Возвращает полный список записей о приёмах пищи для текущего пользователя")
     @GetMapping("/feelings/food")
-    public List<FoodIntakeWebDto> getAll(Authentication authentication) {
+    public ResponseEntity<List<FoodIntakeWebDto>> getAll(Authentication authentication) {
         UUID userId = getUserId(authentication);
 
-        return service.getAllFoodsIntake(userId)
+        List<FoodIntakeWebDto> response = service.getAllFoodsIntake(userId)
                 .stream()
                 .map(mapper::toWebDto)
                 .toList();
+        return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Получить записи о приёмах пищи по дате",
+            description = "Возвращает список записей о приёмах пищи за указанную дату")
     @GetMapping("/feelings/food/by-date")
-    public List<FoodIntakeWebDto> getByDate(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-                                            LocalDate date,
-                                            Authentication authentication) {
+    public ResponseEntity<List<FoodIntakeWebDto>> getByDate(
+            @Parameter(description = "Дата в формате ISO (YYYY-MM-DD) для фильтрации записей", required = true)
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            Authentication authentication) {
 
         UUID userId = getUserId(authentication);
-
-        return service.getFoodIntakeByDate(userId, date)
+        List<FoodIntakeWebDto> response = service.getFoodIntakeByDate(userId, date)
                 .stream()
                 .map(mapper::toWebDto)
                 .toList();
+        return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Обновить запись о приёме пищи",
+            description = "Полное обновление записи по ID. Поля, не указанные в запросе, не обновляются")
     @PutMapping("/feelings/food/{foodIntakeId}")
-    public FoodIntakeWebDto update(@PathVariable UUID foodIntakeId,
-                                   @RequestBody FoodIntakeWebDto request,
-                                   Authentication authentication) {
+    public ResponseEntity<FoodIntakeWebDto> update(
+            @Parameter(description = "ID записи о приёме пищи для обновления", required = true)
+            @PathVariable UUID foodIntakeId,
+            @Parameter(description = "Обновленные данные записи о приёме пищи", required = true)
+            @RequestBody FoodIntakeWebDto request,
+            Authentication authentication) {
 
         UUID userId = getUserId(authentication);
         FoodIntakeDto dto = mapper.toDto(request);
-
-        return mapper.toWebDto(service.updateFoodIntake(userId, foodIntakeId, dto));
+        FoodIntakeWebDto response = mapper.toWebDto(
+                service.updateFoodIntake(userId, foodIntakeId, dto));
+        return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Удалить запись о приёме пищи",
+            description = "Безвозвратно удаляет запись о приёме пищи по ID")
     @DeleteMapping("/feelings/food/{foodIntakeId}")
-    public void delete(@PathVariable UUID foodIntakeId,
-                       Authentication authentication) {
+    public ResponseEntity<Void> delete(
+            @Parameter(description = "ID записи о приёме пищи для удаления", required = true)
+            @PathVariable UUID foodIntakeId,
+            Authentication authentication) {
 
         UUID userId = getUserId(authentication);
         service.deleteFoodIntake(userId, foodIntakeId);
+        return ResponseEntity.noContent().build();
     }
 }

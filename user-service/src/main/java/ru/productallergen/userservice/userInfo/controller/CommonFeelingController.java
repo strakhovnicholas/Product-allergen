@@ -1,7 +1,12 @@
 package ru.productallergen.userservice.userInfo.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +28,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
+@Tag(name = "Управление общим самочувствием", description = "API для управления записями о самочувствии пользователя")
 public class CommonFeelingController {
 
     private final CommonFeelingService service;
@@ -32,51 +38,75 @@ public class CommonFeelingController {
         return UUID.fromString(authentication.getName());
     }
 
+    @Operation(summary = "Создать запись о самочувствии",
+            description = "Добавляет новую запись об общем самочувствии пользователя в систему")
     @PostMapping("feelings/common")
-    public CommonFeelingWebDto createCommonFeeling(@RequestBody CommonFeelingWebDto request,
-                                                   Authentication authentication) {
+    public ResponseEntity<CommonFeelingWebDto> createCommonFeeling(
+            @Parameter(description = "Данные для создания записи о самочувствии", required = true)
+            @RequestBody CommonFeelingWebDto request,
+            Authentication authentication) {
         UUID userId = getUserId(authentication);
 
-        return mapper.toWebDto(service.createCommonFeeling(userId, mapper.toDto(request)));
+        CommonFeelingWebDto response = mapper.toWebDto(
+                service.createCommonFeeling(userId, mapper.toDto(request)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @Operation(summary = "Получить все записи о самочувствии",
+            description = "Возвращает полный список записей об общем самочувствии для текущего пользователя")
     @GetMapping("feelings/common")
-    public List<CommonFeelingWebDto> getAllCommonFeelings(Authentication authentication) {
+    public ResponseEntity<List<CommonFeelingWebDto>> getAllCommonFeelings(Authentication authentication) {
         UUID userId = getUserId(authentication);
 
-        return service.getAllCommonFeelings(userId)
+        List<CommonFeelingWebDto> response = service.getAllCommonFeelings(userId)
                 .stream()
                 .map(mapper::toWebDto)
                 .toList();
+        return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Получить запись о самочувствии по дате",
+            description = "Возвращает список записей об общем самочувствии за указанную дату")
     @GetMapping("feelings/common/by-date")
-    public List<CommonFeelingWebDto> getCommonFeelingByDate(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-                                                            LocalDate date,
-                                                            Authentication authentication) {
+    public ResponseEntity<List<CommonFeelingWebDto>> getCommonFeelingByDate(
+            @Parameter(description = "Дата в формате ISO (YYYY-MM-DD) для фильтрации записей", required = true)
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            Authentication authentication) {
         UUID userId = getUserId(authentication);
 
-        return service.getCommonFeelingByDate(userId, date)
+        List<CommonFeelingWebDto> response = service.getCommonFeelingByDate(userId, date)
                 .stream()
                 .map(mapper::toWebDto)
                 .toList();
+        return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Обновить запись о самочувствии",
+            description = "Полное обновление записи по ID. Поля, не указанные в запросе, не обновляются")
     @PutMapping("feelings/common/{feelingId}")
-    public CommonFeelingWebDto updateCommonFeeling(@PathVariable UUID feelingId,
-                                                   @RequestBody CommonFeelingWebDto request,
-                                                   Authentication authentication) {
+    public ResponseEntity<CommonFeelingWebDto> updateCommonFeeling(
+            @Parameter(description = "ID записи о самочувствии для обновления", required = true)
+            @PathVariable UUID feelingId,
+            @Parameter(description = "Обновленные данные записи о самочувствии", required = true)
+            @RequestBody CommonFeelingWebDto request,
+            Authentication authentication) {
         UUID userId = getUserId(authentication);
 
-        return mapper.toWebDto(service.updateCommonFeeling(userId, feelingId, mapper.toDto(request)));
+        CommonFeelingWebDto response = mapper.toWebDto(
+                service.updateCommonFeeling(userId, feelingId, mapper.toDto(request)));
+        return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Удалить запись о самочувствии",
+            description = "Безвозвратно удаляет запись о самочувствии по ID")
     @DeleteMapping("feelings/common/{feelingId}")
-    public void deleteCommonFeeling(@PathVariable UUID feelingId,
-                                    Authentication authentication) {
+    public ResponseEntity<Void> deleteCommonFeeling(
+            @Parameter(description = "ID записи о самочувствии для удаления", required = true)
+            @PathVariable UUID feelingId,
+            Authentication authentication) {
 
         UUID userId = getUserId(authentication);
-
         service.deleteCommonFeeling(userId, feelingId);
+        return ResponseEntity.noContent().build();
     }
 }
