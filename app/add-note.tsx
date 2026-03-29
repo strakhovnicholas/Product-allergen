@@ -1,64 +1,86 @@
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useMemo, useState } from 'react';
 import {
-    Alert,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
 } from 'react-native';
 
-export default function AddNoteScreen() {
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
+import { createNoteApi, updateNoteApi } from '../src/api/diaryApi';
 
-  const handleSave = () => {
-    if (!title || !content) {
-      Alert.alert('Ошибка', 'Заполните обязательные поля');
+export default function AddNoteScreen() {
+  const params = useLocalSearchParams<{
+    noteId?: string;
+    content?: string;
+    date?: string;
+  }>();
+
+  const isEdit = useMemo(() => !!params.noteId, [params.noteId]);
+
+  const [content, setContent] = useState(params.content ?? '');
+  const [date, setDate] = useState(params.date ?? '');
+
+  const handleSave = async () => {
+    if (!content.trim() || !date.trim()) {
+      Alert.alert('Ошибка', 'Заполните текст заметки и дату');
       return;
     }
 
-    Alert.alert('Успешно', 'Заметка добавлена');
-    router.back();
+    const payload = {
+      content: content.trim(),
+      date: date.trim(),
+    };
+
+    try {
+      if (isEdit && params.noteId) {
+        await updateNoteApi(params.noteId, payload);
+        Alert.alert('Успешно', 'Заметка обновлена');
+      } else {
+        await createNoteApi(payload);
+        Alert.alert('Успешно', 'Заметка сохранена');
+      }
+
+      router.back();
+    } catch (error) {
+      Alert.alert(
+        'Ошибка',
+        error instanceof Error ? error.message : 'Не удалось сохранить заметку'
+      );
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-        <View style={styles.topBar}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.8}>
-            <Ionicons name="arrow-back" size={24} color="#233142" />
-          </TouchableOpacity>
-        </View>
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.title}>
+          {isEdit ? 'Редактировать заметку' : 'Добавить заметку'}
+        </Text>
 
-        <Text style={styles.title}>Добавить заметку</Text>
-        <Text style={styles.subtitle}>Сохраните важное наблюдение или комментарий</Text>
-
-        <Text style={styles.label}>Заголовок</Text>
+        <Text style={styles.label}>Дата</Text>
         <TextInput
           style={styles.input}
-          placeholder="Например: Реакция после завтрака"
-          placeholderTextColor="#98A2B3"
-          value={title}
-          onChangeText={setTitle}
+          placeholder="2026-03-29T10:10:00"
+          value={date}
+          onChangeText={setDate}
         />
 
-        <Text style={styles.label}>Содержание</Text>
+        <Text style={styles.label}>Текст заметки</Text>
         <TextInput
-          style={[styles.input, styles.multilineInput]}
-          placeholder="Введите текст заметки"
-          placeholderTextColor="#98A2B3"
+          style={[styles.input, styles.multiline]}
+          placeholder="После молочных продуктов симптомы усиливаются"
           multiline
           value={content}
           onChangeText={setContent}
         />
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.85}>
-          <Text style={styles.saveButtonText}>Сохранить</Text>
+        <TouchableOpacity style={styles.button} onPress={handleSave}>
+          <Text style={styles.buttonText}>
+            {isEdit ? 'Обновить' : 'Сохранить'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -67,21 +89,8 @@ export default function AddNoteScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F5F7FB' },
-  container: { flex: 1, backgroundColor: '#F5F7FB' },
-  contentContainer: { padding: 20, paddingBottom: 40 },
-  topBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-  },
-  title: { fontSize: 28, fontWeight: '700', color: '#233142', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#667085', lineHeight: 20, marginBottom: 24 },
+  content: { padding: 20, paddingBottom: 40 },
+  title: { fontSize: 28, fontWeight: '700', color: '#233142', marginBottom: 20 },
   label: { fontSize: 14, fontWeight: '600', color: '#344054', marginBottom: 8, marginTop: 12 },
   input: {
     minHeight: 54,
@@ -91,17 +100,15 @@ const styles = StyleSheet.create({
     borderColor: '#E4E7EC',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 15,
-    color: '#101828',
   },
-  multilineInput: { minHeight: 140, textAlignVertical: 'top' },
-  saveButton: {
+  multiline: { minHeight: 120, textAlignVertical: 'top' },
+  button: {
+    marginTop: 24,
     height: 54,
     borderRadius: 16,
     backgroundColor: '#2F6690',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 28,
   },
-  saveButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 });

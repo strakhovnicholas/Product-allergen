@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../src/context/AuthContext';
+import { validateEmail, validatePassword } from '../src/utils/validation';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -24,15 +25,22 @@ export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Ошибка', 'Введите email и пароль');
+    const emailError = validateEmail(email);
+    if (emailError) {
+      Alert.alert('Ошибка', emailError);
+      return;
+    }
+
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      Alert.alert('Ошибка', passwordError);
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      await login(email, password);
+      await login(email.trim(), password);
       router.replace('/(tabs)' as any);
     } catch (error) {
       Alert.alert(
@@ -84,15 +92,7 @@ export default function LoginScreen() {
             secureTextEntry
           />
 
-          <TouchableOpacity style={styles.forgotButton} activeOpacity={0.8}>
-            <Text style={styles.forgotText}>Забыли пароль?</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.loginButton}
-            onPress={handleLogin}
-            activeOpacity={0.85}
-            disabled={isSubmitting}>
+          <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={isSubmitting}>
             {isSubmitting ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
@@ -102,12 +102,9 @@ export default function LoginScreen() {
 
           <TouchableOpacity
             style={styles.registerButton}
-            activeOpacity={0.8}
             onPress={() => router.replace('/register' as any)}>
             <Text style={styles.registerText}>Создать аккаунт</Text>
           </TouchableOpacity>
-
-          <Text style={styles.demoText}>Теперь экран готов для реальной авторизации.</Text>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -115,14 +112,8 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#2F6690',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F7FB',
-  },
+  safeArea: { flex: 1, backgroundColor: '#2F6690' },
+  container: { flex: 1, backgroundColor: '#F5F7FB' },
   topBlock: {
     backgroundColor: '#2F6690',
     paddingHorizontal: 24,
@@ -141,12 +132,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FFFFFF33',
   },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 10,
-  },
+  title: { color: '#FFFFFF', fontSize: 28, fontWeight: '700', marginBottom: 10 },
   subtitle: {
     color: '#DCEAF5',
     fontSize: 15,
@@ -163,18 +149,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 28,
   },
-  formTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#233142',
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#344054',
-    marginBottom: 8,
-  },
+  formTitle: { fontSize: 24, fontWeight: '700', color: '#233142', marginBottom: 24 },
+  label: { fontSize: 14, fontWeight: '600', color: '#344054', marginBottom: 8 },
   input: {
     height: 54,
     borderRadius: 16,
@@ -186,15 +162,6 @@ const styles = StyleSheet.create({
     color: '#101828',
     marginBottom: 16,
   },
-  forgotButton: {
-    alignSelf: 'flex-end',
-    marginBottom: 22,
-  },
-  forgotText: {
-    color: '#2F6690',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   loginButton: {
     height: 54,
     borderRadius: 16,
@@ -202,29 +169,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 14,
+    marginTop: 6,
   },
-  loginButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
+  loginButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   registerButton: {
     height: 54,
     borderRadius: 16,
     backgroundColor: '#EAF1F7',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
   },
-  registerText: {
-    color: '#2F6690',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  demoText: {
-    color: '#667085',
-    fontSize: 13,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
+  registerText: { color: '#2F6690', fontSize: 16, fontWeight: '700' },
 });

@@ -1,65 +1,93 @@
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useMemo, useState } from 'react';
 import {
-    Alert,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
 } from 'react-native';
 
-export default function AddSymptomScreen() {
-  const [symptomName, setSymptomName] = useState('');
-  const [severity, setSeverity] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [possibleCause, setPossibleCause] = useState('');
+import { createSymptomApi, updateSymptomApi } from '../src/api/diaryApi';
 
-  const handleSave = () => {
-    if (!symptomName || !severity || !startTime || !endTime) {
-      Alert.alert('Ошибка', 'Заполните обязательные поля');
+export default function AddSymptomScreen() {
+  const params = useLocalSearchParams<{
+    symptomsId?: string;
+    symptomName?: string;
+    severity?: string;
+    startTime?: string;
+    endTime?: string;
+    possibleCause?: string;
+  }>();
+
+  const isEdit = useMemo(() => !!params.symptomsId, [params.symptomsId]);
+
+  const [symptomName, setSymptomName] = useState(params.symptomName ?? '');
+  const [severity, setSeverity] = useState(params.severity ?? '');
+  const [startTime, setStartTime] = useState(params.startTime ?? '');
+  const [endTime, setEndTime] = useState(params.endTime ?? '');
+  const [possibleCause, setPossibleCause] = useState(params.possibleCause ?? '');
+
+  const handleSave = async () => {
+    if (!symptomName.trim() || !severity.trim() || !startTime.trim()) {
+      Alert.alert('Ошибка', 'Заполните название, силу и время начала');
       return;
     }
 
-    Alert.alert('Успешно', 'Симптом добавлен (пока локально)');
-    router.back();
+    try {
+      if (isEdit && params.symptomsId) {
+        await updateSymptomApi({
+          symptomsId: params.symptomsId,
+          symptomName: symptomName.trim(),
+          severity: Number(severity),
+          startTime: startTime.trim(),
+          endTime: endTime.trim() || undefined,
+          possibleCause: possibleCause.trim() || undefined,
+        });
+
+        Alert.alert('Успешно', 'Симптом обновлён');
+      } else {
+        await createSymptomApi({
+          symptomName: symptomName.trim(),
+          severity: Number(severity),
+          startTime: startTime.trim(),
+          endTime: endTime.trim() || undefined,
+          possibleCause: possibleCause.trim() || undefined,
+        });
+
+        Alert.alert('Успешно', 'Симптом сохранён');
+      }
+
+      router.back();
+    } catch (error) {
+      Alert.alert(
+        'Ошибка',
+        error instanceof Error ? error.message : 'Не удалось сохранить симптом'
+      );
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.topBar}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.8}>
-            <Ionicons name="arrow-back" size={24} color="#233142" />
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.title}>Добавить симптом</Text>
-        <Text style={styles.subtitle}>
-          Заполните данные о симптоме, чтобы сохранить запись в дневнике
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.title}>
+          {isEdit ? 'Редактировать симптом' : 'Добавить симптом'}
         </Text>
 
         <Text style={styles.label}>Название симптома</Text>
         <TextInput
           style={styles.input}
-          placeholder="Например: Насморк"
-          placeholderTextColor="#98A2B3"
+          placeholder="Насморк"
           value={symptomName}
           onChangeText={setSymptomName}
         />
 
-        <Text style={styles.label}>Сила симптома (1-10)</Text>
+        <Text style={styles.label}>Сила (1-10)</Text>
         <TextInput
           style={styles.input}
-          placeholder="Например: 7"
-          placeholderTextColor="#98A2B3"
+          placeholder="8"
           keyboardType="numeric"
           value={severity}
           onChangeText={setSeverity}
@@ -68,8 +96,7 @@ export default function AddSymptomScreen() {
         <Text style={styles.label}>Время начала</Text>
         <TextInput
           style={styles.input}
-          placeholder="Например: 09:30"
-          placeholderTextColor="#98A2B3"
+          placeholder="2026-03-29T09:30:00"
           value={startTime}
           onChangeText={setStartTime}
         />
@@ -77,24 +104,23 @@ export default function AddSymptomScreen() {
         <Text style={styles.label}>Время окончания</Text>
         <TextInput
           style={styles.input}
-          placeholder="Например: 14:00"
-          placeholderTextColor="#98A2B3"
+          placeholder="2026-03-29T14:00:00"
           value={endTime}
           onChangeText={setEndTime}
         />
 
-        <Text style={styles.label}>Возможная причина</Text>
+        <Text style={styles.label}>Предполагаемая причина</Text>
         <TextInput
-          style={[styles.input, styles.multilineInput]}
-          placeholder="Например: Пыльца, молочный продукт, пыль"
-          placeholderTextColor="#98A2B3"
+          style={styles.input}
+          placeholder="Пыльца"
           value={possibleCause}
           onChangeText={setPossibleCause}
-          multiline
         />
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.85}>
-          <Text style={styles.saveButtonText}>Сохранить</Text>
+        <TouchableOpacity style={styles.button} onPress={handleSave}>
+          <Text style={styles.buttonText}>
+            {isEdit ? 'Обновить' : 'Сохранить'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -102,52 +128,10 @@ export default function AddSymptomScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F5F7FB',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F7FB',
-  },
-  contentContainer: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#233142',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#667085',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#344054',
-    marginBottom: 8,
-    marginTop: 12,
-  },
+  safeArea: { flex: 1, backgroundColor: '#F5F7FB' },
+  content: { padding: 20, paddingBottom: 40 },
+  title: { fontSize: 28, fontWeight: '700', color: '#233142', marginBottom: 20 },
+  label: { fontSize: 14, fontWeight: '600', color: '#344054', marginBottom: 8, marginTop: 12 },
   input: {
     minHeight: 54,
     borderRadius: 16,
@@ -156,24 +140,14 @@ const styles = StyleSheet.create({
     borderColor: '#E4E7EC',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 15,
-    color: '#101828',
   },
-  multilineInput: {
-    minHeight: 100,
-    textAlignVertical: 'top',
-  },
-  saveButton: {
+  button: {
+    marginTop: 24,
     height: 54,
     borderRadius: 16,
     backgroundColor: '#2F6690',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 28,
   },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
+  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 });

@@ -1,53 +1,90 @@
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useMemo, useState } from 'react';
 import {
-    Alert,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
 } from 'react-native';
 
-export default function AddFoodScreen() {
-  const [foodName, setFoodName] = useState('');
-  const [category, setCategory] = useState('');
-  const [amount, setAmount] = useState('');
-  const [unit, setUnit] = useState('');
-  const [intakeTime, setIntakeTime] = useState('');
-  const [reactionOccurred, setReactionOccurred] = useState('');
-  const [reactionDescription, setReactionDescription] = useState('');
+import { createFoodApi, updateFoodApi } from '../src/api/diaryApi';
 
-  const handleSave = () => {
-    if (!foodName || !category || !amount || !unit || !intakeTime) {
-      Alert.alert('Ошибка', 'Заполните обязательные поля');
+export default function AddFoodScreen() {
+  const params = useLocalSearchParams<{
+    foodIntakeId?: string;
+    foodName?: string;
+    category?: string;
+    amount?: string;
+    unit?: string;
+    intakeTime?: string;
+    reactionOccurred?: string;
+    reactionDescription?: string;
+  }>();
+
+  const isEdit = useMemo(() => !!params.foodIntakeId, [params.foodIntakeId]);
+
+  const [foodName, setFoodName] = useState(params.foodName ?? '');
+  const [category, setCategory] = useState(params.category ?? '');
+  const [amount, setAmount] = useState(params.amount ?? '');
+  const [unit, setUnit] = useState(params.unit ?? '');
+  const [intakeTime, setIntakeTime] = useState(params.intakeTime ?? '');
+  const [reactionOccurred, setReactionOccurred] = useState(
+    params.reactionOccurred ?? ''
+  );
+  const [reactionDescription, setReactionDescription] = useState(
+    params.reactionDescription ?? ''
+  );
+
+  const handleSave = async () => {
+    if (!foodName.trim() || !intakeTime.trim()) {
+      Alert.alert('Ошибка', 'Заполните название блюда и время');
       return;
     }
 
-    Alert.alert('Успешно', 'Запись о питании добавлена');
-    router.back();
+    const payload = {
+      foodName: foodName.trim(),
+      category: category.trim() || undefined,
+      amount: amount ? Number(amount) : undefined,
+      unit: unit.trim() || undefined,
+      intakeTime: intakeTime.trim(),
+      reactionOccurred:
+        reactionOccurred.trim().toLowerCase() === 'true' ||
+        reactionOccurred.trim().toLowerCase() === 'да',
+      reactionDescription: reactionDescription.trim() || undefined,
+    };
+
+    try {
+      if (isEdit && params.foodIntakeId) {
+        await updateFoodApi(params.foodIntakeId, payload);
+        Alert.alert('Успешно', 'Запись о еде обновлена');
+      } else {
+        await createFoodApi(payload);
+        Alert.alert('Успешно', 'Запись о еде сохранена');
+      }
+
+      router.back();
+    } catch (error) {
+      Alert.alert(
+        'Ошибка',
+        error instanceof Error ? error.message : 'Не удалось сохранить запись о еде'
+      );
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-        <View style={styles.topBar}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.8}>
-            <Ionicons name="arrow-back" size={24} color="#233142" />
-          </TouchableOpacity>
-        </View>
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.title}>
+          {isEdit ? 'Редактировать еду' : 'Добавить еду'}
+        </Text>
 
-        <Text style={styles.title}>Добавить питание</Text>
-        <Text style={styles.subtitle}>Сохраните продукт и возможную реакцию</Text>
-
-        <Text style={styles.label}>Продукт</Text>
+        <Text style={styles.label}>Название блюда</Text>
         <TextInput
           style={styles.input}
-          placeholder="Например: Йогурт"
-          placeholderTextColor="#98A2B3"
+          placeholder="Йогурт"
           value={foodName}
           onChangeText={setFoodName}
         />
@@ -55,8 +92,7 @@ export default function AddFoodScreen() {
         <Text style={styles.label}>Категория</Text>
         <TextInput
           style={styles.input}
-          placeholder="Например: DAIRY"
-          placeholderTextColor="#98A2B3"
+          placeholder="DAIRY"
           value={category}
           onChangeText={setCategory}
         />
@@ -64,8 +100,7 @@ export default function AddFoodScreen() {
         <Text style={styles.label}>Количество</Text>
         <TextInput
           style={styles.input}
-          placeholder="Например: 150"
-          placeholderTextColor="#98A2B3"
+          placeholder="150"
           keyboardType="numeric"
           value={amount}
           onChangeText={setAmount}
@@ -74,42 +109,40 @@ export default function AddFoodScreen() {
         <Text style={styles.label}>Единица</Text>
         <TextInput
           style={styles.input}
-          placeholder="Например: г"
-          placeholderTextColor="#98A2B3"
+          placeholder="GRAM"
           value={unit}
           onChangeText={setUnit}
         />
 
-        <Text style={styles.label}>Время</Text>
+        <Text style={styles.label}>Время приёма</Text>
         <TextInput
           style={styles.input}
-          placeholder="Например: 08:30"
-          placeholderTextColor="#98A2B3"
+          placeholder="2026-03-29T08:30:00"
           value={intakeTime}
           onChangeText={setIntakeTime}
         />
 
-        <Text style={styles.label}>Была ли реакция</Text>
+        <Text style={styles.label}>Была реакция</Text>
         <TextInput
           style={styles.input}
-          placeholder="Да / Нет"
-          placeholderTextColor="#98A2B3"
+          placeholder="true / false"
           value={reactionOccurred}
           onChangeText={setReactionOccurred}
         />
 
         <Text style={styles.label}>Описание реакции</Text>
         <TextInput
-          style={[styles.input, styles.multilineInput]}
-          placeholder="Например: зуд в горле"
-          placeholderTextColor="#98A2B3"
+          style={[styles.input, styles.multiline]}
+          placeholder="Зуд в горле"
           multiline
           value={reactionDescription}
           onChangeText={setReactionDescription}
         />
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.85}>
-          <Text style={styles.saveButtonText}>Сохранить</Text>
+        <TouchableOpacity style={styles.button} onPress={handleSave}>
+          <Text style={styles.buttonText}>
+            {isEdit ? 'Обновить' : 'Сохранить'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -118,21 +151,8 @@ export default function AddFoodScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F5F7FB' },
-  container: { flex: 1, backgroundColor: '#F5F7FB' },
-  contentContainer: { padding: 20, paddingBottom: 40 },
-  topBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-  },
-  title: { fontSize: 28, fontWeight: '700', color: '#233142', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#667085', lineHeight: 20, marginBottom: 24 },
+  content: { padding: 20, paddingBottom: 40 },
+  title: { fontSize: 28, fontWeight: '700', color: '#233142', marginBottom: 20 },
   label: { fontSize: 14, fontWeight: '600', color: '#344054', marginBottom: 8, marginTop: 12 },
   input: {
     minHeight: 54,
@@ -142,17 +162,15 @@ const styles = StyleSheet.create({
     borderColor: '#E4E7EC',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 15,
-    color: '#101828',
   },
-  multilineInput: { minHeight: 100, textAlignVertical: 'top' },
-  saveButton: {
+  multiline: { minHeight: 100, textAlignVertical: 'top' },
+  button: {
+    marginTop: 24,
     height: 54,
     borderRadius: 16,
     backgroundColor: '#2F6690',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 28,
   },
-  saveButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 });

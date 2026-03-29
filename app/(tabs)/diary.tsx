@@ -1,400 +1,440 @@
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
-type DiaryTab = 'common' | 'symptoms' | 'medicines' | 'food' | 'notes';
-
-const TABS: { key: DiaryTab; label: string }[] = [
-  { key: 'common', label: 'Самочувствие' },
-  { key: 'symptoms', label: 'Симптомы' },
-  { key: 'medicines', label: 'Лекарства' },
-  { key: 'food', label: 'Питание' },
-  { key: 'notes', label: 'Заметки' },
-];
-
-const commonFeelings = [
-  {
-    id: 1,
-    dateTime: 'Сегодня, 09:20',
-    wellbeingScore: 6,
-    mood: 5,
-    energyLevel: 4,
-    comment: 'Есть слабость и небольшой дискомфорт после завтрака.',
-  },
-  {
-    id: 2,
-    dateTime: 'Вчера, 20:10',
-    wellbeingScore: 8,
-    mood: 7,
-    energyLevel: 7,
-    comment: 'Вечером состояние было стабильное.',
-  },
-];
-
-const symptoms = [
-  {
-    id: 1,
-    symptomName: 'Насморк',
-    severity: 8,
-    startTime: '09:30',
-    endTime: '14:00',
-    possibleCause: 'Пыльца / еда',
-    color: '#E63946',
-    bg: '#FCEBED',
-    icon: 'weather-windy',
-  },
-  {
-    id: 2,
-    symptomName: 'Слезотечение',
-    severity: 6,
-    startTime: '10:00',
-    endTime: '12:30',
-    possibleCause: 'Пыль',
-    color: '#D4A017',
-    bg: '#FCF8E8',
-    icon: 'eye-outline',
-  },
-  {
-    id: 3,
-    symptomName: 'Чихание',
-    severity: 4,
-    startTime: '11:15',
-    endTime: '11:45',
-    possibleCause: 'Берёза',
-    color: '#F77F00',
-    bg: '#FDF1E7',
-    icon: 'emoticon-sneeze-outline',
-  },
-];
-
-const medicines = [
-  {
-    id: 1,
-    medicineName: 'Цетрин',
-    dosage: 10,
-    unit: 'мг',
-    intakeTime: '09:00',
-    medicationType: 'Антигистаминное',
-    reason: 'Аллергический насморк',
-  },
-  {
-    id: 2,
-    medicineName: 'Назонекс',
-    dosage: 2,
-    unit: 'впрыска',
-    intakeTime: '20:00',
-    medicationType: 'Спрей',
-    reason: 'Заложенность носа',
-  },
-];
-
-const food = [
-  {
-    id: 1,
-    foodName: 'Йогурт',
-    category: 'DAIRY',
-    amount: 150,
-    unit: 'г',
-    intakeTime: '08:30',
-    reactionOccurred: true,
-    reactionDescription: 'Зуд в горле',
-  },
-  {
-    id: 2,
-    foodName: 'Яблоко',
-    category: 'FRUIT',
-    amount: 1,
-    unit: 'шт',
-    intakeTime: '12:15',
-    reactionOccurred: false,
-    reactionDescription: '',
-  },
-];
-
-const notes = [
-  {
-    id: 1,
-    title: 'Реакция после завтрака',
-    content:
-      'После молочного продукта появилась лёгкая реакция. Нужно понаблюдать ещё несколько дней.',
-    createdAt: 'Сегодня, 10:10',
-  },
-  {
-    id: 2,
-    title: 'Общее наблюдение',
-    content:
-      'Симптомы усиливаются в первой половине дня, особенно после выхода на улицу.',
-    createdAt: 'Вчера, 18:40',
-  },
-];
-
-function severityLabel(value: number) {
-  if (value >= 8) return 'Сильно';
-  if (value >= 5) return 'Умеренно';
-  return 'Слабо';
-}
+import {
+  CommonFeeling,
+  deleteCommonFeelingApi,
+  deleteFoodApi,
+  deleteMedicineApi,
+  deleteNoteApi,
+  deleteSymptomApi,
+  Food,
+  getCommonFeelingsApi,
+  getFoodApi,
+  getMedicinesApi,
+  getNotesApi,
+  getSymptomsApi,
+  Medicine,
+  Note,
+  Symptom,
+} from '../../src/api/diaryApi';
 
 export default function DiaryScreen() {
-  const [activeTab, setActiveTab] = useState<DiaryTab>('symptoms');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const activeTitle = useMemo(() => {
-    return TABS.find((tab) => tab.key === activeTab)?.label ?? 'Дневник';
-  }, [activeTab]);
+  const [commonFeelings, setCommonFeelings] = useState<CommonFeeling[]>([]);
+  const [symptoms, setSymptoms] = useState<Symptom[]>([]);
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [foods, setFoods] = useState<Food[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+
+  const loadDiary = async (isRefresh = false) => {
+    try {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+
+      const [commonData, symptomData, medicineData, foodData, noteData] =
+        await Promise.all([
+          getCommonFeelingsApi(),
+          getSymptomsApi(),
+          getMedicinesApi(),
+          getFoodApi(),
+          getNotesApi(),
+        ]);
+
+      setCommonFeelings(commonData ?? []);
+      setSymptoms(symptomData ?? []);
+      setMedicines(medicineData ?? []);
+      setFoods(foodData ?? []);
+      setNotes(noteData ?? []);
+    } catch (error) {
+      Alert.alert(
+        'Ошибка',
+        error instanceof Error ? error.message : 'Не удалось загрузить дневник'
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadDiary();
+    }, [])
+  );
+
+  const confirmDelete = (title: string, onDelete: () => Promise<void>) => {
+    Alert.alert('Удаление', `Удалить запись "${title}"?`, [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Удалить',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await onDelete();
+            await loadDiary(true);
+          } catch (error) {
+            Alert.alert(
+              'Ошибка',
+              error instanceof Error ? error.message : 'Не удалось удалить запись'
+            );
+          }
+        },
+      },
+    ]);
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" color="#2F6690" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadDiary(true)}
+          />
+        }>
         <View style={styles.header}>
           <Text style={styles.title}>Дневник</Text>
-          <Text style={styles.subtitle}>
-            Самочувствие, симптомы, лекарства, питание и заметки в одном месте
-          </Text>
+          <Text style={styles.subtitle}>Все записи на одной странице</Text>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsRow}>
-          {TABS.map((tab) => {
-            const isActive = tab.key === activeTab;
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => router.push('/add-common' as any)}>
+            <Text style={styles.actionBtnText}>Самочувствие</Text>
+          </TouchableOpacity>
 
-            return (
-              <TouchableOpacity
-                key={tab.key}
-                style={[styles.tabButton, isActive && styles.tabButtonActive]}
-                activeOpacity={0.85}
-                onPress={() => setActiveTab(tab.key)}>
-                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-                  {tab.label}
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => router.push('/add-symptom' as any)}>
+            <Text style={styles.actionBtnText}>Симптом</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => router.push('/add-medicine' as any)}>
+            <Text style={styles.actionBtnText}>Лекарство</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => router.push('/add-food' as any)}>
+            <Text style={styles.actionBtnText}>Еда</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => router.push('/add-note' as any)}>
+            <Text style={styles.actionBtnText}>Заметка</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Section title="Самочувствие">
+          {commonFeelings.length === 0 ? (
+            <EmptyText text="Записей самочувствия пока нет" />
+          ) : (
+            commonFeelings.map((item) => (
+              <Card
+                key={String(item.feelingId)}
+                title={formatDate(item.dateTime)}
+                onEdit={() =>
+                  router.push({
+                    pathname: '/add-common',
+                    params: {
+                      feelingId: String(item.feelingId),
+                      dateTime: item.dateTime,
+                      wellbeingScore: String(item.wellbeingScore),
+                      mood: item.mood != null ? String(item.mood) : '',
+                      energyLevel:
+                        item.energyLevel != null ? String(item.energyLevel) : '',
+                      comment: item.comment ?? '',
+                    },
+                  } as any)
+                }
+                onDelete={() =>
+                  confirmDelete(formatDate(item.dateTime), async () => {
+                    await deleteCommonFeelingApi(item.feelingId);
+                  })
+                }>
+                <Text style={styles.meta}>
+                  Самочувствие: {item.wellbeingScore}/10
                 </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{activeTitle}</Text>
-
-            <TouchableOpacity
-  style={styles.addButton}
-  activeOpacity={0.85}
-  onPress={() => {
-    if (activeTab === 'common') {
-      router.push('/add-common' as any);
-      return;
-    }
-
-    if (activeTab === 'symptoms') {
-      router.push('/add-symptom' as any);
-      return;
-    }
-
-    if (activeTab === 'medicines') {
-      router.push('/add-medicine' as any);
-      return;
-    }
-
-    if (activeTab === 'food') {
-      router.push('/add-food' as any);
-      return;
-    }
-
-    if (activeTab === 'notes') {
-      router.push('/add-note' as any);
-    }
-  }}>
-  <Ionicons name="add" size={18} color="#2F6690" />
-  <Text style={styles.addButtonText}>Добавить</Text>
-</TouchableOpacity>
-          </View>
-
-          {activeTab === 'common' && (
-            <View style={styles.blockList}>
-              {commonFeelings.map((item) => (
-                <View key={item.id} style={styles.commonCard}>
-                  <Text style={styles.commonDate}>{item.dateTime}</Text>
-
-                  <View style={styles.scoreRow}>
-                    <View style={[styles.scoreBadge, { backgroundColor: '#EAF1F7' }]}>
-                      <Text style={[styles.scoreValue, { color: '#2F6690' }]}>
-                        Самочувствие: {item.wellbeingScore}/10
-                      </Text>
-                    </View>
-
-                    <View style={[styles.scoreBadge, { backgroundColor: '#FCF8E8' }]}>
-                      <Text style={[styles.scoreValue, { color: '#D4A017' }]}>
-                        Настроение: {item.mood}/10
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.scoreRow}>
-                    <View style={[styles.scoreBadge, { backgroundColor: '#EAF8F0' }]}>
-                      <Text style={[styles.scoreValue, { color: '#2DCB70' }]}>
-                        Энергия: {item.energyLevel}/10
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.commonComment}>{item.comment}</Text>
-                </View>
-              ))}
-            </View>
+                <Text style={styles.meta}>
+                  Настроение: {item.mood ?? '-'} / 10
+                </Text>
+                <Text style={styles.meta}>
+                  Энергия: {item.energyLevel ?? '-'} / 10
+                </Text>
+                {!!item.comment && (
+                  <Text style={styles.meta}>Комментарий: {item.comment}</Text>
+                )}
+              </Card>
+            ))
           )}
+        </Section>
 
-          {activeTab === 'symptoms' && (
-            <View style={styles.blockList}>
-              {symptoms.map((item) => (
-                <View
-                  key={item.id}
-                  style={[
-                    styles.symptomCard,
-                    { backgroundColor: item.bg, borderColor: `${item.color}55` },
-                  ]}>
-                  <View style={styles.symptomHeader}>
-                    <View style={styles.symptomTitleRow}>
-                      <MaterialCommunityIcons
-                        name={item.icon as any}
-                        size={24}
-                        color={item.color}
-                        style={styles.symptomIcon}
-                      />
-                      <Text style={styles.symptomTitle}>{item.symptomName}</Text>
-                    </View>
-
-                    <TouchableOpacity activeOpacity={0.8}>
-                      <Ionicons name="close" size={20} color={item.color} />
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.tagRow}>
-                    <View style={[styles.statusTag, { backgroundColor: item.color }]}>
-                      <Text style={styles.statusTagText}>
-                        {severityLabel(item.severity)} ({item.severity}/10)
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.metaText}>
-                    Время: {item.startTime} - {item.endTime}
+        <Section title="Симптомы">
+          {symptoms.length === 0 ? (
+            <EmptyText text="Симптомов пока нет" />
+          ) : (
+            symptoms.map((item) => (
+              <Card
+                key={String(item.symptomsId)}
+                title={item.symptomName}
+                onEdit={() =>
+                  router.push({
+                    pathname: '/add-symptom',
+                    params: {
+                      symptomsId: String(item.symptomsId),
+                      symptomName: item.symptomName,
+                      severity: String(item.severity),
+                      startTime: item.startTime,
+                      endTime: item.endTime ?? '',
+                      possibleCause: item.possibleCause ?? '',
+                    },
+                  } as any)
+                }
+                onDelete={() =>
+                  confirmDelete(item.symptomName, async () => {
+                    await deleteSymptomApi(item.symptomsId);
+                  })
+                }>
+                <Text style={styles.meta}>Сила: {item.severity}/10</Text>
+                <Text style={styles.meta}>
+                  Начало: {formatDate(item.startTime)}
+                </Text>
+                {!!item.endTime && (
+                  <Text style={styles.meta}>
+                    Конец: {formatDate(item.endTime)}
                   </Text>
-                  <Text style={styles.metaText}>Причина: {item.possibleCause}</Text>
-                </View>
-              ))}
-            </View>
+                )}
+                {!!item.possibleCause && (
+                  <Text style={styles.meta}>Причина: {item.possibleCause}</Text>
+                )}
+              </Card>
+            ))
           )}
+        </Section>
 
-          {activeTab === 'medicines' && (
-            <View style={styles.blockList}>
-              {medicines.map((item) => (
-                <View key={item.id} style={styles.defaultCard}>
-                  <View style={styles.defaultHeader}>
-                    <View style={styles.defaultTitleRow}>
-                      <Ionicons name="medical-outline" size={22} color="#2F6690" />
-                      <Text style={styles.defaultTitle}>{item.medicineName}</Text>
-                    </View>
+        <Section title="Лекарства">
+          {medicines.length === 0 ? (
+            <EmptyText text="Лекарств пока нет" />
+          ) : (
+            medicines.map((item) => (
+              <Card
+                key={String(item.id)}
+                title={item.medicineName}
+                onEdit={() =>
+                  router.push({
+                    pathname: '/add-medicine',
+                    params: {
+                      id: String(item.id),
+                      medicineName: item.medicineName,
+                      dosage: item.dosage != null ? String(item.dosage) : '',
+                      unit: item.unit ?? '',
+                      intakeTime: item.intakeTime,
+                      medicationType:
+                        item.medicationType != null
+                          ? String(item.medicationType)
+                          : '',
+                      reason: item.reason ?? '',
+                    },
+                  } as any)
+                }
+                onDelete={() =>
+                  confirmDelete(item.medicineName, async () => {
+                    await deleteMedicineApi(item.id);
+                  })
+                }>
+                <Text style={styles.meta}>
+                  Доза: {item.dosage ?? '-'} {item.unit ?? ''}
+                </Text>
+                <Text style={styles.meta}>
+                  Время: {formatDate(item.intakeTime)}
+                </Text>
+                {!!item.reason && (
+                  <Text style={styles.meta}>Причина: {item.reason}</Text>
+                )}
+              </Card>
+            ))
+          )}
+        </Section>
 
-                    <TouchableOpacity activeOpacity={0.8}>
-                      <Ionicons name="close" size={20} color="#98A2B3" />
-                    </TouchableOpacity>
-                  </View>
-
-                  <Text style={styles.metaText}>
-                    Дозировка: {item.dosage} {item.unit}
+        <Section title="Еда">
+          {foods.length === 0 ? (
+            <EmptyText text="Записей о еде пока нет" />
+          ) : (
+            foods.map((item) => (
+              <Card
+                key={String(item.foodIntakeId)}
+                title={item.foodName}
+                onEdit={() =>
+                  router.push({
+                    pathname: '/add-food',
+                    params: {
+                      foodIntakeId: String(item.foodIntakeId),
+                      foodName: item.foodName,
+                      category: item.category ?? '',
+                      amount: item.amount != null ? String(item.amount) : '',
+                      unit: item.unit ?? '',
+                      intakeTime: item.intakeTime,
+                      reactionOccurred: String(item.reactionOccurred),
+                      reactionDescription: item.reactionDescription ?? '',
+                    },
+                  } as any)
+                }
+                onDelete={() =>
+                  confirmDelete(item.foodName, async () => {
+                    await deleteFoodApi(item.foodIntakeId);
+                  })
+                }>
+                {!!item.category && (
+                  <Text style={styles.meta}>Категория: {item.category}</Text>
+                )}
+                <Text style={styles.meta}>
+                  Количество: {item.amount ?? '-'} {item.unit ?? ''}
+                </Text>
+                <Text style={styles.meta}>
+                  Время: {formatDate(item.intakeTime)}
+                </Text>
+                <Text style={styles.meta}>
+                  Реакция: {item.reactionOccurred ? 'Да' : 'Нет'}
+                </Text>
+                {!!item.reactionDescription && (
+                  <Text style={styles.meta}>
+                    Описание: {item.reactionDescription}
                   </Text>
-                  <Text style={styles.metaText}>Время приёма: {item.intakeTime}</Text>
-                  <Text style={styles.metaText}>Тип: {item.medicationType}</Text>
-                  <Text style={styles.metaText}>Причина: {item.reason}</Text>
-                </View>
-              ))}
-            </View>
+                )}
+              </Card>
+            ))
           )}
+        </Section>
 
-          {activeTab === 'food' && (
-            <View style={styles.blockList}>
-              {food.map((item) => (
-                <View key={item.id} style={styles.defaultCard}>
-                  <View style={styles.defaultHeader}>
-                    <View style={styles.defaultTitleRow}>
-                      <Ionicons
-                        name="restaurant-outline"
-                        size={22}
-                        color={item.reactionOccurred ? '#E63946' : '#2F6690'}
-                      />
-                      <Text style={styles.defaultTitle}>{item.foodName}</Text>
-                    </View>
-
-                    <TouchableOpacity activeOpacity={0.8}>
-                      <Ionicons name="close" size={20} color="#98A2B3" />
-                    </TouchableOpacity>
-                  </View>
-
-                  <Text style={styles.metaText}>Категория: {item.category}</Text>
-                  <Text style={styles.metaText}>
-                    Количество: {item.amount} {item.unit}
-                  </Text>
-                  <Text style={styles.metaText}>Время: {item.intakeTime}</Text>
-
-                  <View
-                    style={[
-                      styles.reactionBadge,
-                      {
-                        backgroundColor: item.reactionOccurred ? '#FCEBED' : '#EAF8F0',
-                      },
-                    ]}>
-                    <Text
-                      style={[
-                        styles.reactionBadgeText,
-                        { color: item.reactionOccurred ? '#E63946' : '#2DCB70' },
-                      ]}>
-                      {item.reactionOccurred ? 'Есть реакция' : 'Реакции нет'}
-                    </Text>
-                  </View>
-
-                  {!!item.reactionDescription && (
-                    <Text style={styles.metaText}>
-                      Описание реакции: {item.reactionDescription}
-                    </Text>
-                  )}
-                </View>
-              ))}
-            </View>
+        <Section title="Заметки">
+          {notes.length === 0 ? (
+            <EmptyText text="Заметок пока нет" />
+          ) : (
+            notes.map((item) => (
+              <Card
+                key={String(item.noteId)}
+                title={formatDate(item.date)}
+                onEdit={() =>
+                  router.push({
+                    pathname: '/add-note',
+                    params: {
+                      noteId: String(item.noteId),
+                      content: item.content,
+                      date: item.date,
+                    },
+                  } as any)
+                }
+                onDelete={() =>
+                  confirmDelete(formatDate(item.date), async () => {
+                    await deleteNoteApi(item.noteId);
+                  })
+                }>
+                <Text style={styles.meta}>{item.content}</Text>
+              </Card>
+            ))
           )}
-
-          {activeTab === 'notes' && (
-            <View style={styles.blockList}>
-              {notes.map((item) => (
-                <View key={item.id} style={styles.noteCard}>
-                  <View style={styles.defaultHeader}>
-                    <Text style={styles.defaultTitle}>{item.title}</Text>
-
-                    <TouchableOpacity activeOpacity={0.8}>
-                      <Ionicons name="close" size={20} color="#98A2B3" />
-                    </TouchableOpacity>
-                  </View>
-
-                  <Text style={styles.noteContent}>{item.content}</Text>
-                  <Text style={styles.noteDate}>{item.createdAt}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+        </Section>
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
+function Card({
+  title,
+  children,
+  onEdit,
+  onDelete,
+}: {
+  title: string;
+  children: React.ReactNode;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.cardTitle}>{title}</Text>
+
+        <View style={styles.cardActions}>
+          <TouchableOpacity
+            style={styles.editBtn}
+            onPress={onEdit}
+            activeOpacity={0.85}>
+            <Text style={styles.editBtnText}>Редактировать</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={onDelete}
+            activeOpacity={0.85}>
+            <Text style={styles.deleteBtnText}>Удалить</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {children}
+    </View>
+  );
+}
+
+function EmptyText({ text }: { text: string }) {
+  return <Text style={styles.emptyText}>{text}</Text>;
+}
+
+function formatDate(date: string) {
+  if (!date) return '-';
+
+  try {
+    return new Date(date).toLocaleString('ru-RU');
+  } catch {
+    return date;
+  }
 }
 
 const styles = StyleSheet.create({
@@ -410,6 +450,11 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 120,
   },
+  loaderWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   header: {
     marginBottom: 16,
   },
@@ -424,191 +469,88 @@ const styles = StyleSheet.create({
     color: '#667085',
     lineHeight: 20,
   },
-  tabsRow: {
-    paddingBottom: 4,
-    gap: 10,
-  },
-  tabButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: '#EAF1F7',
-  },
-  tabButtonActive: {
-    backgroundColor: '#2F6690',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2F6690',
-  },
-  tabTextActive: {
-    color: '#FFFFFF',
-  },
-  sectionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 20,
-    marginTop: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 18,
-  },
-  sectionTitle: {
-    fontSize: 21,
-    fontWeight: '700',
-    color: '#233142',
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  addButtonText: {
-    fontSize: 15,
-    color: '#2F6690',
-    fontWeight: '600',
-  },
-  blockList: {
-    gap: 14,
-  },
-  commonCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-  },
-  commonDate: {
-    fontSize: 14,
-    color: '#667085',
-    marginBottom: 12,
-  },
-  scoreRow: {
+  actionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 10,
+    gap: 10,
+    marginBottom: 18,
   },
-  scoreBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  scoreValue: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  commonComment: {
-    fontSize: 15,
-    color: '#344054',
-    lineHeight: 22,
-    marginTop: 2,
-  },
-  symptomCard: {
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-  },
-  symptomHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  symptomTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  symptomIcon: {
-    marginRight: 10,
-  },
-  symptomTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#233142',
-  },
-  tagRow: {
-    flexDirection: 'row',
-    marginTop: 14,
-    marginBottom: 14,
-  },
-  statusTag: {
+  actionBtn: {
+    backgroundColor: '#EAF1F7',
     borderRadius: 999,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
-  statusTagText: {
-    color: '#FFFFFF',
-    fontSize: 14,
+  actionBtnText: {
+    color: '#2F6690',
+    fontSize: 13,
     fontWeight: '700',
   },
-  defaultCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
+  section: {
+    marginTop: 10,
+    marginBottom: 8,
   },
-  defaultHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 10,
-  },
-  defaultTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  defaultTitle: {
-    fontSize: 17,
+  sectionTitle: {
+    fontSize: 20,
     fontWeight: '700',
     color: '#233142',
-    flex: 1,
-  },
-  metaText: {
-    fontSize: 15,
-    color: '#5B6776',
-    lineHeight: 22,
-    marginTop: 3,
-  },
-  reactionBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginTop: 12,
-    marginBottom: 2,
-  },
-  reactionBadgeText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  noteCard: {
-    backgroundColor: '#FBFBFD',
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-  },
-  noteContent: {
-    fontSize: 15,
-    color: '#344054',
-    lineHeight: 22,
     marginBottom: 12,
   },
-  noteDate: {
-    fontSize: 13,
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  cardHeader: {
+    marginBottom: 8,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#233142',
+    marginBottom: 10,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  meta: {
+    fontSize: 14,
+    color: '#5B6776',
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  editBtn: {
+    backgroundColor: '#EAF1F7',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  editBtnText: {
+    color: '#2F6690',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  deleteBtn: {
+    backgroundColor: '#FCEBED',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  deleteBtnText: {
+    color: '#E63946',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  emptyText: {
+    fontSize: 14,
     color: '#98A2B3',
+    marginBottom: 10,
   },
 });

@@ -41,32 +41,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const login = async (email: string, password: string) => {
-    const data = await loginApi({ email, password });
+    try {
+      const data = await loginApi({ email, password });
 
-    await AsyncStorage.setItem('auth_token', data.accessToken);
-    await AsyncStorage.setItem('refresh_token', data.refreshToken);
+      await AsyncStorage.setItem('auth_token', data.accessToken);
+      await AsyncStorage.setItem('refresh_token', data.refreshToken);
 
-    setIsAuthenticated(true);
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.log('Ошибка входа:', error);
+      throw error;
+    }
   };
 
   const register = async (payload: RegisterPayload) => {
-    const data = await registerApi(payload);
+    try {
+      const data = await registerApi(payload);
 
-    await AsyncStorage.setItem('auth_token', data.accessToken);
-    await AsyncStorage.setItem('refresh_token', data.refreshToken);
+      await AsyncStorage.setItem('auth_token', data.accessToken);
+      await AsyncStorage.setItem('refresh_token', data.refreshToken);
 
-    setIsAuthenticated(true);
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.log('Ошибка регистрации:', error);
+      throw error;
+    }
   };
 
   const logout = async () => {
     const refreshToken = await AsyncStorage.getItem('refresh_token');
 
-    // СНАЧАЛА мгновенно выходим локально
+    // Сначала мгновенно выходим локально
     await AsyncStorage.removeItem('auth_token');
     await AsyncStorage.removeItem('refresh_token');
     setIsAuthenticated(false);
 
-    // ПОТОМ best-effort сообщаем серверу, но UI не блокируем
+    // Потом пробуем уведомить backend, но UI не блокируем
     if (refreshToken) {
       logoutApi(refreshToken).catch((error) => {
         console.log('Ошибка logout API:', error);

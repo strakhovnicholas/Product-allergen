@@ -19,6 +19,7 @@ export async function apiRequest<T>(
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method,
+    credentials: 'include', // cookies будут уходить автоматически
     headers: {
       'Content-Type': 'application/json',
       ...(auth && token ? { Authorization: `Bearer ${token}` } : {}),
