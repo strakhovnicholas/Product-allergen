@@ -1,16 +1,24 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   SafeAreaView,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  View,
 } from 'react-native';
 
 import { createMedicineApi, updateMedicineApi } from '../src/api/diaryApi';
+import { formStyles as styles } from '../src/styles/formStyles';
+
+function isValidDateString(value: string) {
+  if (!value.trim()) return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime());
+}
 
 export default function AddMedicineScreen() {
   const params = useLocalSearchParams<{
@@ -23,7 +31,7 @@ export default function AddMedicineScreen() {
     reason?: string;
   }>();
 
-  const isEdit = useMemo(() => !!params.id, [params.id]);
+  const isEdit = useMemo(() => Boolean(params.id), [params.id]);
 
   const [medicineName, setMedicineName] = useState(params.medicineName ?? '');
   const [dosage, setDosage] = useState(params.dosage ?? '');
@@ -31,21 +39,60 @@ export default function AddMedicineScreen() {
   const [intakeTime, setIntakeTime] = useState(params.intakeTime ?? '');
   const [medicationType, setMedicationType] = useState(params.medicationType ?? '');
   const [reason, setReason] = useState(params.reason ?? '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSave = async () => {
-    if (!medicineName.trim() || !intakeTime.trim()) {
+    const normalizedMedicineName = medicineName.trim();
+    const normalizedUnit = unit.trim();
+    const normalizedIntakeTime = intakeTime.trim();
+    const normalizedReason = reason.trim();
+
+    if (!normalizedMedicineName || !normalizedIntakeTime) {
       Alert.alert('Ошибка', 'Заполните название и время приёма');
       return;
     }
 
+    if (!isValidDateString(normalizedIntakeTime)) {
+      Alert.alert('Ошибка', 'Введите корректное время приёма');
+      return;
+    }
+
+    let parsedDosage: number | undefined = undefined;
+    if (dosage.trim()) {
+      parsedDosage = Number(dosage);
+      if (Number.isNaN(parsedDosage)) {
+        Alert.alert('Ошибка', 'Дозировка должна быть числом');
+        return;
+      }
+      if (parsedDosage <= 0) {
+        Alert.alert('Ошибка', 'Дозировка должна быть больше нуля');
+        return;
+      }
+    }
+
+    let parsedMedicationType: number | undefined = undefined;
+    if (medicationType.trim()) {
+      parsedMedicationType = Number(medicationType);
+      if (Number.isNaN(parsedMedicationType)) {
+        Alert.alert('Ошибка', 'Тип лекарства должен быть числом');
+        return;
+      }
+      if (parsedMedicationType < 0) {
+        Alert.alert('Ошибка', 'Тип лекарства не может быть отрицательным');
+        return;
+      }
+    }
+
     const payload = {
-      medicineName: medicineName.trim(),
-      dosage: dosage ? Number(dosage) : undefined,
-      unit: unit.trim() || undefined,
-      intakeTime: intakeTime.trim(),
-      medicationType: medicationType ? Number(medicationType) : undefined,
-      reason: reason.trim() || undefined,
+      medicineName: normalizedMedicineName,
+      dosage: parsedDosage,
+      unit: normalizedUnit || undefined,
+      intakeTime: normalizedIntakeTime,
+      medicationType: parsedMedicationType,
+      reason: normalizedReason || undefined,
     };
+
+    setIsSubmitting(true);
 
     try {
       if (isEdit && params.id) {
@@ -62,97 +109,97 @@ export default function AddMedicineScreen() {
         'Ошибка',
         error instanceof Error ? error.message : 'Не удалось сохранить лекарство'
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>
-          {isEdit ? 'Редактировать лекарство' : 'Добавить лекарство'}
+          {isEdit ? 'Редактировать лекарство' : 'Лекарство'}
         </Text>
+        <Text style={styles.subtitle}>Заполните данные о приёме лекарства</Text>
 
-        <Text style={styles.label}>Название</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Цетрин"
-          value={medicineName}
-          onChangeText={setMedicineName}
-        />
+        <View style={styles.card}>
+          <Text style={styles.label}>Название</Text>
+          <TextInput
+            style={styles.input}
+            value={medicineName}
+            onChangeText={setMedicineName}
+            editable={!isSubmitting}
+          />
 
-        <Text style={styles.label}>Дозировка</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="10"
-          keyboardType="numeric"
-          value={dosage}
-          onChangeText={setDosage}
-        />
+          <View style={styles.row}>
+            <View style={styles.half}>
+              <Text style={styles.label}>Дозировка</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={dosage}
+                onChangeText={setDosage}
+                editable={!isSubmitting}
+              />
+            </View>
 
-        <Text style={styles.label}>Единица</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="MG"
-          value={unit}
-          onChangeText={setUnit}
-        />
+            <View style={styles.half}>
+              <Text style={styles.label}>Единица</Text>
+              <TextInput
+                style={styles.input}
+                value={unit}
+                onChangeText={setUnit}
+                editable={!isSubmitting}
+              />
+            </View>
+          </View>
 
-        <Text style={styles.label}>Время приёма</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="2026-03-29T09:00:00"
-          value={intakeTime}
-          onChangeText={setIntakeTime}
-        />
+          <Text style={styles.label}>Время приёма</Text>
+          <TextInput
+            style={styles.input}
+            value={intakeTime}
+            onChangeText={setIntakeTime}
+            editable={!isSubmitting}
+          />
 
-        <Text style={styles.label}>Тип лекарства</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="1"
-          keyboardType="numeric"
-          value={medicationType}
-          onChangeText={setMedicationType}
-        />
+          <Text style={styles.label}>Тип лекарства</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="numeric"
+            value={medicationType}
+            onChangeText={setMedicationType}
+            editable={!isSubmitting}
+          />
 
-        <Text style={styles.label}>Причина</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Аллергия"
-          value={reason}
-          onChangeText={setReason}
-        />
+          <Text style={styles.label}>Причина</Text>
+          <TextInput
+            style={[styles.input, styles.multiline]}
+            value={reason}
+            onChangeText={setReason}
+            multiline
+            editable={!isSubmitting}
+          />
 
-        <TouchableOpacity style={styles.button} onPress={handleSave}>
-          <Text style={styles.buttonText}>
-            {isEdit ? 'Обновить' : 'Сохранить'}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, isSubmitting && { opacity: 0.7 }]}
+            onPress={handleSave}
+            disabled={isSubmitting}
+            activeOpacity={0.85}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>
+                {isEdit ? 'Обновить' : 'Сохранить'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F5F7FB' },
-  content: { padding: 20, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: '700', color: '#233142', marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: '#344054', marginBottom: 8, marginTop: 12 },
-  input: {
-    minHeight: 54,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  button: {
-    marginTop: 24,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: '#2F6690',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-});

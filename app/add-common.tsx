@@ -1,19 +1,45 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   SafeAreaView,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  View,
 } from 'react-native';
 
 import {
   createCommonFeelingApi,
   updateCommonFeelingApi,
 } from '../src/api/diaryApi';
+import { formStyles as styles } from '../src/styles/formStyles';
+
+function isValidDateString(value: string) {
+  if (!value.trim()) return false;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime());
+}
+
+function parseScore(value: string, fieldName: string): number | undefined {
+  const normalized = value.trim();
+
+  if (!normalized) return undefined;
+
+  const parsed = Number(normalized);
+
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Поле "${fieldName}" должно быть числом`);
+  }
+
+  if (parsed < 0 || parsed > 10) {
+    throw new Error(`Поле "${fieldName}" должно быть в диапазоне от 0 до 10`);
+  }
+
+  return parsed;
+}
 
 export default function AddCommonScreen() {
   const params = useLocalSearchParams<{
@@ -25,37 +51,55 @@ export default function AddCommonScreen() {
     comment?: string;
   }>();
 
-  const isEdit = useMemo(() => !!params.feelingId, [params.feelingId]);
+  const isEdit = useMemo(() => Boolean(params.feelingId), [params.feelingId]);
 
   const [dateTime, setDateTime] = useState(params.dateTime ?? '');
-  const [wellbeingScore, setWellbeingScore] = useState(
-    params.wellbeingScore ?? ''
-  );
+  const [wellbeing, setWellbeing] = useState(params.wellbeingScore ?? '');
   const [mood, setMood] = useState(params.mood ?? '');
   const [energyLevel, setEnergyLevel] = useState(params.energyLevel ?? '');
   const [comment, setComment] = useState(params.comment ?? '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSave = async () => {
-    if (!dateTime.trim() || !wellbeingScore.trim()) {
+    const normalizedDateTime = dateTime.trim();
+    const normalizedComment = comment.trim();
+
+    if (!normalizedDateTime || !wellbeing.trim()) {
       Alert.alert('Ошибка', 'Заполните дату и самочувствие');
       return;
     }
 
-    const payload = {
-      dateTime: dateTime.trim(),
-      wellbeingScore: Number(wellbeingScore),
-      mood: mood ? Number(mood) : undefined,
-      energyLevel: energyLevel ? Number(energyLevel) : undefined,
-      comment: comment.trim() || undefined,
-    };
+    if (!isValidDateString(normalizedDateTime)) {
+      Alert.alert('Ошибка', 'Введите корректную дату и время');
+      return;
+    }
 
     try {
+      const parsedWellbeing = parseScore(wellbeing, 'Самочувствие');
+      const parsedMood = parseScore(mood, 'Настроение');
+      const parsedEnergyLevel = parseScore(energyLevel, 'Энергия');
+
+      if (parsedWellbeing === undefined) {
+        Alert.alert('Ошибка', 'Укажите самочувствие');
+        return;
+      }
+
+      const payload = {
+        dateTime: normalizedDateTime,
+        wellbeingScore: parsedWellbeing,
+        mood: parsedMood,
+        energyLevel: parsedEnergyLevel,
+        comment: normalizedComment || undefined,
+      };
+
+      setIsSubmitting(true);
+
       if (isEdit && params.feelingId) {
         await updateCommonFeelingApi(params.feelingId, payload);
         Alert.alert('Успешно', 'Запись самочувствия обновлена');
       } else {
         await createCommonFeelingApi(payload);
-        Alert.alert('Успешно', 'Самочувствие сохранено');
+        Alert.alert('Успешно', 'Запись сохранена');
       }
 
       router.back();
@@ -64,92 +108,84 @@ export default function AddCommonScreen() {
         'Ошибка',
         error instanceof Error ? error.message : 'Не удалось сохранить запись'
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>
-          {isEdit ? 'Редактировать самочувствие' : 'Добавить самочувствие'}
+          {isEdit ? 'Редактировать самочувствие' : 'Самочувствие'}
         </Text>
+        <Text style={styles.subtitle}>Оцените своё состояние</Text>
 
-        <Text style={styles.label}>Дата и время</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="2026-03-29T10:30:00"
-          value={dateTime}
-          onChangeText={setDateTime}
-        />
+        <View style={styles.card}>
+          <Text style={styles.label}>Дата и время</Text>
+          <TextInput
+            style={styles.input}
+            value={dateTime}
+            onChangeText={setDateTime}
+            editable={!isSubmitting}
+          />
 
-        <Text style={styles.label}>Самочувствие (0-10)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="6"
-          keyboardType="numeric"
-          value={wellbeingScore}
-          onChangeText={setWellbeingScore}
-        />
+          <Text style={styles.label}>Самочувствие (0-10)</Text>
+          <TextInput
+            style={styles.input}
+            value={wellbeing}
+            onChangeText={setWellbeing}
+            keyboardType="numeric"
+            editable={!isSubmitting}
+          />
 
-        <Text style={styles.label}>Настроение (0-10)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="5"
-          keyboardType="numeric"
-          value={mood}
-          onChangeText={setMood}
-        />
+          <Text style={styles.label}>Настроение (0-10)</Text>
+          <TextInput
+            style={styles.input}
+            value={mood}
+            onChangeText={setMood}
+            keyboardType="numeric"
+            editable={!isSubmitting}
+          />
 
-        <Text style={styles.label}>Энергия (0-10)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="4"
-          keyboardType="numeric"
-          value={energyLevel}
-          onChangeText={setEnergyLevel}
-        />
+          <Text style={styles.label}>Энергия (0-10)</Text>
+          <TextInput
+            style={styles.input}
+            value={energyLevel}
+            onChangeText={setEnergyLevel}
+            keyboardType="numeric"
+            editable={!isSubmitting}
+          />
 
-        <Text style={styles.label}>Комментарий</Text>
-        <TextInput
-          style={[styles.input, styles.multiline]}
-          placeholder="Комментарий"
-          multiline
-          value={comment}
-          onChangeText={setComment}
-        />
+          <Text style={styles.label}>Комментарий</Text>
+          <TextInput
+            style={[styles.input, styles.multiline]}
+            value={comment}
+            onChangeText={setComment}
+            multiline
+            editable={!isSubmitting}
+          />
 
-        <TouchableOpacity style={styles.button} onPress={handleSave}>
-          <Text style={styles.buttonText}>
-            {isEdit ? 'Обновить' : 'Сохранить'}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, isSubmitting && { opacity: 0.7 }]}
+            onPress={handleSave}
+            disabled={isSubmitting}
+            activeOpacity={0.85}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>
+                {isEdit ? 'Обновить' : 'Сохранить'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F5F7FB' },
-  content: { padding: 20, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: '700', color: '#233142', marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: '#344054', marginBottom: 8, marginTop: 12 },
-  input: {
-    minHeight: 54,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  multiline: { minHeight: 100, textAlignVertical: 'top' },
-  button: {
-    marginTop: 24,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: '#2F6690',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-});

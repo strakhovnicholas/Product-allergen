@@ -7,31 +7,88 @@ type RequestOptions = {
   method?: HttpMethod;
   body?: unknown;
   auth?: boolean;
+  headers?: Record<string, string>;
 };
+
+type ApiErrorPayload = {
+  message?: string;
+  error?: string;
+  statusCode?: number;
+};
+
+function buildUrl(endpoint: string): string {
+  const base = API_BASE_URL.replace(/\/+$/, '');
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${base}${path}`;
+}
 
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { method = 'GET', body, auth = false } = options;
+  const {
+    method = 'GET',
+    body,
+    auth = false,
+    headers = {},
+  } = options;
 
   const token = auth ? await AsyncStorage.getItem('auth_token') : null;
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method,
-    credentials: 'include', // cookies будут уходить автоматически
-    headers: {
-      'Content-Type': 'application/json',
-      ...(auth && token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const requestHeaders: Record<string, string> = {
+    Accept: 'application/json',
+    ...headers,
+  };
 
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  if (body !== undefined) {
+    requestHeaders['Content-Type'] = 'application/json';
+  }
+
+  if (auth && token && token !== 'undefined' && token !== 'null') {
+    requestHeaders.Authorization = `Bearer ${token}`;
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(buildUrl(endpoint), {
+      method,
+      headers: requestHeaders,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (error) {
+    console.log('Сетевая ошибка:', error);
+    throw new Error(
+      'Не удалось подключиться к серверу. Проверь API_BASE_URL, сеть и доступность backend.'
+    );
+  }
+
+  const rawText = await response.text();
+
+  let data: T | ApiErrorPayload | null = null;
+
+  if (rawText) {
+    try {
+      data = JSON.parse(rawText) as T | ApiErrorPayload;
+    } catch (error) {
+      console.log('Ошибка разбора ответа сервера:', error);
+      if (!response.ok) {
+        throw new Error(
+          `Сервер вернул некорректный ответ (${response.status}).`
+        );
+      }
+
+      return rawText as T;
+    }
+  }
 
   if (!response.ok) {
-    throw new Error(data?.message || 'Ошибка запроса к серверу');
+    const errorMessage =
+      (data as ApiErrorPayload | null)?.message ||
+      (data as ApiErrorPayload | null)?.error ||
+      `Ошибка запроса к серверу (${response.status})`;
+
+    throw new Error(errorMessage);
   }
 
   return data as T;

@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +16,11 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../src/context/AuthContext';
+import {
+  validateEmail,
+  validateFullName,
+  validatePassword,
+} from '../src/utils/validation';
 
 export default function RegisterScreen() {
   const { register } = useAuth();
@@ -23,10 +29,35 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleRegister = async () => {
-    if (!email || !password || !confirmPassword) {
-      Alert.alert('Ошибка', 'Заполните обязательные поля');
+    const normalizedEmail = email.trim();
+    const normalizedFullName = fullName.trim();
+    const normalizedConfirmPassword = confirmPassword.trim();
+
+    if (normalizedFullName) {
+      const fullNameError = validateFullName(normalizedFullName);
+      if (fullNameError) {
+        Alert.alert('Ошибка', fullNameError);
+        return;
+      }
+    }
+
+    const emailError = validateEmail(normalizedEmail);
+    if (emailError) {
+      Alert.alert('Ошибка', emailError);
+      return;
+    }
+
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      Alert.alert('Ошибка', passwordError);
+      return;
+    }
+
+    if (!normalizedConfirmPassword) {
+      Alert.alert('Ошибка', 'Подтвердите пароль');
       return;
     }
 
@@ -35,31 +66,44 @@ export default function RegisterScreen() {
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
       await register({
-        email,
+        email: normalizedEmail,
         password,
-        fullName: fullName || undefined,
+        fullName: normalizedFullName || undefined,
         country: 'RU',
         timezone: 'Europe/Moscow',
       });
 
-      Alert.alert('Успешно', 'Аккаунт создан');
       router.replace('/profile-setup' as any);
     } catch (error) {
       Alert.alert(
         'Ошибка регистрации',
         error instanceof Error ? error.message : 'Не удалось зарегистрироваться'
       );
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const goToLogin = () => {
+    if (isSubmitting) return;
+    router.replace('/login' as any);
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.topBlock}>
             <View style={styles.logoCircle}>
               <Ionicons name="person-add-outline" size={34} color="#FFFFFF" />
@@ -81,6 +125,8 @@ export default function RegisterScreen() {
               style={styles.input}
               value={fullName}
               onChangeText={setFullName}
+              editable={!isSubmitting}
+              returnKeyType="next"
             />
 
             <Text style={styles.label}>Email</Text>
@@ -91,7 +137,10 @@ export default function RegisterScreen() {
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
+              autoCorrect={false}
               keyboardType="email-address"
+              editable={!isSubmitting}
+              returnKeyType="next"
             />
 
             <Text style={styles.label}>Пароль</Text>
@@ -102,6 +151,10 @@ export default function RegisterScreen() {
               value={password}
               onChangeText={setPassword}
               secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isSubmitting}
+              returnKeyType="next"
             />
 
             <Text style={styles.label}>Подтвердите пароль</Text>
@@ -112,16 +165,32 @@ export default function RegisterScreen() {
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isSubmitting}
+              returnKeyType="done"
+              onSubmitEditing={handleRegister}
             />
 
-            <TouchableOpacity style={styles.registerButton} onPress={handleRegister} activeOpacity={0.85}>
-              <Text style={styles.registerButtonText}>Зарегистрироваться</Text>
+            <TouchableOpacity
+              style={[styles.registerButton, isSubmitting && styles.disabledButton]}
+              onPress={handleRegister}
+              activeOpacity={0.85}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.registerButtonText}>Зарегистрироваться</Text>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.loginButton}
-              onPress={() => router.replace('/login' as any)}
-              activeOpacity={0.8}>
+              style={[styles.loginButton, isSubmitting && styles.disabledSecondaryButton]}
+              onPress={goToLogin}
+              activeOpacity={0.8}
+              disabled={isSubmitting}
+            >
               <Text style={styles.loginText}>У меня уже есть аккаунт</Text>
             </TouchableOpacity>
           </View>
@@ -232,5 +301,11 @@ const styles = StyleSheet.create({
     color: '#2F6690',
     fontSize: 16,
     fontWeight: '700',
+  },
+  disabledButton: {
+    opacity: 0.7,
+  },
+  disabledSecondaryButton: {
+    opacity: 0.7,
   },
 });

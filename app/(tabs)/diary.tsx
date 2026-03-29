@@ -1,5 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -30,9 +31,174 @@ import {
   Symptom,
 } from '../../src/api/diaryApi';
 
+type FilterType = 'all' | 'today' | 'week' | 'month';
+
+function formatDate(date: string) {
+  if (!date) return '-';
+
+  const parsedDate = new Date(date);
+  if (Number.isNaN(parsedDate.getTime())) return date;
+
+  return parsedDate.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function isInFilter(date: string, filter: FilterType) {
+  if (!date) return false;
+  if (filter === 'all') return true;
+
+  const itemDate = new Date(date);
+  if (Number.isNaN(itemDate.getTime())) return false;
+
+  const now = new Date();
+
+  if (filter === 'today') {
+    return (
+      itemDate.getFullYear() === now.getFullYear() &&
+      itemDate.getMonth() === now.getMonth() &&
+      itemDate.getDate() === now.getDate()
+    );
+  }
+
+  const diff = now.getTime() - itemDate.getTime();
+
+  if (filter === 'week') {
+    return diff <= 7 * 24 * 60 * 60 * 1000;
+  }
+
+  if (filter === 'month') {
+    return diff <= 30 * 24 * 60 * 60 * 1000;
+  }
+
+  return true;
+}
+
+function SectionBlock({
+  title,
+  count,
+  icon,
+  onPress,
+  children,
+}: {
+  title: string;
+  count: number;
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.sectionWrap}>
+      <TouchableOpacity
+        style={styles.sectionHeader}
+        activeOpacity={0.85}
+        onPress={onPress}
+      >
+        <View style={styles.sectionTitleRow}>
+          <View style={styles.sectionIconWrap}>
+            <Ionicons name={icon} size={18} color="#2F6690" />
+          </View>
+          <Text style={styles.sectionTitle}>{title}</Text>
+        </View>
+
+        <View style={styles.sectionRight}>
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>{count}</Text>
+          </View>
+          <Ionicons name="add-circle-outline" size={22} color="#2F6690" />
+        </View>
+      </TouchableOpacity>
+
+      {children}
+    </View>
+  );
+}
+
+function EmptySection({ text }: { text: string }) {
+  return (
+    <View style={styles.emptyCard}>
+      <Text style={styles.emptyCardText}>{text}</Text>
+    </View>
+  );
+}
+
+function EntryCard({
+  title,
+  subtitle,
+  children,
+  onEdit,
+  onDelete,
+  deleting,
+}: {
+  title: string;
+  subtitle?: string;
+  children?: React.ReactNode;
+  onEdit: () => void;
+  onDelete: () => void;
+  deleting?: boolean;
+}) {
+  return (
+    <View style={styles.entryCard}>
+      <View style={styles.entryTop}>
+        <View style={styles.entryTextBlock}>
+          <Text style={styles.entryTitle}>{title}</Text>
+          {!!subtitle && <Text style={styles.entrySubtitle}>{subtitle}</Text>}
+        </View>
+
+        <View style={styles.entryActions}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={onEdit}
+            activeOpacity={0.85}
+            disabled={deleting}
+          >
+            <Ionicons name="create-outline" size={16} color="#2F6690" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={onDelete}
+            activeOpacity={0.85}
+            disabled={deleting}
+          >
+            {deleting ? (
+              <ActivityIndicator size="small" color="#E63946" />
+            ) : (
+              <Ionicons name="trash-outline" size={16} color="#E63946" />
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {!!children && <View style={styles.entryBody}>{children}</View>}
+    </View>
+  );
+}
+
+function MetaRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.metaRow}>
+      <Text style={styles.metaLabel}>{label}</Text>
+      <Text style={styles.metaValue}>{value}</Text>
+    </View>
+  );
+}
+
 export default function DiaryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterType>('all');
 
   const [commonFeelings, setCommonFeelings] = useState<CommonFeeling[]>([]);
   const [symptoms, setSymptoms] = useState<Symptom[]>([]);
@@ -40,7 +206,7 @@ export default function DiaryScreen() {
   const [foods, setFoods] = useState<Food[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
 
-  const loadDiary = async (isRefresh = false) => {
+  const loadDiary = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
@@ -68,34 +234,81 @@ export default function DiaryScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       void loadDiary();
-    }, [])
+    }, [loadDiary])
   );
 
-  const confirmDelete = (title: string, onDelete: () => Promise<void>) => {
-    Alert.alert('Удаление', `Удалить запись "${title}"?`, [
-      { text: 'Отмена', style: 'cancel' },
-      {
-        text: 'Удалить',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await onDelete();
-            await loadDiary(true);
-          } catch (error) {
-            Alert.alert(
-              'Ошибка',
-              error instanceof Error ? error.message : 'Не удалось удалить запись'
-            );
-          }
+  const filteredCommonFeelings = useMemo(
+    () => commonFeelings.filter((item) => isInFilter(item.dateTime, filter)),
+    [commonFeelings, filter]
+  );
+
+  const filteredSymptoms = useMemo(
+    () => symptoms.filter((item) => isInFilter(item.startTime, filter)),
+    [symptoms, filter]
+  );
+
+  const filteredMedicines = useMemo(
+    () => medicines.filter((item) => isInFilter(item.intakeTime, filter)),
+    [medicines, filter]
+  );
+
+  const filteredFoods = useMemo(
+    () => foods.filter((item) => isInFilter(item.intakeTime, filter)),
+    [foods, filter]
+  );
+
+  const filteredNotes = useMemo(
+    () => notes.filter((item) => isInFilter(item.date, filter)),
+    [notes, filter]
+  );
+
+  const totalCount = useMemo(
+    () =>
+      filteredCommonFeelings.length +
+      filteredSymptoms.length +
+      filteredMedicines.length +
+      filteredFoods.length +
+      filteredNotes.length,
+    [
+      filteredCommonFeelings,
+      filteredSymptoms,
+      filteredMedicines,
+      filteredFoods,
+      filteredNotes,
+    ]
+  );
+
+  const confirmDelete = useCallback(
+    (id: string, title: string, onDelete: () => Promise<void>) => {
+      Alert.alert('Удаление', `Удалить запись "${title}"?`, [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeletingId(id);
+              await onDelete();
+              await loadDiary(true);
+            } catch (error) {
+              Alert.alert(
+                'Ошибка',
+                error instanceof Error ? error.message : 'Не удалось удалить запись'
+              );
+            } finally {
+              setDeletingId(null);
+            }
+          },
         },
-      },
-    ]);
-  };
+      ]);
+    },
+    [loadDiary]
+  );
 
   if (loading) {
     return (
@@ -116,54 +329,84 @@ export default function DiaryScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => loadDiary(true)}
+            onRefresh={() => {
+              void loadDiary(true);
+            }}
           />
-        }>
-        <View style={styles.header}>
-          <Text style={styles.title}>Дневник</Text>
-          <Text style={styles.subtitle}>Все записи на одной странице</Text>
+        }
+      >
+        <View style={styles.heroCard}>
+          <Text style={styles.heroTitle}>Дневник</Text>
+          <Text style={styles.heroSubtitle}>
+            Все записи на одной странице: самочувствие, симптомы, лекарства,
+            питание и заметки.
+          </Text>
+
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{totalCount}</Text>
+              <Text style={styles.summaryLabel}>Всего записей</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{filteredFoods.length}</Text>
+              <Text style={styles.summaryLabel}>Питание</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{filteredSymptoms.length}</Text>
+              <Text style={styles.summaryLabel}>Симптомы</Text>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => router.push('/add-common' as any)}>
-            <Text style={styles.actionBtnText}>Самочувствие</Text>
-          </TouchableOpacity>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtersRow}
+        >
+          {[
+            { key: 'all', label: 'Все' },
+            { key: 'today', label: 'Сегодня' },
+            { key: 'week', label: '7 дней' },
+            { key: 'month', label: '30 дней' },
+          ].map((item) => {
+            const active = filter === item.key;
+            return (
+              <TouchableOpacity
+                key={item.key}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                activeOpacity={0.85}
+                onPress={() => setFilter(item.key as FilterType)}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    active && styles.filterChipTextActive,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => router.push('/add-symptom' as any)}>
-            <Text style={styles.actionBtnText}>Симптом</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => router.push('/add-medicine' as any)}>
-            <Text style={styles.actionBtnText}>Лекарство</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => router.push('/add-food' as any)}>
-            <Text style={styles.actionBtnText}>Еда</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => router.push('/add-note' as any)}>
-            <Text style={styles.actionBtnText}>Заметка</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Section title="Самочувствие">
-          {commonFeelings.length === 0 ? (
-            <EmptyText text="Записей самочувствия пока нет" />
+        <SectionBlock
+          title="Самочувствие"
+          count={filteredCommonFeelings.length}
+          icon="pulse-outline"
+          onPress={() => router.push('/add-common' as any)}
+        >
+          {filteredCommonFeelings.length === 0 ? (
+            <EmptySection text="Записей самочувствия пока нет" />
           ) : (
-            commonFeelings.map((item) => (
-              <Card
-                key={String(item.feelingId)}
-                title={formatDate(item.dateTime)}
+            filteredCommonFeelings.map((item) => (
+              <EntryCard
+                key={`common-${item.feelingId}`}
+                title={`Самочувствие ${item.wellbeingScore}/10`}
+                subtitle={formatDate(item.dateTime)}
+                deleting={deletingId === `common-${item.feelingId}`}
                 onEdit={() =>
                   router.push({
                     pathname: '/add-common',
@@ -179,35 +422,46 @@ export default function DiaryScreen() {
                   } as any)
                 }
                 onDelete={() =>
-                  confirmDelete(formatDate(item.dateTime), async () => {
-                    await deleteCommonFeelingApi(item.feelingId);
-                  })
-                }>
-                <Text style={styles.meta}>
-                  Самочувствие: {item.wellbeingScore}/10
-                </Text>
-                <Text style={styles.meta}>
-                  Настроение: {item.mood ?? '-'} / 10
-                </Text>
-                <Text style={styles.meta}>
-                  Энергия: {item.energyLevel ?? '-'} / 10
-                </Text>
-                {!!item.comment && (
-                  <Text style={styles.meta}>Комментарий: {item.comment}</Text>
-                )}
-              </Card>
+                  confirmDelete(
+                    `common-${item.feelingId}`,
+                    `Самочувствие ${item.wellbeingScore}/10`,
+                    async () => {
+                      await deleteCommonFeelingApi(item.feelingId);
+                    }
+                  )
+                }
+              >
+                <MetaRow
+                  label="Настроение"
+                  value={item.mood != null ? `${item.mood}/10` : '-'}
+                />
+                <MetaRow
+                  label="Энергия"
+                  value={
+                    item.energyLevel != null ? `${item.energyLevel}/10` : '-'
+                  }
+                />
+                <MetaRow label="Комментарий" value={item.comment || '-'} />
+              </EntryCard>
             ))
           )}
-        </Section>
+        </SectionBlock>
 
-        <Section title="Симптомы">
-          {symptoms.length === 0 ? (
-            <EmptyText text="Симптомов пока нет" />
+        <SectionBlock
+          title="Симптомы"
+          count={filteredSymptoms.length}
+          icon="warning-outline"
+          onPress={() => router.push('/add-symptom' as any)}
+        >
+          {filteredSymptoms.length === 0 ? (
+            <EmptySection text="Симптомов пока нет" />
           ) : (
-            symptoms.map((item) => (
-              <Card
-                key={String(item.symptomsId)}
+            filteredSymptoms.map((item) => (
+              <EntryCard
+                key={`symptom-${item.symptomsId}`}
                 title={item.symptomName}
+                subtitle={formatDate(item.startTime)}
+                deleting={deletingId === `symptom-${item.symptomsId}`}
                 onEdit={() =>
                   router.push({
                     pathname: '/add-symptom',
@@ -222,35 +476,42 @@ export default function DiaryScreen() {
                   } as any)
                 }
                 onDelete={() =>
-                  confirmDelete(item.symptomName, async () => {
-                    await deleteSymptomApi(item.symptomsId);
-                  })
-                }>
-                <Text style={styles.meta}>Сила: {item.severity}/10</Text>
-                <Text style={styles.meta}>
-                  Начало: {formatDate(item.startTime)}
-                </Text>
-                {!!item.endTime && (
-                  <Text style={styles.meta}>
-                    Конец: {formatDate(item.endTime)}
-                  </Text>
-                )}
-                {!!item.possibleCause && (
-                  <Text style={styles.meta}>Причина: {item.possibleCause}</Text>
-                )}
-              </Card>
+                  confirmDelete(
+                    `symptom-${item.symptomsId}`,
+                    item.symptomName,
+                    async () => {
+                      await deleteSymptomApi(item.symptomsId);
+                    }
+                  )
+                }
+              >
+                <MetaRow label="Сила" value={`${item.severity}/10`} />
+                <MetaRow label="Начало" value={formatDate(item.startTime)} />
+                <MetaRow
+                  label="Конец"
+                  value={item.endTime ? formatDate(item.endTime) : '-'}
+                />
+                <MetaRow label="Причина" value={item.possibleCause || '-'} />
+              </EntryCard>
             ))
           )}
-        </Section>
+        </SectionBlock>
 
-        <Section title="Лекарства">
-          {medicines.length === 0 ? (
-            <EmptyText text="Лекарств пока нет" />
+        <SectionBlock
+          title="Лекарства"
+          count={filteredMedicines.length}
+          icon="medical-outline"
+          onPress={() => router.push('/add-medicine' as any)}
+        >
+          {filteredMedicines.length === 0 ? (
+            <EmptySection text="Лекарств пока нет" />
           ) : (
-            medicines.map((item) => (
-              <Card
-                key={String(item.id)}
+            filteredMedicines.map((item) => (
+              <EntryCard
+                key={`medicine-${item.id}`}
                 title={item.medicineName}
+                subtitle={formatDate(item.intakeTime)}
+                deleting={deletingId === `medicine-${item.id}`}
                 onEdit={() =>
                   router.push({
                     pathname: '/add-medicine',
@@ -269,32 +530,45 @@ export default function DiaryScreen() {
                   } as any)
                 }
                 onDelete={() =>
-                  confirmDelete(item.medicineName, async () => {
-                    await deleteMedicineApi(item.id);
-                  })
-                }>
-                <Text style={styles.meta}>
-                  Доза: {item.dosage ?? '-'} {item.unit ?? ''}
-                </Text>
-                <Text style={styles.meta}>
-                  Время: {formatDate(item.intakeTime)}
-                </Text>
-                {!!item.reason && (
-                  <Text style={styles.meta}>Причина: {item.reason}</Text>
-                )}
-              </Card>
+                  confirmDelete(
+                    `medicine-${item.id}`,
+                    item.medicineName,
+                    async () => {
+                      await deleteMedicineApi(item.id);
+                    }
+                  )
+                }
+              >
+                <MetaRow
+                  label="Дозировка"
+                  value={
+                    item.dosage != null
+                      ? `${item.dosage} ${item.unit ?? ''}`.trim()
+                      : '-'
+                  }
+                />
+                <MetaRow label="Время" value={formatDate(item.intakeTime)} />
+                <MetaRow label="Причина" value={item.reason || '-'} />
+              </EntryCard>
             ))
           )}
-        </Section>
+        </SectionBlock>
 
-        <Section title="Еда">
-          {foods.length === 0 ? (
-            <EmptyText text="Записей о еде пока нет" />
+        <SectionBlock
+          title="Питание"
+          count={filteredFoods.length}
+          icon="restaurant-outline"
+          onPress={() => router.push('/add-food' as any)}
+        >
+          {filteredFoods.length === 0 ? (
+            <EmptySection text="Записей о питании пока нет" />
           ) : (
-            foods.map((item) => (
-              <Card
-                key={String(item.foodIntakeId)}
+            filteredFoods.map((item) => (
+              <EntryCard
+                key={`food-${item.foodIntakeId}`}
                 title={item.foodName}
+                subtitle={formatDate(item.intakeTime)}
+                deleting={deletingId === `food-${item.foodIntakeId}`}
                 onEdit={() =>
                   router.push({
                     pathname: '/add-food',
@@ -311,40 +585,52 @@ export default function DiaryScreen() {
                   } as any)
                 }
                 onDelete={() =>
-                  confirmDelete(item.foodName, async () => {
-                    await deleteFoodApi(item.foodIntakeId);
-                  })
-                }>
-                {!!item.category && (
-                  <Text style={styles.meta}>Категория: {item.category}</Text>
-                )}
-                <Text style={styles.meta}>
-                  Количество: {item.amount ?? '-'} {item.unit ?? ''}
-                </Text>
-                <Text style={styles.meta}>
-                  Время: {formatDate(item.intakeTime)}
-                </Text>
-                <Text style={styles.meta}>
-                  Реакция: {item.reactionOccurred ? 'Да' : 'Нет'}
-                </Text>
-                {!!item.reactionDescription && (
-                  <Text style={styles.meta}>
-                    Описание: {item.reactionDescription}
-                  </Text>
-                )}
-              </Card>
+                  confirmDelete(
+                    `food-${item.foodIntakeId}`,
+                    item.foodName,
+                    async () => {
+                      await deleteFoodApi(item.foodIntakeId);
+                    }
+                  )
+                }
+              >
+                <MetaRow label="Категория" value={item.category || '-'} />
+                <MetaRow
+                  label="Количество"
+                  value={
+                    item.amount != null
+                      ? `${item.amount} ${item.unit ?? ''}`.trim()
+                      : '-'
+                  }
+                />
+                <MetaRow
+                  label="Реакция"
+                  value={item.reactionOccurred ? 'Да' : 'Нет'}
+                />
+                <MetaRow
+                  label="Описание"
+                  value={item.reactionDescription || '-'}
+                />
+              </EntryCard>
             ))
           )}
-        </Section>
+        </SectionBlock>
 
-        <Section title="Заметки">
-          {notes.length === 0 ? (
-            <EmptyText text="Заметок пока нет" />
+        <SectionBlock
+          title="Заметки"
+          count={filteredNotes.length}
+          icon="document-text-outline"
+          onPress={() => router.push('/add-note' as any)}
+        >
+          {filteredNotes.length === 0 ? (
+            <EmptySection text="Заметок пока нет" />
           ) : (
-            notes.map((item) => (
-              <Card
-                key={String(item.noteId)}
+            filteredNotes.map((item) => (
+              <EntryCard
+                key={`note-${item.noteId}`}
                 title={formatDate(item.date)}
+                subtitle="Заметка"
+                deleting={deletingId === `note-${item.noteId}`}
                 onEdit={() =>
                   router.push({
                     pathname: '/add-note',
@@ -356,95 +642,33 @@ export default function DiaryScreen() {
                   } as any)
                 }
                 onDelete={() =>
-                  confirmDelete(formatDate(item.date), async () => {
-                    await deleteNoteApi(item.noteId);
-                  })
-                }>
-                <Text style={styles.meta}>{item.content}</Text>
-              </Card>
+                  confirmDelete(
+                    `note-${item.noteId}`,
+                    formatDate(item.date),
+                    async () => {
+                      await deleteNoteApi(item.noteId);
+                    }
+                  )
+                }
+              >
+                <Text style={styles.noteText}>{item.content}</Text>
+              </EntryCard>
             ))
           )}
-        </Section>
+        </SectionBlock>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {children}
-    </View>
-  );
-}
-
-function Card({
-  title,
-  children,
-  onEdit,
-  onDelete,
-}: {
-  title: string;
-  children: React.ReactNode;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{title}</Text>
-
-        <View style={styles.cardActions}>
-          <TouchableOpacity
-            style={styles.editBtn}
-            onPress={onEdit}
-            activeOpacity={0.85}>
-            <Text style={styles.editBtnText}>Редактировать</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.deleteBtn}
-            onPress={onDelete}
-            activeOpacity={0.85}>
-            <Text style={styles.deleteBtnText}>Удалить</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {children}
-    </View>
-  );
-}
-
-function EmptyText({ text }: { text: string }) {
-  return <Text style={styles.emptyText}>{text}</Text>;
-}
-
-function formatDate(date: string) {
-  if (!date) return '-';
-
-  try {
-    return new Date(date).toLocaleString('ru-RU');
-  } catch {
-    return date;
-  }
-}
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#F5F7FB',
   },
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#F5F7FB',
   },
   contentContainer: {
     padding: 16,
@@ -455,50 +679,143 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
+
+  heroCard: {
+    backgroundColor: '#2F6690',
+    borderRadius: 28,
+    padding: 20,
     marginBottom: 16,
   },
-  title: {
+  heroTitle: {
+    color: '#FFFFFF',
     fontSize: 28,
     fontWeight: '700',
-    color: '#233142',
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  subtitle: {
+  heroSubtitle: {
+    color: '#D8E7F3',
     fontSize: 14,
-    color: '#667085',
     lineHeight: 20,
   },
-  actionsRow: {
+  summaryRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 18,
+    alignItems: 'center',
+    marginTop: 18,
+    backgroundColor: '#4D7FA8',
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
   },
-  actionBtn: {
+  summaryItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  summaryValue: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  summaryLabel: {
+    color: '#DCEAF5',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  summaryDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#FFFFFF33',
+  },
+
+  filtersRow: {
+    paddingBottom: 6,
+    paddingRight: 8,
+    marginBottom: 8,
+  },
+  filterChip: {
+    height: 38,
+    borderRadius: 19,
     backgroundColor: '#EAF1F7',
-    borderRadius: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    marginRight: 10,
   },
-  actionBtnText: {
+  filterChipActive: {
+    backgroundColor: '#2F6690',
+  },
+  filterChipText: {
     color: '#2F6690',
     fontSize: 13,
     fontWeight: '700',
   },
-  section: {
-    marginTop: 10,
-    marginBottom: 8,
+  filterChipTextActive: {
+    color: '#FFFFFF',
+  },
+
+  sectionWrap: {
+    marginTop: 12,
+  },
+  sectionHeader: {
+    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#EAF1F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#233142',
-    marginBottom: 12,
   },
-  card: {
+  sectionRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  countBadge: {
+    minWidth: 32,
+    paddingHorizontal: 10,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#EAF1F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  countBadgeText: {
+    color: '#2F6690',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  emptyCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#EEF2F6',
+  },
+  emptyCardText: {
+    color: '#98A2B3',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+
+  entryCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     shadowColor: '#000',
@@ -507,50 +824,67 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
   },
-  cardHeader: {
-    marginBottom: 8,
+  entryTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
   },
-  cardTitle: {
+  entryTextBlock: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  entryTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#233142',
-    marginBottom: 10,
+    marginBottom: 4,
   },
-  cardActions: {
+  entrySubtitle: {
+    fontSize: 13,
+    color: '#667085',
+  },
+  entryActions: {
     flexDirection: 'row',
     gap: 8,
   },
-  meta: {
+  editButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#EAF1F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FCEBED',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  entryBody: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F2F5',
+  },
+
+  metaRow: {
+    marginBottom: 8,
+  },
+  metaLabel: {
+    fontSize: 12,
+    color: '#98A2B3',
+    marginBottom: 2,
+  },
+  metaValue: {
     fontSize: 14,
-    color: '#5B6776',
-    marginBottom: 4,
+    color: '#344054',
     lineHeight: 20,
   },
-  editBtn: {
-    backgroundColor: '#EAF1F7',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  editBtnText: {
-    color: '#2F6690',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  deleteBtn: {
-    backgroundColor: '#FCEBED',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  deleteBtnText: {
-    color: '#E63946',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  emptyText: {
+  noteText: {
     fontSize: 14,
-    color: '#98A2B3',
-    marginBottom: 10,
+    color: '#344054',
+    lineHeight: 21,
   },
 });

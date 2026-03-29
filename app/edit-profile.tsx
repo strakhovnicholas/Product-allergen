@@ -1,41 +1,180 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
+import {
+  getUserProfileApi,
+  updateUserProfileApi,
+} from '../src/api/profileApi';
+import {
+  validateEmail,
+  validateFullName,
+} from '../src/utils/validation';
+
+function parseOptionalNumber(
+  value: string,
+  fieldName: string,
+  min?: number,
+  max?: number
+): number | undefined {
+  const normalized = value.trim();
+
+  if (!normalized) return undefined;
+
+  const parsed = Number(normalized);
+
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Поле "${fieldName}" должно быть числом`);
+  }
+
+  if (min !== undefined && parsed < min) {
+    throw new Error(`Поле "${fieldName}" должно быть не меньше ${min}`);
+  }
+
+  if (max !== undefined && parsed > max) {
+    throw new Error(`Поле "${fieldName}" должно быть не больше ${max}`);
+  }
+
+  return parsed;
+}
+
 export default function EditProfileScreen() {
-  const [fullName, setFullName] = useState('Михаил Киреев');
-  const [email, setEmail] = useState('mikhail@example.com');
-  const [age, setAge] = useState('21');
-  const [weight, setWeight] = useState('72');
-  const [height, setHeight] = useState('178');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [age, setAge] = useState('');
+  const [weight, setWeight] = useState('');
+  const [height, setHeight] = useState('');
 
   const [smoking, setSmoking] = useState(false);
-  const [alcohol, setAlcohol] = useState(true);
-  const [sport, setSport] = useState(true);
-  const [heredity, setHeredity] = useState(true);
+  const [alcohol, setAlcohol] = useState(false);
+  const [sport, setSport] = useState(false);
+  const [heredity, setHeredity] = useState(false);
 
-  const handleSave = () => {
-    router.back();
+  const loadProfile = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const profile = await getUserProfileApi();
+
+      setFullName(profile?.fullName ?? '');
+      setEmail(profile?.email ?? '');
+      setAge(
+        typeof profile?.age === 'number' ? String(profile.age) : ''
+      );
+      setWeight(
+        typeof profile?.weight === 'number' ? String(profile.weight) : ''
+      );
+      setHeight(
+        typeof profile?.height === 'number' ? String(profile.height) : ''
+      );
+      setSmoking(Boolean(profile?.smoking));
+      setAlcohol(Boolean(profile?.alcohol));
+      setSport(Boolean(profile?.sport));
+      setHeredity(Boolean(profile?.heredity));
+    } catch (error) {
+      Alert.alert(
+        'Ошибка',
+        error instanceof Error ? error.message : 'Не удалось загрузить профиль'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadProfile();
+    }, [loadProfile])
+  );
+
+  const handleSave = async () => {
+    const normalizedFullName = fullName.trim();
+    const normalizedEmail = email.trim();
+
+    const fullNameError = validateFullName(normalizedFullName);
+    if (fullNameError) {
+      Alert.alert('Ошибка', fullNameError);
+      return;
+    }
+
+    if (normalizedEmail) {
+      const emailError = validateEmail(normalizedEmail);
+      if (emailError) {
+        Alert.alert('Ошибка', emailError);
+        return;
+      }
+    }
+
+    try {
+      const parsedAge = parseOptionalNumber(age, 'Возраст', 0, 120);
+      const parsedWeight = parseOptionalNumber(weight, 'Вес', 1, 500);
+      const parsedHeight = parseOptionalNumber(height, 'Рост', 30, 300);
+
+      setSaving(true);
+
+      await updateUserProfileApi({
+        fullName: normalizedFullName,
+        age: parsedAge,
+        weight: parsedWeight,
+        height: parsedHeight,
+        smoking,
+        alcohol,
+        sport,
+        heredity,
+      });
+
+      Alert.alert('Успешно', 'Профиль обновлён');
+      router.back();
+    } catch (error) {
+      Alert.alert(
+        'Ошибка',
+        error instanceof Error ? error.message : 'Не удалось сохранить профиль'
+      );
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" color="#2F6690" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.topBar}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+            activeOpacity={0.8}
+            disabled={saving}
+          >
             <Ionicons name="arrow-back" size={24} color="#233142" />
           </TouchableOpacity>
         </View>
@@ -52,17 +191,24 @@ export default function EditProfileScreen() {
           onChangeText={setFullName}
           placeholder="Введите ФИО"
           placeholderTextColor="#98A2B3"
+          editable={!saving}
         />
 
         <Text style={styles.label}>Email</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, styles.disabledInput]}
           value={email}
           onChangeText={setEmail}
           placeholder="Введите email"
           placeholderTextColor="#98A2B3"
           autoCapitalize="none"
+          keyboardType="email-address"
+          editable={false}
         />
+
+        <Text style={styles.helperText}>
+          Email отображается из профиля. Сохранение email лучше делать только если backend это поддерживает отдельным endpoint.
+        </Text>
 
         <Text style={styles.label}>Возраст</Text>
         <TextInput
@@ -72,6 +218,7 @@ export default function EditProfileScreen() {
           placeholder="Введите возраст"
           placeholderTextColor="#98A2B3"
           keyboardType="numeric"
+          editable={!saving}
         />
 
         <Text style={styles.label}>Вес (кг)</Text>
@@ -82,6 +229,7 @@ export default function EditProfileScreen() {
           placeholder="Введите вес"
           placeholderTextColor="#98A2B3"
           keyboardType="numeric"
+          editable={!saving}
         />
 
         <Text style={styles.label}>Рост (см)</Text>
@@ -92,32 +240,42 @@ export default function EditProfileScreen() {
           placeholder="Введите рост"
           placeholderTextColor="#98A2B3"
           keyboardType="numeric"
+          editable={!saving}
         />
 
         <Text style={styles.sectionTitle}>Образ жизни</Text>
 
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Курение</Text>
-          <Switch value={smoking} onValueChange={setSmoking} />
+          <Switch value={smoking} onValueChange={setSmoking} disabled={saving} />
         </View>
 
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Алкоголь</Text>
-          <Switch value={alcohol} onValueChange={setAlcohol} />
+          <Switch value={alcohol} onValueChange={setAlcohol} disabled={saving} />
         </View>
 
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Спорт</Text>
-          <Switch value={sport} onValueChange={setSport} />
+          <Switch value={sport} onValueChange={setSport} disabled={saving} />
         </View>
 
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Наследственность</Text>
-          <Switch value={heredity} onValueChange={setHeredity} />
+          <Switch value={heredity} onValueChange={setHeredity} disabled={saving} />
         </View>
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.85}>
-          <Text style={styles.saveButtonText}>Сохранить изменения</Text>
+        <TouchableOpacity
+          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+          onPress={handleSave}
+          activeOpacity={0.85}
+          disabled={saving}
+        >
+          {saving ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.saveButtonText}>Сохранить изменения</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -136,6 +294,11 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 20,
     paddingBottom: 40,
+  },
+  loaderWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   topBar: {
     flexDirection: 'row',
@@ -182,6 +345,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#101828',
   },
+  disabledInput: {
+    backgroundColor: '#F8FAFC',
+    color: '#667085',
+  },
+  helperText: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#667085',
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
@@ -213,6 +386,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 28,
+  },
+  saveButtonDisabled: {
+    opacity: 0.7,
   },
   saveButtonText: {
     color: '#FFFFFF',

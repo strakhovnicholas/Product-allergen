@@ -1,109 +1,64 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-import { loginApi, logoutApi, registerApi } from '../api/authApi';
-
-type RegisterPayload = {
-  email: string;
-  password: string;
-  fullName?: string;
-  country?: string;
-  timezone?: string;
-};
-
 type AuthContextType = {
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
+  login: (login: string, password: string) => Promise<void>;
+  register: (login: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    void checkAuth();
+    const checkAuth = async () => {
+      const token = await AsyncStorage.getItem('mock_token');
+      setIsAuthenticated(!!token);
+      setIsLoading(false);
+    };
+
+    checkAuth();
   }, []);
 
-  const checkAuth = async () => {
-    try {
-      const token = await AsyncStorage.getItem('auth_token');
-      setIsAuthenticated(!!token);
-    } catch (error) {
-      console.log('Ошибка проверки авторизации:', error);
-    } finally {
-      setIsLoading(false);
+  const login = async (login: string, password: string) => {
+    if (!login || !password) {
+      throw new Error('Введите логин и пароль');
     }
+
+    // 🔥 Мок — просто сохраняем токен
+    await AsyncStorage.setItem('mock_token', '123');
+
+    setIsAuthenticated(true);
   };
 
-  const login = async (email: string, password: string) => {
-    try {
-      const data = await loginApi({ email, password });
-
-      await AsyncStorage.setItem('auth_token', data.accessToken);
-      await AsyncStorage.setItem('refresh_token', data.refreshToken);
-
-      setIsAuthenticated(true);
-    } catch (error) {
-      console.log('Ошибка входа:', error);
-      throw error;
+  const register = async (login: string, password: string) => {
+    if (!login || !password) {
+      throw new Error('Заполните все поля');
     }
-  };
 
-  const register = async (payload: RegisterPayload) => {
-    try {
-      const data = await registerApi(payload);
+    // 🔥 Мок регистрация
+    await AsyncStorage.setItem('mock_token', '123');
 
-      await AsyncStorage.setItem('auth_token', data.accessToken);
-      await AsyncStorage.setItem('refresh_token', data.refreshToken);
-
-      setIsAuthenticated(true);
-    } catch (error) {
-      console.log('Ошибка регистрации:', error);
-      throw error;
-    }
+    setIsAuthenticated(true);
   };
 
   const logout = async () => {
-    const refreshToken = await AsyncStorage.getItem('refresh_token');
-
-    // Сначала мгновенно выходим локально
-    await AsyncStorage.removeItem('auth_token');
-    await AsyncStorage.removeItem('refresh_token');
+    await AsyncStorage.removeItem('mock_token');
     setIsAuthenticated(false);
-
-    // Потом пробуем уведомить backend, но UI не блокируем
-    if (refreshToken) {
-      logoutApi(refreshToken).catch((error) => {
-        console.log('Ошибка logout API:', error);
-      });
-    }
   };
 
   return (
     <AuthContext.Provider
-      value={{
-        isAuthenticated,
-        isLoading,
-        login,
-        register,
-        logout,
-      }}>
+      value={{ isAuthenticated, isLoading, login, register, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
-}
+};
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error('useAuth должен использоваться внутри AuthProvider');
-  }
-
-  return context;
-}
+export const useAuth = () => useContext(AuthContext);

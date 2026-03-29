@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   SafeAreaView,
   ScrollView,
@@ -13,7 +14,42 @@ import {
   View,
 } from 'react-native';
 
+import { updateUserProfileApi } from '../src/api/profileApi';
+import { useAuth } from '../src/context/AuthContext';
+import { validateFullName } from '../src/utils/validation';
+
+function parseRequiredNumber(
+  value: string,
+  fieldName: string,
+  min?: number,
+  max?: number
+): number {
+  const normalized = value.trim();
+
+  if (!normalized) {
+    throw new Error(`Заполните поле "${fieldName}"`);
+  }
+
+  const parsed = Number(normalized);
+
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Поле "${fieldName}" должно быть числом`);
+  }
+
+  if (min !== undefined && parsed < min) {
+    throw new Error(`Поле "${fieldName}" должно быть не меньше ${min}`);
+  }
+
+  if (max !== undefined && parsed > max) {
+    throw new Error(`Поле "${fieldName}" должно быть не больше ${max}`);
+  }
+
+  return parsed;
+}
+
 export default function ProfileSetup() {
+  const { logout } = useAuth();
+
   const [fullName, setFullName] = useState('');
   const [age, setAge] = useState('');
   const [weight, setWeight] = useState('');
@@ -24,33 +60,70 @@ export default function ProfileSetup() {
   const [sport, setSport] = useState(false);
   const [heredity, setHeredity] = useState(false);
 
-  const handleSave = () => {
-    if (!fullName || !age || !weight || !height) {
-      Alert.alert('Ошибка', 'Заполните все основные поля');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLogoutSubmitting, setIsLogoutSubmitting] = useState(false);
+
+  const handleSave = async () => {
+    const normalizedFullName = fullName.trim();
+
+    const fullNameError = validateFullName(normalizedFullName);
+    if (fullNameError) {
+      Alert.alert('Ошибка', fullNameError);
       return;
     }
 
-    router.replace('/(tabs)' as any);
+    try {
+      const parsedAge = parseRequiredNumber(age, 'Возраст', 0, 120);
+      const parsedWeight = parseRequiredNumber(weight, 'Вес', 1, 500);
+      const parsedHeight = parseRequiredNumber(height, 'Рост', 30, 300);
+
+      setIsSubmitting(true);
+
+      await updateUserProfileApi({
+        fullName: normalizedFullName,
+        age: parsedAge,
+        weight: parsedWeight,
+        height: parsedHeight,
+        smoking,
+        alcohol,
+        sport,
+        heredity,
+      });
+
+      Alert.alert('Успешно', 'Профиль сохранён');
+      router.replace('/(tabs)' as any);
+    } catch (error) {
+      Alert.alert(
+        'Ошибка',
+        error instanceof Error ? error.message : 'Не удалось сохранить профиль'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Выход',
-      'Вы уверены, что хотите выйти из аккаунта?',
-      [
-        {
-          text: 'Отмена',
-          style: 'cancel',
+    Alert.alert('Выход', 'Вы уверены, что хотите выйти из аккаунта?', [
+      {
+        text: 'Отмена',
+        style: 'cancel',
+      },
+      {
+        text: 'Выйти',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setIsLogoutSubmitting(true);
+            await logout();
+            router.replace('/login' as any);
+          } catch (error) {
+            Alert.alert('Ошибка', 'Не удалось выйти из аккаунта');
+          } finally {
+            setIsLogoutSubmitting(false);
+          }
         },
-        {
-          text: 'Выйти',
-          style: 'destructive',
-          onPress: () => {
-            router.replace('/auth' as any);
-          },
-        },
-      ]
-    );
+      },
+    ]);
   };
 
   return (
@@ -58,12 +131,16 @@ export default function ProfileSetup() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.topBar}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
-            activeOpacity={0.8}>
+            activeOpacity={0.8}
+            disabled={isSubmitting || isLogoutSubmitting}
+          >
             <Ionicons name="arrow-back" size={24} color="#233142" />
           </TouchableOpacity>
         </View>
@@ -80,6 +157,7 @@ export default function ProfileSetup() {
           placeholderTextColor="#98A2B3"
           value={fullName}
           onChangeText={setFullName}
+          editable={!isSubmitting && !isLogoutSubmitting}
         />
 
         <Text style={styles.label}>Возраст</Text>
@@ -90,6 +168,7 @@ export default function ProfileSetup() {
           keyboardType="numeric"
           value={age}
           onChangeText={setAge}
+          editable={!isSubmitting && !isLogoutSubmitting}
         />
 
         <Text style={styles.label}>Вес (кг)</Text>
@@ -100,6 +179,7 @@ export default function ProfileSetup() {
           keyboardType="numeric"
           value={weight}
           onChangeText={setWeight}
+          editable={!isSubmitting && !isLogoutSubmitting}
         />
 
         <Text style={styles.label}>Рост (см)</Text>
@@ -110,36 +190,74 @@ export default function ProfileSetup() {
           keyboardType="numeric"
           value={height}
           onChangeText={setHeight}
+          editable={!isSubmitting && !isLogoutSubmitting}
         />
 
         <Text style={styles.section}>Образ жизни</Text>
 
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Курение</Text>
-          <Switch value={smoking} onValueChange={setSmoking} />
+          <Switch
+            value={smoking}
+            onValueChange={setSmoking}
+            disabled={isSubmitting || isLogoutSubmitting}
+          />
         </View>
 
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Алкоголь</Text>
-          <Switch value={alcohol} onValueChange={setAlcohol} />
+          <Switch
+            value={alcohol}
+            onValueChange={setAlcohol}
+            disabled={isSubmitting || isLogoutSubmitting}
+          />
         </View>
 
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Спорт</Text>
-          <Switch value={sport} onValueChange={setSport} />
+          <Switch
+            value={sport}
+            onValueChange={setSport}
+            disabled={isSubmitting || isLogoutSubmitting}
+          />
         </View>
 
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Наследственная аллергия</Text>
-          <Switch value={heredity} onValueChange={setHeredity} />
+          <Switch
+            value={heredity}
+            onValueChange={setHeredity}
+            disabled={isSubmitting || isLogoutSubmitting}
+          />
         </View>
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.85}>
-          <Text style={styles.saveText}>Сохранить</Text>
+        <TouchableOpacity
+          style={[styles.saveButton, isSubmitting && styles.buttonDisabled]}
+          onPress={handleSave}
+          activeOpacity={0.85}
+          disabled={isSubmitting || isLogoutSubmitting}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.saveText}>Сохранить</Text>
+          )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.85}>
-          <Text style={styles.logoutText}>Выйти из аккаунта</Text>
+        <TouchableOpacity
+          style={[
+            styles.logoutButton,
+            isLogoutSubmitting && styles.buttonDisabled,
+          ]}
+          onPress={handleLogout}
+          activeOpacity={0.85}
+          disabled={isSubmitting || isLogoutSubmitting}
+        >
+          {isLogoutSubmitting ? (
+            <ActivityIndicator color="#E63946" />
+          ) : (
+            <Text style={styles.logoutText}>Выйти из аккаунта</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -252,5 +370,8 @@ const styles = StyleSheet.create({
     color: '#E63946',
     fontSize: 16,
     fontWeight: '700',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
 });

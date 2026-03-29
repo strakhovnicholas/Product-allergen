@@ -14,6 +14,7 @@ export function validatePassword(password: string): string | null {
 
   if (!value) return 'Введите пароль';
   if (value.length < 6) return 'Пароль должен быть не короче 6 символов';
+  if (value.length > 128) return 'Пароль слишком длинный';
 
   return null;
 }
@@ -23,6 +24,7 @@ export function validateFullName(fullName: string): string | null {
 
   if (!value) return 'Введите ФИО';
   if (value.length < 3) return 'ФИО слишком короткое';
+  if (value.length > 100) return 'ФИО слишком длинное';
 
   return null;
 }

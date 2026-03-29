@@ -1,6 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -9,96 +13,183 @@ import {
   View,
 } from 'react-native';
 
+import { getUserProfileApi, UserProfile } from '../../src/api/profileApi';
 import { useAuth } from '../../src/context/AuthContext';
 
-const profileInfo = [
-  {
-    id: 1,
-    label: 'ФИО',
-    value: 'Киреев Михаил Валериевич',
-    icon: 'person-outline',
-  },
-  {
-    id: 2,
-    label: 'Возраст',
-    value: '23 год',
-    icon: 'calendar-outline',
-  },
-  {
-    id: 3,
-    label: 'Вес',
-    value: '82 кг',
-    icon: 'barbell-outline',
-  },
-  {
-    id: 4,
-    label: 'Рост',
-    value: '180 см',
-    icon: 'resize-outline',
-  },
-];
+function formatBoolean(value?: boolean) {
+  if (value === true) return 'Да';
+  if (value === false) return 'Нет';
+  return 'Не указано';
+}
 
-const lifeStyle = [
-  {
-    id: 1,
-    title: 'Курение',
-    value: 'Нет',
-    color: '#2DCB70',
-    bg: '#EAF8F0',
-  },
-  {
-    id: 2,
-    title: 'Алкоголь',
-    value: 'Редко',
-    color: '#D4A017',
-    bg: '#FCF8E8',
-  },
-  {
-    id: 3,
-    title: 'Спорт',
-    value: 'Да',
-    color: '#2F6690',
-    bg: '#EAF1F7',
-  },
-  {
-    id: 4,
-    title: 'Наследственность',
-    value: 'Есть',
-    color: '#E63946',
-    bg: '#FCEBED',
-  },
-];
+function formatAlcohol(value?: string | boolean) {
+  if (typeof value === 'boolean') {
+    return value ? 'Да' : 'Нет';
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return value;
+  }
+
+  return 'Не указано';
+}
 
 export default function ProfileScreen() {
   const { logout } = useAuth();
 
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [logoutSubmitting, setLogoutSubmitting] = useState(false);
+
+  const loadProfile = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+
+      const data = await getUserProfileApi();
+      setProfile(data ?? null);
+    } catch (error) {
+      Alert.alert(
+        'Ошибка',
+        error instanceof Error ? error.message : 'Не удалось загрузить профиль'
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadProfile();
+    }, [loadProfile])
+  );
+
+  const profileInfo = useMemo(() => {
+    return [
+      {
+        id: 1,
+        label: 'ФИО',
+        value: profile?.fullName?.trim() || 'Не указано',
+        icon: 'person-outline',
+      },
+      {
+        id: 2,
+        label: 'Возраст',
+        value:
+          typeof profile?.age === 'number' ? `${profile.age} год` : 'Не указано',
+        icon: 'calendar-outline',
+      },
+      {
+        id: 3,
+        label: 'Вес',
+        value:
+          typeof profile?.weight === 'number'
+            ? `${profile.weight} кг`
+            : 'Не указано',
+        icon: 'barbell-outline',
+      },
+      {
+        id: 4,
+        label: 'Рост',
+        value:
+          typeof profile?.height === 'number'
+            ? `${profile.height} см`
+            : 'Не указано',
+        icon: 'resize-outline',
+      },
+    ];
+  }, [profile]);
+
+  const lifeStyle = useMemo(() => {
+    return [
+      {
+        id: 1,
+        title: 'Курение',
+        value: formatBoolean(profile?.smoking),
+        color: '#2DCB70',
+        bg: '#EAF8F0',
+      },
+      {
+        id: 2,
+        title: 'Алкоголь',
+        value: formatAlcohol(profile?.alcohol),
+        color: '#D4A017',
+        bg: '#FCF8E8',
+      },
+      {
+        id: 3,
+        title: 'Спорт',
+        value: formatBoolean(profile?.sport),
+        color: '#2F6690',
+        bg: '#EAF1F7',
+      },
+      {
+        id: 4,
+        title: 'Наследственность',
+        value: formatBoolean(profile?.heredity),
+        color: '#E63946',
+        bg: '#FCEBED',
+      },
+    ];
+  }, [profile]);
+
   const handleLogout = async () => {
     try {
+      setLogoutSubmitting(true);
       await logout();
-      router.replace('/auth' as any);
+      router.replace('/login' as any);
     } catch (error) {
       console.log('Ошибка выхода:', error);
+      Alert.alert('Ошибка', 'Не удалось выйти из аккаунта');
+    } finally {
+      setLogoutSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" color="#2F6690" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void loadProfile(true);
+            }}
+          />
+        }
+      >
         <View style={styles.topSection}>
           <View style={styles.avatar}>
             <Ionicons name="person" size={42} color="#FFFFFF" />
           </View>
 
-          <Text style={styles.userName}>Киреев Михаил Валериевич</Text>
-          <Text style={styles.userEmail}>mikhail@example.com</Text>
+          <Text style={styles.userName}>
+            {profile?.fullName?.trim() || 'Пользователь'}
+          </Text>
+          <Text style={styles.userEmail}>
+            {profile?.email?.trim() || 'Email не указан'}
+          </Text>
 
           <TouchableOpacity
             style={styles.editButton}
             activeOpacity={0.85}
-            onPress={() => router.push('/edit-profile' as any)}>
+            onPress={() => router.push('/edit-profile' as any)}
+          >
             <Ionicons name="create-outline" size={18} color="#2F6690" />
             <Text style={styles.editButtonText}>Редактировать профиль</Text>
           </TouchableOpacity>
@@ -130,20 +221,36 @@ export default function ProfileScreen() {
 
           <View style={styles.tagsGrid}>
             {lifeStyle.map((item) => (
-              <View key={item.id} style={[styles.tagCard, { backgroundColor: item.bg }]}>
+              <View
+                key={item.id}
+                style={[styles.tagCard, { backgroundColor: item.bg }]}
+              >
                 <Text style={styles.tagTitle}>{item.title}</Text>
-                <Text style={[styles.tagValue, { color: item.color }]}>{item.value}</Text>
+                <Text style={[styles.tagValue, { color: item.color }]}>
+                  {item.value}
+                </Text>
               </View>
             ))}
           </View>
         </View>
 
         <TouchableOpacity
-          style={styles.logoutButton}
+          style={[
+            styles.logoutButton,
+            logoutSubmitting && styles.logoutButtonDisabled,
+          ]}
           onPress={handleLogout}
-          activeOpacity={0.85}>
-          <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
-          <Text style={styles.logoutText}>Выйти из аккаунта</Text>
+          activeOpacity={0.85}
+          disabled={logoutSubmitting}
+        >
+          {logoutSubmitting ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.logoutText}>Выйти из аккаунта</Text>
+            </>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -162,6 +269,11 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 16,
     paddingBottom: 120,
+  },
+  loaderWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   topSection: {
     backgroundColor: '#2F6690',
@@ -285,6 +397,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 10,
+  },
+  logoutButtonDisabled: {
+    opacity: 0.7,
   },
   logoutText: {
     color: '#FFFFFF',

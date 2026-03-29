@@ -1,16 +1,24 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   SafeAreaView,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  View,
 } from 'react-native';
 
 import { createSymptomApi, updateSymptomApi } from '../src/api/diaryApi';
+import { formStyles as styles } from '../src/styles/formStyles';
+
+function isValidDateString(value: string) {
+  if (!value.trim()) return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime());
+}
 
 export default function AddSymptomScreen() {
   const params = useLocalSearchParams<{
@@ -22,41 +30,64 @@ export default function AddSymptomScreen() {
     possibleCause?: string;
   }>();
 
-  const isEdit = useMemo(() => !!params.symptomsId, [params.symptomsId]);
+  const isEdit = useMemo(() => Boolean(params.symptomsId), [params.symptomsId]);
 
   const [symptomName, setSymptomName] = useState(params.symptomName ?? '');
   const [severity, setSeverity] = useState(params.severity ?? '');
   const [startTime, setStartTime] = useState(params.startTime ?? '');
   const [endTime, setEndTime] = useState(params.endTime ?? '');
   const [possibleCause, setPossibleCause] = useState(params.possibleCause ?? '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSave = async () => {
-    if (!symptomName.trim() || !severity.trim() || !startTime.trim()) {
+    const normalizedSymptomName = symptomName.trim();
+    const normalizedStartTime = startTime.trim();
+    const normalizedEndTime = endTime.trim();
+    const normalizedPossibleCause = possibleCause.trim();
+
+    if (!normalizedSymptomName || !severity.trim() || !normalizedStartTime) {
       Alert.alert('Ошибка', 'Заполните название, силу и время начала');
       return;
     }
 
-    try {
-      if (isEdit && params.symptomsId) {
-        await updateSymptomApi({
-          symptomsId: params.symptomsId,
-          symptomName: symptomName.trim(),
-          severity: Number(severity),
-          startTime: startTime.trim(),
-          endTime: endTime.trim() || undefined,
-          possibleCause: possibleCause.trim() || undefined,
-        });
+    const severityNumber = Number(severity);
 
+    if (Number.isNaN(severityNumber)) {
+      Alert.alert('Ошибка', 'Сила симптома должна быть числом');
+      return;
+    }
+
+    if (severityNumber < 1 || severityNumber > 10) {
+      Alert.alert('Ошибка', 'Сила симптома должна быть от 1 до 10');
+      return;
+    }
+
+    if (!isValidDateString(normalizedStartTime)) {
+      Alert.alert('Ошибка', 'Введите корректное время начала');
+      return;
+    }
+
+    if (normalizedEndTime && !isValidDateString(normalizedEndTime)) {
+      Alert.alert('Ошибка', 'Введите корректное время окончания');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const payload = {
+        symptomName: normalizedSymptomName,
+        severity: severityNumber,
+        startTime: normalizedStartTime,
+        endTime: normalizedEndTime || undefined,
+        possibleCause: normalizedPossibleCause || undefined,
+      };
+
+      if (isEdit && params.symptomsId) {
+        await updateSymptomApi(params.symptomsId, payload);
         Alert.alert('Успешно', 'Симптом обновлён');
       } else {
-        await createSymptomApi({
-          symptomName: symptomName.trim(),
-          severity: Number(severity),
-          startTime: startTime.trim(),
-          endTime: endTime.trim() || undefined,
-          possibleCause: possibleCause.trim() || undefined,
-        });
-
+        await createSymptomApi(payload);
         Alert.alert('Успешно', 'Симптом сохранён');
       }
 
@@ -66,88 +97,81 @@ export default function AddSymptomScreen() {
         'Ошибка',
         error instanceof Error ? error.message : 'Не удалось сохранить симптом'
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>
-          {isEdit ? 'Редактировать симптом' : 'Добавить симптом'}
+          {isEdit ? 'Редактировать симптом' : 'Симптом'}
         </Text>
+        <Text style={styles.subtitle}>Заполните данные о симптоме</Text>
 
-        <Text style={styles.label}>Название симптома</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Насморк"
-          value={symptomName}
-          onChangeText={setSymptomName}
-        />
+        <View style={styles.card}>
+          <Text style={styles.label}>Название симптома</Text>
+          <TextInput
+            style={styles.input}
+            value={symptomName}
+            onChangeText={setSymptomName}
+            editable={!isSubmitting}
+          />
 
-        <Text style={styles.label}>Сила (1-10)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="8"
-          keyboardType="numeric"
-          value={severity}
-          onChangeText={setSeverity}
-        />
+          <Text style={styles.label}>Сила (1-10)</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="numeric"
+            value={severity}
+            onChangeText={setSeverity}
+            editable={!isSubmitting}
+          />
 
-        <Text style={styles.label}>Время начала</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="2026-03-29T09:30:00"
-          value={startTime}
-          onChangeText={setStartTime}
-        />
+          <Text style={styles.label}>Время начала</Text>
+          <TextInput
+            style={styles.input}
+            value={startTime}
+            onChangeText={setStartTime}
+            editable={!isSubmitting}
+          />
 
-        <Text style={styles.label}>Время окончания</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="2026-03-29T14:00:00"
-          value={endTime}
-          onChangeText={setEndTime}
-        />
+          <Text style={styles.label}>Время окончания</Text>
+          <TextInput
+            style={styles.input}
+            value={endTime}
+            onChangeText={setEndTime}
+            editable={!isSubmitting}
+          />
 
-        <Text style={styles.label}>Предполагаемая причина</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Пыльца"
-          value={possibleCause}
-          onChangeText={setPossibleCause}
-        />
+          <Text style={styles.label}>Предполагаемая причина</Text>
+          <TextInput
+            style={styles.input}
+            value={possibleCause}
+            onChangeText={setPossibleCause}
+            editable={!isSubmitting}
+          />
 
-        <TouchableOpacity style={styles.button} onPress={handleSave}>
-          <Text style={styles.buttonText}>
-            {isEdit ? 'Обновить' : 'Сохранить'}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, isSubmitting && { opacity: 0.7 }]}
+            onPress={handleSave}
+            disabled={isSubmitting}
+            activeOpacity={0.85}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>
+                {isEdit ? 'Обновить' : 'Сохранить'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F5F7FB' },
-  content: { padding: 20, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: '700', color: '#233142', marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: '#344054', marginBottom: 8, marginTop: 12 },
-  input: {
-    minHeight: 54,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  button: {
-    marginTop: 24,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: '#2F6690',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-});

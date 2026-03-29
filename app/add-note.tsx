@@ -1,16 +1,24 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   SafeAreaView,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  View,
 } from 'react-native';
 
 import { createNoteApi, updateNoteApi } from '../src/api/diaryApi';
+import { formStyles as styles } from '../src/styles/formStyles';
+
+function isValidDateString(value: string) {
+  if (!value.trim()) return false;
+  const parsedDate = new Date(value);
+  return !Number.isNaN(parsedDate.getTime());
+}
 
 export default function AddNoteScreen() {
   const params = useLocalSearchParams<{
@@ -19,21 +27,32 @@ export default function AddNoteScreen() {
     date?: string;
   }>();
 
-  const isEdit = useMemo(() => !!params.noteId, [params.noteId]);
+  const isEdit = useMemo(() => Boolean(params.noteId), [params.noteId]);
 
   const [content, setContent] = useState(params.content ?? '');
   const [date, setDate] = useState(params.date ?? '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSave = async () => {
-    if (!content.trim() || !date.trim()) {
+    const normalizedContent = content.trim();
+    const normalizedDate = date.trim();
+
+    if (!normalizedContent || !normalizedDate) {
       Alert.alert('Ошибка', 'Заполните текст заметки и дату');
       return;
     }
 
+    if (!isValidDateString(normalizedDate)) {
+      Alert.alert('Ошибка', 'Введите корректную дату');
+      return;
+    }
+
     const payload = {
-      content: content.trim(),
-      date: date.trim(),
+      content: normalizedContent,
+      date: normalizedDate,
     };
+
+    setIsSubmitting(true);
 
     try {
       if (isEdit && params.noteId) {
@@ -50,65 +69,57 @@ export default function AddNoteScreen() {
         'Ошибка',
         error instanceof Error ? error.message : 'Не удалось сохранить заметку'
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>
-          {isEdit ? 'Редактировать заметку' : 'Добавить заметку'}
+          {isEdit ? 'Редактировать заметку' : 'Заметка'}
         </Text>
+        <Text style={styles.subtitle}>Добавьте наблюдение или важный комментарий</Text>
 
-        <Text style={styles.label}>Дата</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="2026-03-29T10:10:00"
-          value={date}
-          onChangeText={setDate}
-        />
+        <View style={styles.card}>
+          <Text style={styles.label}>Дата</Text>
+          <TextInput
+            style={styles.input}
+            value={date}
+            onChangeText={setDate}
+            editable={!isSubmitting}
+          />
 
-        <Text style={styles.label}>Текст заметки</Text>
-        <TextInput
-          style={[styles.input, styles.multiline]}
-          placeholder="После молочных продуктов симптомы усиливаются"
-          multiline
-          value={content}
-          onChangeText={setContent}
-        />
+          <Text style={styles.label}>Текст заметки</Text>
+          <TextInput
+            style={[styles.input, styles.multiline]}
+            multiline
+            value={content}
+            onChangeText={setContent}
+            editable={!isSubmitting}
+          />
 
-        <TouchableOpacity style={styles.button} onPress={handleSave}>
-          <Text style={styles.buttonText}>
-            {isEdit ? 'Обновить' : 'Сохранить'}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, isSubmitting && { opacity: 0.7 }]}
+            onPress={handleSave}
+            disabled={isSubmitting}
+            activeOpacity={0.85}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>
+                {isEdit ? 'Обновить' : 'Сохранить'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F5F7FB' },
-  content: { padding: 20, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: '700', color: '#233142', marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: '#344054', marginBottom: 8, marginTop: 12 },
-  input: {
-    minHeight: 54,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  multiline: { minHeight: 120, textAlignVertical: 'top' },
-  button: {
-    marginTop: 24,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: '#2F6690',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-});

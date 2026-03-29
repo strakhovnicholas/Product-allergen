@@ -1,6 +1,10 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -8,6 +12,20 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+import {
+  CommonFeeling,
+  Food,
+  getCommonFeelingsApi,
+  getFoodApi,
+  getMedicinesApi,
+  getNotesApi,
+  getSymptomsApi,
+  Medicine,
+  Note,
+  Symptom,
+} from '../../src/api/diaryApi';
+import { getUserProfileApi, UserProfile } from '../../src/api/profileApi';
 
 const quickActions = [
   {
@@ -38,55 +56,20 @@ const quickActions = [
     iconType: 'feather',
     route: '/(tabs)/reports',
   },
-];
+] as const;
 
-const dailySummary = [
-  { id: 1, title: 'Симптомы', value: '3', color: '#E63946', bg: '#FCEBED' },
-  { id: 2, title: 'Лекарства', value: '2', color: '#2DCB70', bg: '#EAF8F0' },
-  { id: 3, title: 'Реакции', value: '1', color: '#D4A017', bg: '#FCF8E8' },
-  { id: 4, title: 'Заметки', value: '1', color: '#2F6690', bg: '#EAF1F7' },
-];
+type RecentEntry = {
+  id: string;
+  type: string;
+  title: string;
+  subtitle: string;
+  icon: string;
+  color: string;
+  route: string;
+  sortDate: string;
+};
 
-const recentEntries = [
-  {
-    id: 1,
-    type: 'Симптом',
-    title: 'Насморк',
-    subtitle: '09:30 · умеренная выраженность',
-    icon: 'warning-outline',
-    color: '#E63946',
-    route: '/(tabs)/diary',
-  },
-  {
-    id: 2,
-    type: 'Питание',
-    title: 'Йогурт',
-    subtitle: '08:30 · была реакция',
-    icon: 'restaurant-outline',
-    color: '#D4A017',
-    route: '/(tabs)/diary',
-  },
-  {
-    id: 3,
-    type: 'Лекарство',
-    title: 'Цетрин',
-    subtitle: '09:00 · 10 мг',
-    icon: 'medical-outline',
-    color: '#2DCB70',
-    route: '/(tabs)/diary',
-  },
-  {
-    id: 4,
-    type: 'Заметка',
-    title: 'После завтрака',
-    subtitle: 'Добавлен комментарий',
-    icon: 'document-text-outline',
-    color: '#2F6690',
-    route: '/(tabs)/diary',
-  },
-];
-
-function renderQuickActionIcon(item: (typeof quickActions)[0]) {
+function renderQuickActionIcon(item: (typeof quickActions)[number]) {
   if (item.iconType === 'material') {
     return (
       <MaterialCommunityIcons
@@ -100,17 +83,246 @@ function renderQuickActionIcon(item: (typeof quickActions)[0]) {
   return <Feather name={item.iconName as any} size={28} color="#2F6690" />;
 }
 
+function formatTime(date: string) {
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return date;
+  }
+
+  return parsedDate.toLocaleTimeString('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function isToday(dateString: string) {
+  const date = new Date(dateString);
+
+  if (Number.isNaN(date.getTime())) return false;
+
+  const now = new Date();
+
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  );
+}
+
+function getUserDisplayName(profile: UserProfile | null) {
+  const fullName = profile?.fullName?.trim();
+
+  if (!fullName) return 'Добро пожаловать';
+
+  const firstName = fullName.split(' ')[1] || fullName.split(' ')[0];
+  return `Здравствуйте, ${firstName}`;
+}
+
 export default function HomeScreen() {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [commonFeelings, setCommonFeelings] = useState<CommonFeeling[]>([]);
+  const [symptoms, setSymptoms] = useState<Symptom[]>([]);
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [foods, setFoods] = useState<Food[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
   const handleNavigate = (route: string) => {
     router.push(route as any);
   };
+
+  const loadHomeData = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      const [
+        profileData,
+        commonData,
+        symptomData,
+        medicineData,
+        foodData,
+        noteData,
+      ] = await Promise.all([
+        getUserProfileApi(),
+        getCommonFeelingsApi(),
+        getSymptomsApi(),
+        getMedicinesApi(),
+        getFoodApi(),
+        getNotesApi(),
+      ]);
+
+      setProfile(profileData ?? null);
+      setCommonFeelings(commonData ?? []);
+      setSymptoms(symptomData ?? []);
+      setMedicines(medicineData ?? []);
+      setFoods(foodData ?? []);
+      setNotes(noteData ?? []);
+    } catch (error) {
+      Alert.alert(
+        'Ошибка',
+        error instanceof Error
+          ? error.message
+          : 'Не удалось загрузить данные главной страницы'
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadHomeData();
+    }, [loadHomeData])
+  );
+
+  const dailySummary = useMemo(() => {
+    const todaySymptoms = symptoms.filter((item) => isToday(item.startTime));
+    const todayMedicines = medicines.filter((item) => isToday(item.intakeTime));
+    const todayFoodsWithReaction = foods.filter(
+      (item) => isToday(item.intakeTime) && item.reactionOccurred
+    );
+    const todayNotes = notes.filter((item) => isToday(item.date));
+
+    return [
+      {
+        id: 1,
+        title: 'Симптомы',
+        value: String(todaySymptoms.length),
+        color: '#E63946',
+        bg: '#FCEBED',
+      },
+      {
+        id: 2,
+        title: 'Лекарства',
+        value: String(todayMedicines.length),
+        color: '#2DCB70',
+        bg: '#EAF8F0',
+      },
+      {
+        id: 3,
+        title: 'Реакции',
+        value: String(todayFoodsWithReaction.length),
+        color: '#D4A017',
+        bg: '#FCF8E8',
+      },
+      {
+        id: 4,
+        title: 'Заметки',
+        value: String(todayNotes.length),
+        color: '#2F6690',
+        bg: '#EAF1F7',
+      },
+    ];
+  }, [symptoms, medicines, foods, notes]);
+
+  const recentEntries = useMemo<RecentEntry[]>(() => {
+    const recentSymptoms: RecentEntry[] = symptoms.map((item) => ({
+      id: `symptom-${item.symptomsId}`,
+      type: 'Симптом',
+      title: item.symptomName,
+      subtitle: `${formatTime(item.startTime)} · сила ${item.severity}/10`,
+      icon: 'warning-outline',
+      color: '#E63946',
+      route: '/(tabs)/diary',
+      sortDate: item.startTime,
+    }));
+
+    const recentFoods: RecentEntry[] = foods.map((item) => ({
+      id: `food-${item.foodIntakeId}`,
+      type: 'Питание',
+      title: item.foodName,
+      subtitle: `${formatTime(item.intakeTime)} · ${
+        item.reactionOccurred ? 'была реакция' : 'без реакции'
+      }`,
+      icon: 'restaurant-outline',
+      color: '#D4A017',
+      route: '/(tabs)/diary',
+      sortDate: item.intakeTime,
+    }));
+
+    const recentMedicines: RecentEntry[] = medicines.map((item) => ({
+      id: `medicine-${item.id}`,
+      type: 'Лекарство',
+      title: item.medicineName,
+      subtitle: `${formatTime(item.intakeTime)} · ${
+        item.dosage != null ? `${item.dosage} ${item.unit ?? ''}`.trim() : 'доза не указана'
+      }`,
+      icon: 'medical-outline',
+      color: '#2DCB70',
+      route: '/(tabs)/diary',
+      sortDate: item.intakeTime,
+    }));
+
+    const recentNotes: RecentEntry[] = notes.map((item) => ({
+      id: `note-${item.noteId}`,
+      type: 'Заметка',
+      title: item.content.length > 28 ? `${item.content.slice(0, 28)}...` : item.content,
+      subtitle: formatTime(item.date),
+      icon: 'document-text-outline',
+      color: '#2F6690',
+      route: '/(tabs)/diary',
+      sortDate: item.date,
+    }));
+
+    const recentFeelings: RecentEntry[] = commonFeelings.map((item) => ({
+      id: `feeling-${item.feelingId}`,
+      type: 'Самочувствие',
+      title: `Самочувствие ${item.wellbeingScore}/10`,
+      subtitle: `${formatTime(item.dateTime)} · настроение ${item.mood ?? '-'}`,
+      icon: 'pulse-outline',
+      color: '#7A5AF8',
+      route: '/(tabs)/diary',
+      sortDate: item.dateTime,
+    }));
+
+    return [
+      ...recentSymptoms,
+      ...recentFoods,
+      ...recentMedicines,
+      ...recentNotes,
+      ...recentFeelings,
+    ]
+      .sort((a, b) => {
+        const dateA = new Date(a.sortDate).getTime();
+        const dateB = new Date(b.sortDate).getTime();
+        return dateB - dateA;
+      })
+      .slice(0, 5);
+  }, [symptoms, foods, medicines, notes, commonFeelings]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" color="#2F6690" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void loadHomeData(true);
+            }}
+          />
+        }
+      >
         <View style={styles.topSection}>
           <View style={styles.headerRow}>
             <View style={styles.userRow}>
@@ -118,26 +330,22 @@ export default function HomeScreen() {
                 <Ionicons name="person" size={24} color="#FFFFFF" />
               </View>
 
-              <View>
-                <Text style={styles.welcomeTitle}>Добро пожаловать</Text>
-                <Text style={styles.welcomeSubtitle}>Желаем вам хорошего дня</Text>
-              </View>
-            </View>
-
-            <View style={styles.bellWrapper}>
-              <Ionicons name="notifications" size={22} color="#FFFFFF" />
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>3</Text>
+              <View style={styles.userTextWrap}>
+                <Text style={styles.welcomeTitle}>
+                  {getUserDisplayName(profile)}
+                </Text>
+                <Text style={styles.welcomeSubtitle}>
+                  Ваша сводка и последние записи за день
+                </Text>
               </View>
             </View>
           </View>
 
-          <View style={styles.weatherCard}>
-            <View style={styles.weatherLeft}>
-              <Text style={styles.city}>Рязань</Text>
-              <Text style={styles.temperature}>5°C</Text>
-              <Text style={styles.weatherText}>Солнечно</Text>
-            </View>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoCardTitle}>Сегодня</Text>
+            <Text style={styles.infoCardText}>
+              Добавляйте симптомы, лекарства, питание и заметки, чтобы отслеживать триггеры и изменения самочувствия.
+            </Text>
           </View>
         </View>
 
@@ -152,7 +360,8 @@ export default function HomeScreen() {
                 key={item.id}
                 style={styles.actionCard}
                 activeOpacity={0.85}
-                onPress={() => handleNavigate(item.route)}>
+                onPress={() => handleNavigate(item.route)}
+              >
                 <View style={styles.actionIcon}>{renderQuickActionIcon(item)}</View>
                 <Text style={styles.actionText}>{item.title}</Text>
               </TouchableOpacity>
@@ -173,8 +382,11 @@ export default function HomeScreen() {
             {dailySummary.map((item) => (
               <View
                 key={item.id}
-                style={[styles.summaryCard, { backgroundColor: item.bg }]}>
-                <Text style={[styles.summaryValue, { color: item.color }]}>{item.value}</Text>
+                style={[styles.summaryCard, { backgroundColor: item.bg }]}
+              >
+                <Text style={[styles.summaryValue, { color: item.color }]}>
+                  {item.value}
+                </Text>
                 <Text style={styles.summaryLabel}>{item.title}</Text>
               </View>
             ))}
@@ -191,25 +403,37 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.entriesList}>
-            {recentEntries.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.entryCard}
-                activeOpacity={0.85}
-                onPress={() => handleNavigate(item.route)}>
-                <View style={[styles.entryIconWrap, { backgroundColor: `${item.color}15` }]}>
-                  <Ionicons name={item.icon as any} size={20} color={item.color} />
-                </View>
+            {recentEntries.length === 0 ? (
+              <Text style={styles.emptyText}>
+                Пока нет записей. Добавьте первую запись в дневник.
+              </Text>
+            ) : (
+              recentEntries.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.entryCard}
+                  activeOpacity={0.85}
+                  onPress={() => handleNavigate(item.route)}
+                >
+                  <View
+                    style={[
+                      styles.entryIconWrap,
+                      { backgroundColor: `${item.color}15` },
+                    ]}
+                  >
+                    <Ionicons name={item.icon as any} size={20} color={item.color} />
+                  </View>
 
-                <View style={styles.entryContent}>
-                  <Text style={styles.entryType}>{item.type}</Text>
-                  <Text style={styles.entryTitle}>{item.title}</Text>
-                  <Text style={styles.entrySubtitle}>{item.subtitle}</Text>
-                </View>
+                  <View style={styles.entryContent}>
+                    <Text style={styles.entryType}>{item.type}</Text>
+                    <Text style={styles.entryTitle}>{item.title}</Text>
+                    <Text style={styles.entrySubtitle}>{item.subtitle}</Text>
+                  </View>
 
-                <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
-              </TouchableOpacity>
-            ))}
+                  <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         </View>
       </ScrollView>
@@ -229,6 +453,11 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 120,
   },
+  loaderWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   topSection: {
     backgroundColor: '#2F6690',
     paddingHorizontal: 20,
@@ -236,14 +465,14 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
   },
   headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
     marginBottom: 24,
   },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+  },
+  userTextWrap: {
     flex: 1,
   },
   avatar: {
@@ -267,54 +496,21 @@ const styles = StyleSheet.create({
     color: '#D8E7F3',
     fontSize: 13,
   },
-  bellWrapper: {
-    position: 'relative',
-    paddingTop: 4,
-    paddingRight: 4,
-    marginLeft: 12,
-  },
-  badge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#E63946',
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  weatherCard: {
+  infoCard: {
     backgroundColor: '#4D7FA8',
     borderRadius: 24,
     padding: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
   },
-  weatherLeft: {
-    flex: 1,
-  },
-  city: {
-    color: '#DCEAF5',
-    fontSize: 15,
-    marginBottom: 6,
-  },
-  temperature: {
+  infoCardTitle: {
     color: '#FFFFFF',
-    fontSize: 42,
+    fontSize: 22,
     fontWeight: '700',
-    lineHeight: 46,
+    marginBottom: 8,
   },
-  weatherText: {
+  infoCardText: {
     color: '#E8F2F9',
-    fontSize: 18,
-    marginTop: 6,
+    fontSize: 15,
+    lineHeight: 22,
   },
   cardSection: {
     backgroundColor: '#FFFFFF',
@@ -426,5 +622,10 @@ const styles = StyleSheet.create({
   entrySubtitle: {
     fontSize: 14,
     color: '#667085',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#98A2B3',
+    lineHeight: 20,
   },
 });

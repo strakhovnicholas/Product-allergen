@@ -25,7 +25,9 @@ export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLogin = async () => {
-    const emailError = validateEmail(email);
+    const normalizedEmail = email.trim();
+
+    const emailError = validateEmail(normalizedEmail);
     if (emailError) {
       Alert.alert('Ошибка', emailError);
       return;
@@ -40,8 +42,7 @@ export default function LoginScreen() {
     setIsSubmitting(true);
 
     try {
-      await login(email.trim(), password);
-      router.replace('/(tabs)' as any);
+      await login(normalizedEmail, password);
     } catch (error) {
       Alert.alert(
         'Ошибка входа',
@@ -52,11 +53,17 @@ export default function LoginScreen() {
     }
   };
 
+  const goToRegister = () => {
+    if (isSubmitting) return;
+    router.replace('/register' as any);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <View style={styles.topBlock}>
           <View style={styles.logoCircle}>
             <Ionicons name="leaf-outline" size={34} color="#FFFFFF" />
@@ -79,7 +86,10 @@ export default function LoginScreen() {
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
+            autoCorrect={false}
             keyboardType="email-address"
+            returnKeyType="next"
+            editable={!isSubmitting}
           />
 
           <Text style={styles.label}>Пароль</Text>
@@ -90,9 +100,19 @@ export default function LoginScreen() {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="done"
+            editable={!isSubmitting}
+            onSubmitEditing={handleLogin}
           />
 
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={isSubmitting}>
+          <TouchableOpacity
+            style={[styles.loginButton, isSubmitting && styles.disabledButton]}
+            onPress={handleLogin}
+            disabled={isSubmitting}
+            activeOpacity={0.85}
+          >
             {isSubmitting ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
@@ -101,8 +121,11 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.registerButton}
-            onPress={() => router.replace('/register' as any)}>
+            style={[styles.registerButton, isSubmitting && styles.disabledSecondaryButton]}
+            onPress={goToRegister}
+            disabled={isSubmitting}
+            activeOpacity={0.85}
+          >
             <Text style={styles.registerText}>Создать аккаунт</Text>
           </TouchableOpacity>
         </View>
@@ -112,8 +135,14 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#2F6690' },
-  container: { flex: 1, backgroundColor: '#F5F7FB' },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#2F6690',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F7FB',
+  },
   topBlock: {
     backgroundColor: '#2F6690',
     paddingHorizontal: 24,
@@ -132,7 +161,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FFFFFF33',
   },
-  title: { color: '#FFFFFF', fontSize: 28, fontWeight: '700', marginBottom: 10 },
+  title: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
   subtitle: {
     color: '#DCEAF5',
     fontSize: 15,
@@ -149,8 +183,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 28,
   },
-  formTitle: { fontSize: 24, fontWeight: '700', color: '#233142', marginBottom: 24 },
-  label: { fontSize: 14, fontWeight: '600', color: '#344054', marginBottom: 8 },
+  formTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#233142',
+    marginBottom: 24,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#344054',
+    marginBottom: 8,
+  },
   input: {
     height: 54,
     borderRadius: 16,
@@ -171,7 +215,11 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     marginTop: 6,
   },
-  loginButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  loginButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
   registerButton: {
     height: 54,
     borderRadius: 16,
@@ -179,5 +227,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  registerText: { color: '#2F6690', fontSize: 16, fontWeight: '700' },
+  registerText: {
+    color: '#2F6690',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  disabledButton: {
+    opacity: 0.7,
+  },
+  disabledSecondaryButton: {
+    opacity: 0.7,
+  },
 });
