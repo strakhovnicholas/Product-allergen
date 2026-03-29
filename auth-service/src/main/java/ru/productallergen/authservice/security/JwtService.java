@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
+import java.util.UUID;
 
 @Service
 public class JwtService {
@@ -27,9 +28,6 @@ public class JwtService {
     @Value("${jwt.claim.id}")
     private String idClaim;
 
-    @Value("${jwt.claim.role}")
-    private String roleClaim;
-
     @Value("${jwt.claim.type}")
     private String typeClaim;
 
@@ -43,11 +41,10 @@ public class JwtService {
         SECRET_KEY = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String generateAccessToken(String email, String role, String id) {
+    public String generateAccessToken(String email, UUID id) {
         return Jwts.builder()
                 .setSubject(email)
                 .claim(idClaim, id)
-                .claim(roleClaim, role)
                 .claim(typeClaim, accessTokenType)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + accessTokenValiditySeconds * 1000L))
@@ -67,10 +64,6 @@ public class JwtService {
 
     public String extractEmail(String token) {
         return getClaims(token).getSubject();
-    }
-
-    public String extractRole(String token) {
-        return getClaims(token).get(roleClaim, String.class);
     }
 
     public String extractId(String token) {
