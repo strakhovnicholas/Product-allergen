@@ -25,23 +25,12 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
         AuthResponse authResponse = authService.login(request);
-
-        ResponseCookie accessCookie = cookieFactory.createAccessToken(authResponse.accessToken());
-        ResponseCookie refreshCookie = cookieFactory.createRefreshToken(authResponse.refreshToken());
-
-        return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
-                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
-                .build();
+        return ResponseEntity.ok(authResponse);
     }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
         AuthResponse authResponse = authService.register(request);
-
-        ResponseCookie accessCookie = cookieFactory.createAccessToken(authResponse.accessToken());
-        ResponseCookie refreshCookie = cookieFactory.createRefreshToken(authResponse.refreshToken());
-
         return ResponseEntity.ok(authResponse);
     }
 
