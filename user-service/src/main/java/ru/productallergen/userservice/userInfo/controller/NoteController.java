@@ -33,7 +33,8 @@ public class NoteController {
     private final NoteService service;
     private final NoteMapper mapper;
 
-    @Operation(summary = "Создать заметку")
+    @Operation(summary = "Создать заметку",
+            description = "Добавляет новую заметку пользователя в систему")
     @PostMapping("/feelings/notes")
     public ResponseEntity<NoteWebDto> createNode(@Parameter(description = "Данные для создания заметки", required = true)
                                                  @RequestBody NoteWebDto request,
@@ -43,7 +44,8 @@ public class NoteController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @Operation(summary = "Получить все заметки")
+    @Operation(summary = "Получить все заметки",
+            description = "Возвращает полный список заметок текущего пользователя")
     @GetMapping("/feelings/notes")
     public ResponseEntity<List<NoteWebDto>> getAllNods(@CurrentUserId UUID userId) {
         List<NoteWebDto> response = service.getAllNods(userId)
@@ -54,9 +56,10 @@ public class NoteController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Получить заметки по дате")
+    @Operation(summary = "Получить заметки по дате",
+            description = "Возвращает список заметок пользователя за указанную дату")
     @GetMapping("/feelings/notes/date")
-    public ResponseEntity<List<NoteWebDto>> getNodeByDate(@Parameter(description = "Дата (YYYY-MM-DD)", required = true)
+    public ResponseEntity<List<NoteWebDto>> getNodeByDate(@Parameter(description = "Дата в формате ISO (YYYY-MM-DD) для фильтрации заметок", required = true)
                                                           @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                                                           @CurrentUserId UUID userId) {
         List<NoteWebDto> response = service.getNodeByDate(userId, date)
@@ -67,19 +70,22 @@ public class NoteController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Обновить заметку")
+    @Operation(summary = "Обновить заметку",
+            description = "Полное обновление заметки по ID. Поля, не указанные в запросе, не обновляются")
     @PutMapping("/feelings/notes/{noteId}")
-    public ResponseEntity<NoteWebDto> updateNode(@Parameter(description = "ID заметки", required = true)
+    public ResponseEntity<NoteWebDto> updateNode(@Parameter(description = "ID заметки для обновления", required = true)
                                                  @PathVariable UUID noteId,
+                                                 @Parameter(description = "Обновленные данные заметки", required = true)
                                                  @RequestBody NoteWebDto request,
                                                  @CurrentUserId UUID userId) {
         NoteWebDto response = mapper.toWebDto(service.updateNode(userId, noteId, mapper.toDto(request)));
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Удалить заметку")
+    @Operation(summary = "Удалить заметку",
+            description = "Безвозвратно удаляет заметку по ID")
     @DeleteMapping("/feelings/notes/{noteId}")
-    public ResponseEntity<Void> deleteNode(@Parameter(description = "ID заметки", required = true)
+    public ResponseEntity<Void> deleteNode(@Parameter(description = "ID заметки для удаления", required = true)
                                            @PathVariable UUID noteId,
                                            @CurrentUserId UUID userId) {
         service.deleteNode(userId, noteId);

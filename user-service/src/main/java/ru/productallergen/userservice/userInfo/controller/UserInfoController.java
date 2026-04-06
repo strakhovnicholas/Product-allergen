@@ -1,6 +1,7 @@
 package ru.productallergen.userservice.userInfo.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,30 +28,36 @@ public class UserInfoController {
     private final UserInfoService service;
     private final UserInfoMapper mapper;
 
-    @Operation(summary = "Создать информацию")
+    @Operation(summary = "Создать информацию о пользователе",
+            description = "Добавляет новую запись с личной информацией пользователя в систему")
     @PostMapping("/user/info")
-    public ResponseEntity<UserInfoWebDto> createUserInfo(@RequestBody UserInfoWebDto request,
+    public ResponseEntity<UserInfoWebDto> createUserInfo(@Parameter(description = "Данные для создания информации о пользователе", required = true)
+                                                         @RequestBody UserInfoWebDto request,
                                                          @CurrentUserId UUID userId) {
         UserInfoWebDto response = mapper.toWebDto(service.createUserInfo(userId, mapper.toDto(request)));
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @Operation(summary = "Получить информацию")
+    @Operation(summary = "Получить информацию о пользователе",
+            description = "Возвращает личную информацию текущего пользователя")
     @GetMapping("/user/info")
     public ResponseEntity<UserInfoWebDto> getUserInfo(@CurrentUserId UUID userId) {
         UserInfoWebDto response = mapper.toWebDto(service.getUserInfo(userId));
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Обновить информацию")
+    @Operation(summary = "Обновить информацию о пользователе",
+            description = "Полное обновление личной информации пользователя. Поля, не указанные в запросе, не обновляются")
     @PutMapping("/user/info")
-    public ResponseEntity<UserInfoWebDto> updateUserInfo(@RequestBody UserInfoWebDto request,
+    public ResponseEntity<UserInfoWebDto> updateUserInfo(@Parameter(description = "Обновленные данные информации о пользователе", required = true)
+                                                         @RequestBody UserInfoWebDto request,
                                                          @CurrentUserId UUID userId) {
         UserInfoWebDto response = mapper.toWebDto(service.updateUserInfo(userId, mapper.toDto(request)));
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Удалить информацию")
+    @Operation(summary = "Удалить информацию о пользователе",
+            description = "Безвозвратно удаляет личную информацию пользователя")
     @DeleteMapping("/user/info")
     public ResponseEntity<Void> deleteUserInfo(@CurrentUserId UUID userId) {
         service.deleteUserInfo(userId);

@@ -33,16 +33,19 @@ public class SymptomsController {
     private final SymptomsService service;
     private final SymptomsMapper mapper;
 
-    @Operation(summary = "Создать запись о симптомах")
+    @Operation(summary = "Создать запись о симптомах",
+            description = "Добавляет новую запись о симптомах пользователя в систему")
     @PostMapping("/feelings/symptoms")
-    public ResponseEntity<SymptomsWebDto> createSymptoms(@RequestBody SymptomsWebDto request,
+    public ResponseEntity<SymptomsWebDto> createSymptoms(@Parameter(description = "Данные для создания записи о симптомах", required = true)
+                                                         @RequestBody SymptomsWebDto request,
                                                          @CurrentUserId UUID userId) {
         SymptomsWebDto response = mapper.toWebDto(service.createSymptoms(userId, mapper.toDto(request)));
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @Operation(summary = "Получить все записи")
-    @GetMapping("/feelings/symptoms")
+    @Operation(summary = "Получить все записи о симптомах",
+            description = "Возвращает полный список записей о симптомах для текущего пользователя")
+    @GetMapping("/feelings/symptoms/all")
     public ResponseEntity<List<SymptomsWebDto>> getAllSymptoms(@CurrentUserId UUID userId) {
         List<SymptomsWebDto> response = service.getAllSymptoms(userId)
                 .stream()
@@ -54,9 +57,9 @@ public class SymptomsController {
 
     @Operation(summary = "Получить по диапазону дат")
     @GetMapping("/feelings/symptoms/range")
-    public ResponseEntity<List<SymptomsWebDto>> getSymptomsByDateRange(@Parameter(description = "Начало периода", required = true)
+    public ResponseEntity<List<SymptomsWebDto>> getSymptomsByDateRange(@Parameter(description = "Начальная дата и время диапазона (ISO-8601)", required = true)
                                                                        @RequestParam ZonedDateTime from,
-                                                                       @Parameter(description = "Конец периода", required = true)
+                                                                       @Parameter(description = "Конечная дата и время диапазона (ISO-8601)", required = true)
                                                                        @RequestParam ZonedDateTime to,
                                                                        @CurrentUserId UUID userId) {
         List<SymptomsWebDto> response = service.getSymptomsByDateRange(userId, from, to)
@@ -67,17 +70,21 @@ public class SymptomsController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Обновить запись")
+    @Operation(summary = "Обновить запись о симптомах",
+            description = "Обновление существующей записи о симптомах")
     @PutMapping("/feelings/symptoms")
-    public ResponseEntity<SymptomsWebDto> updateSymptoms(@RequestBody SymptomsWebDto request,
+    public ResponseEntity<SymptomsWebDto> updateSymptoms(@Parameter(description = "Обновленные данные записи о симптомах", required = true)
+                                                         @RequestBody SymptomsWebDto request,
                                                          @CurrentUserId UUID userId) {
         SymptomsWebDto response = mapper.toWebDto(service.updateSymptoms(userId, mapper.toDto(request)));
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Удалить запись")
+    @Operation(summary = "Удалить запись о симптомах",
+            description = "Безвозвратно удаляет запись о симптомах по ID")
     @DeleteMapping("/feelings/symptoms/{symptomsId}")
-    public ResponseEntity<Void> deleteSymptoms(@PathVariable UUID symptomsId,
+    public ResponseEntity<Void> deleteSymptoms(@Parameter(description = "ID записи о симптомах для удаления", required = true)
+                                               @PathVariable UUID symptomsId,
                                                @CurrentUserId UUID userId) {
         service.deleteSymptoms(userId, symptomsId);
         return ResponseEntity.noContent().build();

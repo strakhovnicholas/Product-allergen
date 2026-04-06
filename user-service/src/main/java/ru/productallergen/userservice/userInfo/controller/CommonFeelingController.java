@@ -1,6 +1,7 @@
 package ru.productallergen.userservice.userInfo.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -33,16 +34,19 @@ public class CommonFeelingController {
     private final CommonFeelingService service;
     private final CommonFeelingMapper mapper;
 
-    @Operation(summary = "Создать запись")
+    @Operation(summary = "Создать запись о самочувствии",
+            description = "Добавляет новую запись об общем самочувствии пользователя в систему")
     @PostMapping("feelings/common")
     public ResponseEntity<CommonFeelingWebDto> create(@CurrentUserId UUID userId,
+                                                      @Parameter(description = "Данные для создания записи о самочувствии", required = true)
                                                       @RequestBody CommonFeelingWebDto request) {
         CommonFeelingWebDto response = mapper.toWebDto(service.createCommonFeeling(userId, mapper.toDto(request)));
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @Operation(summary = "Получить все записи")
+    @Operation(summary = "Получить все записи",
+            description = "Возвращает полный список записей об общем самочувствии для текущего пользователя")
     @GetMapping("feelings/common")
     public ResponseEntity<List<CommonFeelingWebDto>> getAll(@CurrentUserId UUID userId) {
         List<CommonFeelingWebDto> response = service.getAllCommonFeelings(userId)
@@ -53,9 +57,11 @@ public class CommonFeelingController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Получить по дате")
+    @Operation(summary = "Получить по дате",
+            description = "Возвращает список записей об общем самочувствии за указанную дату")
     @GetMapping("feelings/common/by-date")
     public ResponseEntity<List<CommonFeelingWebDto>> getByDate(@CurrentUserId UUID userId,
+                                                               @Parameter(description = "Дата в формате ISO (YYYY-MM-DD) для фильтрации записей", required = true)
                                                                @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         List<CommonFeelingWebDto> response = service.getCommonFeelingByDate(userId, date)
                 .stream()
@@ -68,16 +74,20 @@ public class CommonFeelingController {
     @Operation(summary = "Обновить")
     @PutMapping("feelings/common/{feelingId}")
     public ResponseEntity<CommonFeelingWebDto> update(@CurrentUserId UUID userId,
+                                                      @Parameter(description = "ID записи о самочувствии для обновления", required = true)
                                                       @PathVariable UUID feelingId,
+                                                      @Parameter(description = "Обновленные данные записи о самочувствии", required = true)
                                                       @RequestBody CommonFeelingWebDto request) {
         CommonFeelingWebDto response = mapper.toWebDto(service.updateCommonFeeling(userId, feelingId, mapper.toDto(request)));
 
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Удалить")
+    @Operation(summary = "Удалить запись о самочувствии",
+            description = "Безвозвратно удаляет запись о самочувствии по ID")
     @DeleteMapping("feelings/common/{feelingId}")
     public ResponseEntity<Void> delete(@CurrentUserId UUID userId,
+                                       @Parameter(description = "ID записи о самочувствии для удаления", required = true)
                                        @PathVariable UUID feelingId) {
         service.deleteCommonFeeling(userId, feelingId);
         return ResponseEntity.noContent().build();
