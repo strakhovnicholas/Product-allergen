@@ -12,6 +12,7 @@ import ru.productallergen.authservice.dto.auth.RegisterRequest;
 import ru.productallergen.authservice.entity.User;
 import ru.productallergen.authservice.exception.InvalidCredentialsException;
 import ru.productallergen.authservice.exception.InvalidRefreshTokenException;
+import ru.productallergen.authservice.exception.UserAlreadyExistsException;
 import ru.productallergen.authservice.exception.UserNotFoundException;
 import ru.productallergen.authservice.repository.UserRepository;
 import ru.productallergen.authservice.security.JwtService;
@@ -30,7 +31,7 @@ public class AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
-            throw new RuntimeException("User already exists");
+            throw new UserAlreadyExistsException("User with email " + request.email() + " already exists");
         }
 
         User user = User.builder()
