@@ -7,10 +7,10 @@ import ru.productallergen.userservice.exception.NotFoundException;
 import ru.productallergen.userservice.exception.UserHasNotAccess;
 import ru.productallergen.userservice.food.dto.FoodCreateRequestDto;
 import ru.productallergen.userservice.food.dto.FoodEditRequestDto;
-import ru.productallergen.userservice.food.entity.FoodEntity;
-import ru.productallergen.userservice.food.repository.FoodRepository;
 import ru.productallergen.userservice.food.dto.FoodResponseDto;
+import ru.productallergen.userservice.food.entity.FoodEntity;
 import ru.productallergen.userservice.food.mapper.FoodMapper;
+import ru.productallergen.userservice.food.repository.FoodRepository;
 
 import java.util.List;
 import java.util.UUID;

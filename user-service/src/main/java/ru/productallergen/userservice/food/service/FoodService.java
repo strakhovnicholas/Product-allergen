@@ -9,8 +9,12 @@ import java.util.UUID;
 
 public interface FoodService {
     List<FoodResponseDto> getAllUserFoods(UUID userId);
+
     List<FoodResponseDto> searchByFoodName(UUID userId, String prefix);
+
     FoodResponseDto save(FoodCreateRequestDto foodCreateRequestDto, UUID userId);
+
     FoodResponseDto update(Long id, FoodEditRequestDto dto, UUID userId);
+
     void delete(Long id, UUID userId);
 }
