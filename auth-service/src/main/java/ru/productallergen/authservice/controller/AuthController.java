@@ -51,37 +51,6 @@ public class AuthController {
                 .body("Logged out successfully");
     }
 
-    @PostMapping("/validate")
-    public ResponseEntity<TokenValidationResponse> validateToken(@RequestHeader("Authorization") String authHeader) {
-        String token = authHeader.substring(7);
-
-        boolean isValid = jwtService.validateToken(token, "access");
-
-        if (!isValid) {
-            return ResponseEntity.status(401)
-                    .body(new TokenValidationResponse(false, null, null, "Invalid token"));
-        }
-
-        String email = jwtService.extractEmail(token);
-        String userId = jwtService.extractId(token);
-
-        return ResponseEntity.ok(new TokenValidationResponse(true, email, UUID.fromString(userId), null));
-    }
-
-    @PostMapping("/validate/internal")
-    public ResponseEntity<TokenValidationResponse> validateTokenInternal(@RequestBody TokenValidationRequest request) {
-        boolean isValid = jwtService.validateToken(request.token(), "access");
-
-        if (!isValid) {
-            return ResponseEntity.ok(new TokenValidationResponse(false, null, null, "Invalid token"));
-        }
-
-        String email = jwtService.extractEmail(request.token());
-        String userId = jwtService.extractId(request.token());
-
-        return ResponseEntity.ok(new TokenValidationResponse(true, email, UUID.fromString(userId), null));
-    }
-
     private String extractRefreshTokenFromCookies(HttpServletRequest request) {
         if (request.getCookies() == null) return null;
 
