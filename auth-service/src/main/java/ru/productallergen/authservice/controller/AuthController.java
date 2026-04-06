@@ -1,37 +1,52 @@
 package ru.productallergen.authservice.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.productallergen.authservice.cookie.CookieFactory;
-import ru.productallergen.authservice.dto.auth.*;
-import ru.productallergen.authservice.security.JwtService;
+import ru.productallergen.authservice.dto.auth.AuthResponse;
+import ru.productallergen.authservice.dto.auth.LoginRequest;
+import ru.productallergen.authservice.dto.auth.RegisterRequest;
 import ru.productallergen.authservice.service.auth.AuthService;
-
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/auth")
-@RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
     private final CookieFactory cookieFactory;
-    private final JwtService jwtService;
+
+    public AuthController(AuthService authService, CookieFactory cookieFactory) {
+        this.authService = authService;
+        this.cookieFactory = cookieFactory;
+    }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
         AuthResponse authResponse = authService.login(request);
-        return ResponseEntity.ok(authResponse);
+
+        ResponseCookie accessCookie = cookieFactory.createAccessToken(authResponse.accessToken());
+        ResponseCookie refreshCookie = cookieFactory.createRefreshToken(authResponse.refreshToken());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                .build();
     }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
         AuthResponse authResponse = authService.register(request);
-        return ResponseEntity.ok(authResponse);
+
+        ResponseCookie accessCookie = cookieFactory.createAccessToken(authResponse.accessToken());
+        ResponseCookie refreshCookie = cookieFactory.createRefreshToken(authResponse.refreshToken());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                .build();
     }
 
     @PostMapping("/logout")
@@ -61,5 +76,4 @@ public class AuthController {
         }
         return null;
     }
-
 }

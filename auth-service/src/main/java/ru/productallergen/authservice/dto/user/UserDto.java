@@ -4,5 +4,5 @@ import lombok.Builder;
 
 @Builder
 public record UserDto(
-        String id, String email) {
+        String id, String email, String role) {
 }

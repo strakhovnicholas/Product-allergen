@@ -1,76 +1,102 @@
 package ru.productallergen.authservice.service.auth;
 
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import lombok.AllArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 import ru.productallergen.authservice.dto.auth.AuthResponse;
 import ru.productallergen.authservice.dto.auth.LoginRequest;
 import ru.productallergen.authservice.dto.auth.RegisterRequest;
-import ru.productallergen.authservice.entity.User;
+import ru.productallergen.authservice.dto.user.UserDto;
 import ru.productallergen.authservice.exception.InvalidCredentialsException;
 import ru.productallergen.authservice.exception.InvalidRefreshTokenException;
-import ru.productallergen.authservice.exception.UserAlreadyExistsException;
 import ru.productallergen.authservice.exception.UserNotFoundException;
-import ru.productallergen.authservice.repository.UserRepository;
 import ru.productallergen.authservice.security.JwtService;
 import ru.productallergen.authservice.service.storing.RefreshTokenService;
 
 @Service
-@RequiredArgsConstructor
 public class AuthService {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+
+    private final WebClient userServiceWebClient;
+
     private final RefreshTokenService refreshTokenService;
 
-    @Transactional
-    public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.email())) {
-            throw new UserAlreadyExistsException("User with email " + request.email() + " already exists");
+    @Value("${user.service.get-user-by-email}")
+    private String getUserByEmailPath;
+
+    @Value("${user.service.get-user-password-by-id}")
+    private String getUserPasswordById;
+
+    @Value("${user.service.create}")
+    private String postCreateUser;
+
+    @Autowired
+    public AuthService(JwtService jwtService,
+                       WebClient userServiceWebClient,
+                       RefreshTokenService refreshTokenService) {
+        this.jwtService = jwtService;
+        this.userServiceWebClient = userServiceWebClient;
+        this.refreshTokenService = refreshTokenService;
+    }
+
+    public AuthResponse login(LoginRequest request) {
+        UserDto user = this.userServiceWebClient.get()
+                .uri(this.getUserByEmailPath, request.email())
+                .retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError, response ->
+                        Mono.error(new RuntimeException("User not found")))
+                .onStatus(HttpStatusCode::is5xxServerError, response ->
+                        Mono.error(new RuntimeException("User service error")))
+                .bodyToMono(UserDto.class)
+                .block();
+
+        if (user == null) {
+            throw new UserNotFoundException("User not found");
         }
 
-        User user = User.builder()
-                .email(request.email())
-                .password(passwordEncoder.encode(request.password()))
-                .isActive(true)
-                .build();
+        boolean valid = Boolean.TRUE.equals(userServiceWebClient.post()
+                .uri(this.getUserPasswordById, user.id())
+                .bodyValue(request.password())
+                .retrieve()
+                .bodyToMono(Boolean.class)
+                .block());
 
-        user = userRepository.save(user);
+        if (!valid) {
+            throw new InvalidCredentialsException("Invalid credentials");
+        }
 
-        String accessToken = jwtService.generateAccessToken(user.getEmail(), user.getId());
-        String refreshToken = jwtService.generateRefreshToken(user.getEmail());
+        String accessToken = this.jwtService.generateAccessToken(user.email(), user.role(), user.id());
+        String refreshToken = this.jwtService.generateRefreshToken(user.email());
 
-        refreshTokenService.saveRefreshToken(refreshToken, user.getEmail());
+        this.refreshTokenService.saveRefreshToken(refreshToken, user.email());
 
         return new AuthResponse(accessToken, refreshToken);
     }
 
-    @Transactional
-    public AuthResponse login(LoginRequest request) {
-        try {
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(request.email(), request.password())
-            );
-        } catch (Exception e) {
-            throw new InvalidCredentialsException("Invalid credentials");
-        }
+    public AuthResponse register(RegisterRequest request) {
+        UserDto user = userServiceWebClient.post()
+                .uri(this.postCreateUser)
+                .bodyValue(request)
+                .retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError,
+                        response -> Mono.error(new RuntimeException("User already exists")))
+                .onStatus(HttpStatusCode::is5xxServerError,
+                        response -> Mono.error(new RuntimeException("User service error")))
+                .bodyToMono(UserDto.class)
+                .block();
 
-        User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
+        String accessToken = this.jwtService.generateAccessToken(user.email(), user.role(), user.id());
+        String refreshToken = this.jwtService.generateRefreshToken(user.email());
 
-        String accessToken = jwtService.generateAccessToken(user.getEmail(), user.getId());
-        String refreshToken = jwtService.generateRefreshToken(user.getEmail());
-
-        refreshTokenService.revokeOldTokensByEmail(user.getEmail());
-
-        refreshTokenService.saveRefreshToken(refreshToken, user.getEmail());
+        this.refreshTokenService.saveRefreshToken(refreshToken, user.email());
 
         return new AuthResponse(accessToken, refreshToken);
+
     }
 
     public AuthResponse refresh(String refreshToken) {
@@ -78,21 +104,27 @@ public class AuthService {
             throw new InvalidRefreshTokenException("Invalid refresh token");
         }
 
-        if (!refreshTokenService.isValid(refreshToken)) {
-            throw new InvalidRefreshTokenException("Refresh token not found or revoked");
-        }
+        String email = this.refreshTokenService.getEmail(refreshToken);
 
-        String email = refreshTokenService.getEmail(refreshToken);
+        UserDto user = userServiceWebClient.get()
+                .uri(this.getUserByEmailPath, email)
+                .retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError,
+                        response -> Mono.error(new UserNotFoundException("User not found")))
+                .onStatus(HttpStatusCode::is5xxServerError,
+                        response -> Mono.error(new RuntimeException("User service error")))
+                .bodyToMono(UserDto.class)
+                .block();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
+        if (user == null)
+            throw new UserNotFoundException("User not found");
 
-        String newAccessToken = jwtService.generateAccessToken(user.getEmail(), user.getId());
+        String newAccessToken = jwtService.generateAccessToken(user.email(), user.role(), user.id());
 
         return new AuthResponse(newAccessToken, refreshToken);
     }
 
     public void logout(String refreshToken) {
-        refreshTokenService.revokeToken(refreshToken);
+        this.refreshTokenService.revokeToken(refreshToken);
     }
 }
