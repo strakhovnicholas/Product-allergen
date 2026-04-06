@@ -4,7 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import ru.productallergen.authservice.dto.user.ApiErrorResponse;
+import ru.productallergen.authservice.dto.error.ApiErrorResponse;
 import ru.productallergen.authservice.exception.InvalidCredentialsException;
 import ru.productallergen.authservice.exception.UserAlreadyExistsException;
 import ru.productallergen.authservice.exception.UserNotFoundException;

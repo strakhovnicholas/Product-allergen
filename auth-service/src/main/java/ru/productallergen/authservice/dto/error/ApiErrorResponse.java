@@ -1,4 +1,4 @@
-package ru.productallergen.authservice.dto.user;
+package ru.productallergen.authservice.dto.error;
 
 import java.time.LocalDateTime;
 
