@@ -1,31 +1,65 @@
-version: '3.8'
-
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: auth-postgres
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: auth_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_user -d auth_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices-network  # Общая сеть
+
   redis:
     image: redis:7-alpine
-    container_name: redis
+    container_name: auth-redis
     ports:
       - "6379:6379"
-    command: redis-server --requirepass 12345
+    command: redis-server --requirepass ${REDIS_PASSWORD:-12345}
     networks:
-      - auth-network
+      - microservices-network
 
   auth-service:
     build: .
     container_name: auth-service
+    env_file:
+      - .env
     environment:
+      # PostgreSQL
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: auth_user
+      SPRING_DATASOURCE_PASSWORD: auth_password
+      # Redis
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
-      SPRING_REDIS_PASSWORD: 12345
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD:-12345}
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+      # Profiles
       SPRING_PROFILES_ACTIVE: docker
-      USER_SERVICE_URL: http://user-service:8081
+      # URL для уведомлений
+      USER_SERVICE_URL: http://user-service:8080
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     ports:
       - "8080:8080"
     networks:
-      - auth-network
+      - microservices-network
+
+volumes:
+  auth_postgres_data:
 
 networks:
-  auth-network:
-    driver: bridge
+  microservices-network:
+    external: true  # Используем существующую сеть
