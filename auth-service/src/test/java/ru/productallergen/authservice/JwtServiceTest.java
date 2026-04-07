@@ -14,6 +14,7 @@ import ru.productallergen.authservice.security.JwtService;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -27,8 +28,7 @@ class JwtServiceTest {
 
     private Key testKey;
     private final String testEmail = "test@example.com";
-    private final String testRole = "ROLE_USER";
-    private final String testId = "12345";
+    private final UUID testId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
@@ -38,7 +38,7 @@ class JwtServiceTest {
 
     @Test
     void generateAccessToken_ShouldCreateValidToken() {
-        String token = jwtService.generateAccessToken(testEmail, testRole, testId);
+        String token = jwtService.generateAccessToken(testEmail, testId);
 
         assertThat(token).isNotNull();
         assertThat(token).isNotEmpty();
@@ -49,23 +49,15 @@ class JwtServiceTest {
 
     @Test
     void generateAccessToken_ShouldContainCorrectSubject() {
-        String token = jwtService.generateAccessToken(testEmail, testRole, testId);
+        String token = jwtService.generateAccessToken(testEmail, testId);
 
         String extractedEmail = jwtService.extractEmail(token);
         assertThat(extractedEmail).isEqualTo(testEmail);
     }
 
     @Test
-    void generateAccessToken_ShouldContainCorrectRole() {
-        String token = jwtService.generateAccessToken(testEmail, testRole, testId);
-
-        String extractedRole = jwtService.extractRole(token);
-        assertThat(extractedRole).isEqualTo(testRole);
-    }
-
-    @Test
     void generateAccessToken_ShouldContainCorrectId() {
-        String token = jwtService.generateAccessToken(testEmail, testRole, testId);
+        String token = jwtService.generateAccessToken(testEmail, testId);
 
         String extractedId = jwtService.extractId(token);
         assertThat(extractedId).isEqualTo(testId);
@@ -73,7 +65,7 @@ class JwtServiceTest {
 
     @Test
     void generateAccessToken_ShouldHaveCorrectType() {
-        String token = jwtService.generateAccessToken(testEmail, testRole, testId);
+        String token = jwtService.generateAccessToken(testEmail, testId);
 
         String extractedType = jwtService.extractType(token);
         assertThat(extractedType).isEqualTo("access");
@@ -95,7 +87,7 @@ class JwtServiceTest {
 
     @Test
     void generateAccessToken_ShouldHaveFutureExpiration() {
-        String token = jwtService.generateAccessToken(testEmail, testRole, testId);
+        String token = jwtService.generateAccessToken(testEmail, testId);
 
         Claims claims = Jwts.parserBuilder()
                 .setSigningKey(testKey)
