@@ -13,6 +13,7 @@ import ru.productallergen.userservice.food.dto.FoodResponseDto;
 import ru.productallergen.userservice.food.mapper.FoodMapper;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -27,13 +28,13 @@ public class FoodServiceImpl implements FoodService {
 
     @Override
     public List<FoodResponseDto> getAllUserFoods(UUID userId) {
-        return foodMapper.toDtoList(foodRepository.findAllByUserId(userId));
+        return foodMapper.toDtoList(foodRepository.findAllByUserIdOrNull(userId));
     }
 
     @Override
     public List<FoodResponseDto> searchByFoodName(UUID userId, String prefix) {
         return foodMapper.toDtoList(
-                foodRepository.findByUserIdAndFoodNameStartingWithIgnoreCase(userId, prefix));
+                foodRepository.findByUserIdOrNullAndFoodNameContainingIgnoreCase(userId, prefix));
     }
 
     @Override
@@ -64,8 +65,8 @@ public class FoodServiceImpl implements FoodService {
         foodRepository.deleteById(id);
     }
 
-    private void throwIfUserHasNotAccess(FoodEntity existingEntity, UUID userId) {
-        if (!existingEntity.getUserId().equals(userId)) {
+    private void throwIfUserHasNotAccess(FoodEntity entity, UUID userId) {
+        if (!Objects.equals(entity.getUserId(), userId)) {
             throw new UserHasNotAccess(USER_HAS_NO_ACCESS_KEY);
         }
     }

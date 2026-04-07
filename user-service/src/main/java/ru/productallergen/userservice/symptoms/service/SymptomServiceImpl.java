@@ -13,6 +13,7 @@ import ru.productallergen.userservice.symptoms.mapper.SymptomMapper;
 import ru.productallergen.userservice.symptoms.repository.SymptomRepository;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -27,7 +28,7 @@ public class SymptomServiceImpl implements SymptomService {
 
     @Override
     public List<SymptomResponseDto> getAllUserSymptoms(UUID userId) {
-        return symptomMapper.toDtoList(symptomRepository.findAllByUserId(userId));
+        return symptomMapper.toDtoList(symptomRepository.findAllByUserIdOrNull(userId));
     }
 
     @Override
@@ -59,7 +60,7 @@ public class SymptomServiceImpl implements SymptomService {
     }
 
     private void throwIfUserHasNotAccess(SymptomEntity entity, UUID userId) {
-        if (!entity.getUserId().equals(userId)) {
+        if (!Objects.equals(entity.getUserId(), userId)) {
             throw new UserHasNotAccess(USER_HAS_NO_ACCESS_KEY);
         }
     }
