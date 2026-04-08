@@ -1,31 +1,24 @@
-version: '3.8'
+version: '3.9'
 
+# НЕ ТРОНЬ УБЬЁТ
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: redis
-    ports:
-      - "6379:6379"
-    command: redis-server --requirepass 12345
-    networks:
-      - auth-network
-
   auth-service:
+    image: 'auth-service'
     build: .
     container_name: auth-service
+    restart: on-failure
+
     environment:
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      SPRING_REDIS_PASSWORD: 12345
-      SPRING_PROFILES_ACTIVE: docker
-      USER_SERVICE_URL: http://user-service:8081
-    depends_on:
-      - redis
-    ports:
-      - "8080:8080"
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+
     networks:
-      - auth-network
+      - backend-net
 
 networks:
-  auth-network:
-    driver: bridge
+  backend-net:
+    external: true
