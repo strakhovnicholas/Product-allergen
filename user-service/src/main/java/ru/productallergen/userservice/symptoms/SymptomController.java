@@ -1,13 +1,20 @@
 package ru.productallergen.userservice.symptoms;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import ru.productallergen.userservice.config.CurrentUserId;
 import ru.productallergen.userservice.symptoms.dto.SymptomCreateRequestDto;
 import ru.productallergen.userservice.symptoms.dto.SymptomEditRequestDto;
 import ru.productallergen.userservice.symptoms.dto.SymptomResponseDto;
@@ -24,48 +31,34 @@ public class SymptomController {
 
     private final SymptomService symptomService;
 
-    // TODO: 21.03.2026 Удалить после подключения микросервиса аутентификации
-    private static final UUID MOCK_USER_ID = new UUID(0, 1);
-
-    @Operation(summary = "Получить список всех симптомов",
-            description = "Возвращает полный список сохранённых симптомов для текущего пользователя")
+    @Operation(summary = "Получить список всех симптомов")
     @GetMapping
-    public ResponseEntity<List<SymptomResponseDto>> getAllSymptoms() {
-        return ResponseEntity.ok(symptomService.getAllUserSymptoms(getUserId()));
+    public ResponseEntity<List<SymptomResponseDto>> getAllSymptoms(@CurrentUserId UUID userId) {
+        return ResponseEntity.ok(symptomService.getAllUserSymptoms(userId));
     }
 
-    @Operation(summary = "Сохранить новый симптом", description = "Добавляет запись о симптоме в систему")
+    @Operation(summary = "Сохранить новый симптом")
     @PostMapping
-    public ResponseEntity<SymptomResponseDto> saveSymptom(
-            @Parameter(description = "Данные для создания записи о симптоме", required = true)
-            @RequestBody @Valid SymptomCreateRequestDto dto) {
+    public ResponseEntity<SymptomResponseDto> saveSymptom(@RequestBody @Valid SymptomCreateRequestDto dto,
+                                                          @CurrentUserId UUID userId) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(symptomService.save(dto, getUserId()));
+                .body(symptomService.save(dto, userId));
     }
 
-    @Operation(summary = "Обновить существующий симптом",
-            description = "Частичное или полное обновление записи по ID. Поля, не указанные в запросе, " +
-                    "остаются без изменений.")
+    @Operation(summary = "Обновить симптом")
     @PutMapping("/{id}")
-    public ResponseEntity<SymptomResponseDto> updateSymptom(
-            @Parameter(description = "ID симптома для обновления", required = true)
-            @PathVariable Long id,
-            @Parameter(description = "Обновлённые данные симптома", required = true)
-            @RequestBody @Valid SymptomEditRequestDto dto) {
-        SymptomResponseDto updatedDto = symptomService.update(id, dto, getUserId());
-        return ResponseEntity.ok(updatedDto);
+    public ResponseEntity<SymptomResponseDto> updateSymptom(@PathVariable Long id,
+                                                            @RequestBody @Valid SymptomEditRequestDto dto,
+                                                            @CurrentUserId UUID userId) {
+        SymptomResponseDto updated = symptomService.update(id, dto, userId);
+        return ResponseEntity.ok(updated);
     }
 
-    @Operation(summary = "Удалить симптом", description = "Безвозвратно удаляет запись о симптоме по ID")
+    @Operation(summary = "Удалить симптом")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteSymptom(
-            @Parameter(description = "ID симптома для удаления", required = true)
-            @PathVariable Long id) {
-        symptomService.delete(id, getUserId());
+    public ResponseEntity<Void> deleteSymptom(@PathVariable Long id,
+                                              @CurrentUserId UUID userId) {
+        symptomService.delete(id, userId);
         return ResponseEntity.noContent().build();
-    }
-
-    private UUID getUserId() {
-        return MOCK_USER_ID;
     }
 }
