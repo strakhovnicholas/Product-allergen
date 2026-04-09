@@ -12,7 +12,7 @@ import java.util.UUID;
 public interface SymptomsRepository extends MongoRepository<SymptomsEntity, ObjectId> {
     List<SymptomsEntity> findAllByUserId(UUID userId);
 
-    List<SymptomsEntity> findAllByUserIdAndStartTimeBetween(
+    List<SymptomsEntity> findAllByUserIdAndStartTimeBetweenOrderByStartTimeAsc(
             UUID userId,
             ZonedDateTime from,
             ZonedDateTime to

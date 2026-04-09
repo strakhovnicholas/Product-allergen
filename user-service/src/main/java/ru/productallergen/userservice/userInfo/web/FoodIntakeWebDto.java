@@ -9,6 +9,7 @@ import ru.productallergen.userservice.userInfo.FoodCategory;
 import ru.productallergen.userservice.userInfo.FoodUnit;
 
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -26,4 +27,5 @@ public class FoodIntakeWebDto {
     private Boolean reactionOccurred;
     private String reactionDescription;
     private ZonedDateTime createdAt;
+    private List<String> components;
 }

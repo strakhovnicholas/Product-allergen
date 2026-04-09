@@ -1,4 +1,4 @@
-package ru.productallergen.userservice.foodanalyzer;
+package ru.productallergen.userservice.foodanalyzer.dto;
 
 import java.time.ZonedDateTime;
 

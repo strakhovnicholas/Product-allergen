@@ -5,6 +5,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Document(collection = "food_intakes")
@@ -18,5 +19,6 @@ public record FoodIntakeEntity(@Id ObjectId id,
                                ZonedDateTime intakeTime,
                                Boolean reactionOccurred,
                                String reactionDescription,
-                               ZonedDateTime createdAt) {
+                               ZonedDateTime createdAt,
+                               List<String> components) {
 }

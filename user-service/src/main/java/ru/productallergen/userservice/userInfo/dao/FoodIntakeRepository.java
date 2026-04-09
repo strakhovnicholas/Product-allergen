@@ -22,4 +22,10 @@ public interface FoodIntakeRepository extends MongoRepository<FoodIntakeEntity, 
     void deleteByUserIdAndFoodIntakeId(UUID userId, UUID foodIntakeId);
 
     Optional<FoodIntakeEntity> findByUserIdAndFoodIntakeId(UUID userId, UUID foodIntakeId);
+
+    List<FoodIntakeEntity> findAllByUserIdAndIntakeTimeBetweenOrderByIntakeTimeAsc(
+            UUID userId,
+            ZonedDateTime from,
+            ZonedDateTime to
+    );
 }
