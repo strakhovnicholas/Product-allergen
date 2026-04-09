@@ -2,16 +2,17 @@ package ru.productallergen.authservice.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import ru.productallergen.authservice.cookie.CookieFactory;
-import ru.productallergen.authservice.dto.auth.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import ru.productallergen.authservice.dto.auth.AuthResponse;
+import ru.productallergen.authservice.dto.auth.LoginRequest;
+import ru.productallergen.authservice.dto.auth.LogoutRequest;
+import ru.productallergen.authservice.dto.auth.RegisterRequest;
 import ru.productallergen.authservice.security.JwtService;
 import ru.productallergen.authservice.service.auth.AuthService;
-
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/auth")
@@ -19,7 +20,6 @@ import java.util.UUID;
 public class AuthController {
 
     private final AuthService authService;
-    private final CookieFactory cookieFactory;
     private final JwtService jwtService;
 
     @PostMapping("/login")
@@ -35,31 +35,9 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletRequest request) {
-        String refreshToken = extractRefreshTokenFromCookies(request);
-
-        if (refreshToken != null) {
-            authService.logout(refreshToken);
-        }
-
-        ResponseCookie deleteAccess = cookieFactory.deleteAccessToken();
-        ResponseCookie deleteRefresh = cookieFactory.deleteRefreshToken();
-
-        return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, deleteAccess.toString())
-                .header(HttpHeaders.SET_COOKIE, deleteRefresh.toString())
-                .body("Logged out successfully");
-    }
-
-    private String extractRefreshTokenFromCookies(HttpServletRequest request) {
-        if (request.getCookies() == null) return null;
-
-        for (var cookie : request.getCookies()) {
-            if ("refreshToken".equals(cookie.getName())) {
-                return cookie.getValue();
-            }
-        }
-        return null;
+    public ResponseEntity<?> logout(LogoutRequest logoutRequest) {
+        authService.logout(logoutRequest.refreshToken());
+        return ResponseEntity.ok("Logged out successfully");
     }
 
 }

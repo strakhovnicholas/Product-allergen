@@ -93,6 +93,8 @@ public class AuthService {
     }
 
     public void logout(String refreshToken) {
-        refreshTokenService.revokeToken(refreshToken);
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            refreshTokenService.revokeToken(refreshToken);
+        }
     }
 }
