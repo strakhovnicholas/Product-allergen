@@ -2,6 +2,7 @@ version: '3.9'
 
 services:
   gateway:
+    image: 'gateway'
     build: .
     container_name: gateway
     restart: on-failure
