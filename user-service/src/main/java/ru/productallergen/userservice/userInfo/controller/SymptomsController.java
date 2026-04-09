@@ -55,7 +55,8 @@ public class SymptomsController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Получить по диапазону дат")
+    @Operation(summary = "Получить записи о симптомах по диапазону дат",
+            description = "Возвращает список записей о симптомах за указанный период времени")
     @GetMapping("/feelings/symptoms/range")
     public ResponseEntity<List<SymptomsWebDto>> getSymptomsByDateRange(@Parameter(description = "Начальная дата и время диапазона (ISO-8601)", required = true)
                                                                        @RequestParam ZonedDateTime from,

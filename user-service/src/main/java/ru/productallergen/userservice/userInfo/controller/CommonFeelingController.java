@@ -45,7 +45,7 @@ public class CommonFeelingController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @Operation(summary = "Получить все записи",
+    @Operation(summary = "Получить все записи о самочувствии",
             description = "Возвращает полный список записей об общем самочувствии для текущего пользователя")
     @GetMapping("feelings/common")
     public ResponseEntity<List<CommonFeelingWebDto>> getAll(@CurrentUserId UUID userId) {
@@ -57,7 +57,7 @@ public class CommonFeelingController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Получить по дате",
+    @Operation(summary = "Получить запись о самочувствии по дате",
             description = "Возвращает список записей об общем самочувствии за указанную дату")
     @GetMapping("feelings/common/by-date")
     public ResponseEntity<List<CommonFeelingWebDto>> getByDate(@CurrentUserId UUID userId,
@@ -71,7 +71,8 @@ public class CommonFeelingController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Обновить")
+    @Operation(summary = "Обновить запись о самочувствии",
+            description = "Полное обновление записи по ID. Поля, не указанные в запросе, не обновляются")
     @PutMapping("feelings/common/{feelingId}")
     public ResponseEntity<CommonFeelingWebDto> update(@CurrentUserId UUID userId,
                                                       @Parameter(description = "ID записи о самочувствии для обновления", required = true)
