@@ -2,6 +2,10 @@ package ru.productallergen.userservice.foodanalyzer;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import ru.productallergen.userservice.foodanalyzer.dto.AnalyzableInformation;
+import ru.productallergen.userservice.foodanalyzer.dto.FoodComponentDate;
+import ru.productallergen.userservice.foodanalyzer.dto.SymptomDate;
+import ru.productallergen.userservice.foodanalyzer.service.FoodComponentAnalyzerServiceImpl;
 
 import java.time.ZonedDateTime;
 import java.util.List;

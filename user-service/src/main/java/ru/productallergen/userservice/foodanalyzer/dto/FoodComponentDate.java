@@ -1,9 +1,9 @@
-package ru.productallergen.userservice.foodanalyzer;
+package ru.productallergen.userservice.foodanalyzer.dto;
 
 import java.time.ZonedDateTime;
 
 /**
- * Составляющая еды с датой потребления
+ * Компонент еды с датой потребления
  */
 public record FoodComponentDate(
         String foodComponent,

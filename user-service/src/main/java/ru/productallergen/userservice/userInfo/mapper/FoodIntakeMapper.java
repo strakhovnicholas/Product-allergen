@@ -25,7 +25,8 @@ public class FoodIntakeMapper {
                 dto.getIntakeTime(),
                 dto.getReactionOccurred(),
                 dto.getReactionDescription(),
-                dto.getCreatedAt() != null ? dto.getCreatedAt() : ZonedDateTime.now()
+                dto.getCreatedAt() != null ? dto.getCreatedAt() : ZonedDateTime.now(),
+                dto.getComponents()
         );
     }
 
@@ -41,6 +42,7 @@ public class FoodIntakeMapper {
                 .reactionOccurred(entity.reactionOccurred())
                 .reactionDescription(entity.reactionDescription())
                 .createdAt(entity.createdAt())
+                .components(entity.components())
                 .build();
     }
 
@@ -55,6 +57,7 @@ public class FoodIntakeMapper {
                 .reactionOccurred(webDto.getReactionOccurred())
                 .reactionDescription(webDto.getReactionDescription())
                 .createdAt(webDto.getCreatedAt())
+                .components(webDto.getComponents())
                 .build();
     }
 
@@ -69,6 +72,7 @@ public class FoodIntakeMapper {
                 .reactionOccurred(dto.getReactionOccurred())
                 .reactionDescription(dto.getReactionDescription())
                 .createdAt(dto.getCreatedAt())
+                .components(dto.getComponents())
                 .build();
     }
 

@@ -31,7 +31,7 @@ public class SymptomsService {
     }
 
     public List<SymptomsDto> getSymptomsByDateRange(UUID userId, ZonedDateTime from, ZonedDateTime to) {
-        return repository.findAllByUserIdAndStartTimeBetween(userId, from, to)
+        return repository.findAllByUserIdAndStartTimeBetweenOrderByStartTimeAsc(userId, from, to)
                 .stream()
                 .map(mapper::toDto)
                 .toList();

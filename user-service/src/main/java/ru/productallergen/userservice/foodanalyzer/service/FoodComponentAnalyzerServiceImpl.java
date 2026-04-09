@@ -1,7 +1,10 @@
-package ru.productallergen.userservice.foodanalyzer;
+package ru.productallergen.userservice.foodanalyzer.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import ru.productallergen.userservice.foodanalyzer.dto.AnalyzableInformation;
+import ru.productallergen.userservice.foodanalyzer.dto.FoodComponentDate;
+import ru.productallergen.userservice.foodanalyzer.dto.SymptomDate;
 
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;

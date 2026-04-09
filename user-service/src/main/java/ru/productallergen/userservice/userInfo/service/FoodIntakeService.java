@@ -42,6 +42,13 @@ public class FoodIntakeService {
                 .toList();
     }
 
+    public List<FoodIntakeDto> getFoodIntakeBetweenDates(UUID userId, ZonedDateTime from, ZonedDateTime to) {
+        return repository.findAllByUserIdAndIntakeTimeBetweenOrderByIntakeTimeAsc(userId, from, to)
+                .stream()
+                .map(mapper::toDto)
+                .toList();
+    }
+
     public FoodIntakeDto updateFoodIntake(UUID userId, UUID foodIntakeId, FoodIntakeDto dto) {
         FoodIntakeEntity entity = repository.findByUserIdAndFoodIntakeId(userId, foodIntakeId)
                 .orElseThrow(() -> new RuntimeException("Not found"));
@@ -57,7 +64,8 @@ public class FoodIntakeService {
                 dto.getIntakeTime(),
                 dto.getReactionOccurred(),
                 dto.getReactionDescription(),
-                entity.createdAt()
+                entity.createdAt(),
+                entity.components()
         );
 
         return mapper.toDto(repository.save(updated));
