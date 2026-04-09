@@ -46,25 +46,25 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
 
-            ServerHttpRequest request = exchange.getRequest().mutate()
-                    .header(X_USER_ID, (String[]) null)
-                    .header(X_INTERNAL_TOKEN, (String[]) null)
-                    .build();
+            ServerHttpRequest request = exchange.getRequest();
+            HttpHeaders headers = request.getHeaders();
 
             if (config.skipAuth) {
-                return chain.filter(exchange.mutate()
-                        .request(request.mutate()
-                                .header(X_USER_ID, TEST_USER_ID)
-                                .header(X_INTERNAL_TOKEN, internalSecret)
-                                .build())
-                        .build());
+                ServerHttpRequest mutated = request.mutate()
+                        .header(X_USER_ID, TEST_USER_ID)
+                        .header(X_INTERNAL_TOKEN, internalSecret)
+                        .build();
+
+                return chain.filter(exchange.mutate().request(mutated).build());
             }
 
-            if (!request.getHeaders().containsHeader(HttpHeaders.AUTHORIZATION)) {
-                return Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authorization header is missing"));
+            if (!headers.containsKey(HttpHeaders.AUTHORIZATION)) {
+                return Mono.error(new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED, "Authorization header is missing"));
             }
 
-            String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+            String authHeader = headers.getFirst(HttpHeaders.AUTHORIZATION);
+
             if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
                 return Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Authorization header format"));
             }
