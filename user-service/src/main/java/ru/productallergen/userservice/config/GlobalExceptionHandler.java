@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import ru.productallergen.userservice.exception.ApiErrorResponse;
 import ru.productallergen.userservice.exception.NotFoundException;
+import ru.productallergen.userservice.exception.UserHasNotAccess;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -65,6 +66,17 @@ public class GlobalExceptionHandler {
                 .details(createNotFoundIdDetails(ex.getId()))
                 .build();
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(UserHasNotAccess.class)
+    public ResponseEntity<ApiErrorResponse> handleUserHasNotAccessException(UserHasNotAccess ex) {
+        ApiErrorResponse response = ApiErrorResponse
+                .builder()
+                .code(HttpStatus.FORBIDDEN.value())
+                .errorType(HttpStatus.FORBIDDEN.name())
+                .message(ex.getMessageKey())
+                .build();
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
