@@ -1,0 +1,16 @@
+version: '3.9'
+
+services:
+  gateway:
+    build: .
+    container_name: gateway
+    restart: on-failure
+
+    ports:
+      - "80:8080"
+    networks:
+      - backend-net
+
+networks:
+  backend-net:
+    external: true

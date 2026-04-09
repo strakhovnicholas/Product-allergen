@@ -7,13 +7,13 @@ spring:
       routes:
         #Маршрут для AUTH-SERVICE
         - id: auth_route
-          uri: http://localhost:8081
+          uri: http://auth-service:8080
           predicates:
             - Path=/auth/**
 
         #Маршрут для USER-SERVICE
         - id: user_route
-          uri: http://localhost:8082
+          uri: http://user-service:8080
           predicates:
             - Path=/api/**
           filters:
@@ -23,11 +23,11 @@ spring:
 
 #Настройки JWT и секретов
 jwt:
-  secret: ${JWT_SECRET:SL7GFwbppwEoIXBHVH7k9hxzN3dpy5eZLsRghMZRFAE=}
+  secret: ${JWT_SECRET}
   claim:
     id: id
     type: type
 
 internal:
   api:
-    secret: ${INTERNAL_SECRET:4f6174685365637265744b65793230323650726f64756374416c6c657267656e47617465776179}
+    secret: ${INTERNAL_SECRET}
