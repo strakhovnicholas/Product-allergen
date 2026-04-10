@@ -23,7 +23,7 @@ import java.util.UUID;
 @PropertySource("classpath:app-config.properties")
 public class FoodAnalyzerServiceFacade {
     @Value("${food-analyzer.safe-time-after-food-intake}")
-    private final int SYMPTOM_APPEARING_HOURS;
+    private int SYMPTOM_APPEARING_HOURS;
 
     private final FoodComponentAnalyzerService foodComponentAnalyzerService;
     private final FoodComponentSymptomsResponseMapper foodComponentSymptomsResponseMapper;
