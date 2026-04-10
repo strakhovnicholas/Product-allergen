@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import ru.productallergen.userservice.config.CurrentUserId;
 import ru.productallergen.userservice.foodanalyzer.dto.FoodComponentSymptomsAnalyzeRequest;
 import ru.productallergen.userservice.foodanalyzer.dto.FoodComponentSymptomsResponse;
 import ru.productallergen.userservice.foodanalyzer.service.FoodAnalyzerServiceFacade;
@@ -29,11 +30,9 @@ public class FoodAnalyzerController {
                     " Компонент считается безопасным, после его принятия в течение 'безопасного' времени не возникало" +
                     " никаких симптомов")
     @PostMapping("/analyze")
-    // TODO вставить @CurrentUserId
     public ResponseEntity<List<FoodComponentSymptomsResponse>> analyzeFoodAndSymptoms(
-//            UUID userId,
+            @CurrentUserId UUID userId,
             @RequestBody @Valid FoodComponentSymptomsAnalyzeRequest request) {
-        UUID userId = new UUID(1L, 1L);
         return ResponseEntity.ok(foodAnalyzerServiceFacade.analyzeFoodAndSymptoms(userId, request.from(), request.to()));
     }
 }

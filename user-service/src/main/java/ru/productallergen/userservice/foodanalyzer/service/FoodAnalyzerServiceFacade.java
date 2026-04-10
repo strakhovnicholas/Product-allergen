@@ -1,6 +1,8 @@
 package ru.productallergen.userservice.foodanalyzer.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Service;
 import ru.productallergen.userservice.foodanalyzer.dto.AnalyzableInformation;
 import ru.productallergen.userservice.foodanalyzer.dto.FoodComponentSymptomsResponse;
@@ -18,9 +20,10 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@PropertySource("classpath:app-config.properties")
 public class FoodAnalyzerServiceFacade {
-    // TODO: вынести значение в конфиг файл
-    private final int SYMPTOM_APPEARING_HOURS = 10;
+    @Value("${food-analyzer.safe-time-after-food-intake}")
+    private final int SYMPTOM_APPEARING_HOURS;
 
     private final FoodComponentAnalyzerService foodComponentAnalyzerService;
     private final FoodComponentSymptomsResponseMapper foodComponentSymptomsResponseMapper;
