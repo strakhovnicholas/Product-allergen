@@ -32,19 +32,13 @@ export default function RegisterScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleRegister = async () => {
-    const normalizedEmail = email.trim();
-    const normalizedFullName = fullName.trim();
-    const normalizedConfirmPassword = confirmPassword.trim();
-
-    if (normalizedFullName) {
-      const fullNameError = validateFullName(normalizedFullName);
-      if (fullNameError) {
-        Alert.alert('Ошибка', fullNameError);
-        return;
-      }
+    const fullNameError = validateFullName(fullName);
+    if (fullNameError) {
+      Alert.alert('Ошибка', fullNameError);
+      return;
     }
 
-    const emailError = validateEmail(normalizedEmail);
+    const emailError = validateEmail(email);
     if (emailError) {
       Alert.alert('Ошибка', emailError);
       return;
@@ -53,11 +47,6 @@ export default function RegisterScreen() {
     const passwordError = validatePassword(password);
     if (passwordError) {
       Alert.alert('Ошибка', passwordError);
-      return;
-    }
-
-    if (!normalizedConfirmPassword) {
-      Alert.alert('Ошибка', 'Подтвердите пароль');
       return;
     }
 
@@ -70,13 +59,12 @@ export default function RegisterScreen() {
 
     try {
       await register({
-        email: normalizedEmail,
+        fullName: fullName.trim(),
+        email: email.trim(),
         password,
-        fullName: normalizedFullName || undefined,
-        country: 'RU',
-        timezone: 'Europe/Moscow',
       });
 
+      Alert.alert('Успешно', 'Аккаунт создан');
       router.replace('/profile-setup' as any);
     } catch (error) {
       Alert.alert(
@@ -88,22 +76,13 @@ export default function RegisterScreen() {
     }
   };
 
-  const goToLogin = () => {
-    if (isSubmitting) return;
-    router.replace('/login' as any);
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.topBlock}>
             <View style={styles.logoCircle}>
               <Ionicons name="person-add-outline" size={34} color="#FFFFFF" />
@@ -120,60 +99,42 @@ export default function RegisterScreen() {
 
             <Text style={styles.label}>ФИО</Text>
             <TextInput
-              placeholder="Введите ФИО"
-              placeholderTextColor="#98A2B3"
               style={styles.input}
               value={fullName}
               onChangeText={setFullName}
               editable={!isSubmitting}
-              returnKeyType="next"
             />
 
             <Text style={styles.label}>Email</Text>
             <TextInput
-              placeholder="Введите email"
-              placeholderTextColor="#98A2B3"
               style={styles.input}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
-              autoCorrect={false}
               keyboardType="email-address"
               editable={!isSubmitting}
-              returnKeyType="next"
             />
 
             <Text style={styles.label}>Пароль</Text>
             <TextInput
-              placeholder="Введите пароль"
-              placeholderTextColor="#98A2B3"
               style={styles.input}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
               editable={!isSubmitting}
-              returnKeyType="next"
             />
 
             <Text style={styles.label}>Подтвердите пароль</Text>
             <TextInput
-              placeholder="Повторите пароль"
-              placeholderTextColor="#98A2B3"
               style={styles.input}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
               editable={!isSubmitting}
-              returnKeyType="done"
-              onSubmitEditing={handleRegister}
             />
 
             <TouchableOpacity
-              style={[styles.registerButton, isSubmitting && styles.disabledButton]}
+              style={styles.registerButton}
               onPress={handleRegister}
               activeOpacity={0.85}
               disabled={isSubmitting}
@@ -186,8 +147,8 @@ export default function RegisterScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.loginButton, isSubmitting && styles.disabledSecondaryButton]}
-              onPress={goToLogin}
+              style={styles.loginButton}
+              onPress={() => router.replace('/login' as any)}
               activeOpacity={0.8}
               disabled={isSubmitting}
             >
@@ -301,11 +262,5 @@ const styles = StyleSheet.create({
     color: '#2F6690',
     fontSize: 16,
     fontWeight: '700',
-  },
-  disabledButton: {
-    opacity: 0.7,
-  },
-  disabledSecondaryButton: {
-    opacity: 0.7,
   },
 });

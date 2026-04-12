@@ -87,7 +87,17 @@ export type NoteRequest = {
   date: string;
 };
 
-/* Common feelings */
+export type FoodCatalogItem = {
+  id: EntityId;
+  name: string;
+  category?: string;
+};
+
+export type FoodCategory = {
+  id: EntityId;
+  name: string;
+};
+
 
 export async function getCommonFeelingsApi(): Promise<CommonFeeling[]> {
   return apiRequest<CommonFeeling[]>('/api/feelings/common', {
@@ -126,10 +136,9 @@ export async function deleteCommonFeelingApi(
   });
 }
 
-/* Symptoms */
 
 export async function getSymptomsApi(): Promise<Symptom[]> {
-  return apiRequest<Symptom[]>('/api/feelings/symptoms/all', {
+  return apiRequest<Symptom[]>('/api/symptoms', {
     method: 'GET',
     auth: true,
   });
@@ -138,7 +147,7 @@ export async function getSymptomsApi(): Promise<Symptom[]> {
 export async function createSymptomApi(
   payload: SymptomRequest
 ): Promise<Symptom> {
-  return apiRequest<Symptom>('/api/feelings/symptoms', {
+  return apiRequest<Symptom>('/api/symptoms', {
     method: 'POST',
     body: payload,
     auth: true,
@@ -149,7 +158,7 @@ export async function updateSymptomApi(
   symptomsId: EntityId,
   payload: SymptomRequest
 ): Promise<Symptom> {
-  return apiRequest<Symptom>(`/api/feelings/symptoms/${symptomsId}`, {
+  return apiRequest<Symptom>(`/api/symptoms/${symptomsId}`, {
     method: 'PUT',
     body: payload,
     auth: true,
@@ -159,13 +168,12 @@ export async function updateSymptomApi(
 export async function deleteSymptomApi(
   symptomsId: EntityId
 ): Promise<void> {
-  return apiRequest<void>(`/api/feelings/symptoms/${symptomsId}`, {
+  return apiRequest<void>(`/api/symptoms/${symptomsId}`, {
     method: 'DELETE',
     auth: true,
   });
 }
 
-/* Medicines */
 
 export async function getMedicinesApi(): Promise<Medicine[]> {
   return apiRequest<Medicine[]>('/api/medicines', {
@@ -202,7 +210,6 @@ export async function deleteMedicineApi(id: EntityId): Promise<void> {
   });
 }
 
-/* Food */
 
 export async function getFoodApi(): Promise<Food[]> {
   return apiRequest<Food[]>('/api/feelings/food', {
@@ -239,7 +246,7 @@ export async function deleteFoodApi(
   });
 }
 
-/* Notes */
+/* Заметки */
 
 export async function getNotesApi(): Promise<Note[]> {
   return apiRequest<Note[]>('/api/feelings/notes', {
@@ -272,4 +279,52 @@ export async function deleteNoteApi(noteId: EntityId): Promise<void> {
     method: 'DELETE',
     auth: true,
   });
+}
+
+export async function searchFoodCatalogApi(
+  prefix: string
+): Promise<FoodCatalogItem[]> {
+  return apiRequest<FoodCatalogItem[]>(
+    `/api/food/search?prefix=${encodeURIComponent(prefix)}`,
+    {
+      method: 'GET',
+      auth: true,
+    }
+  );
+}
+
+export async function getFoodCategoriesApi(): Promise<FoodCategory[]> {
+  return apiRequest<FoodCategory[]>('/api/reference/food-categories', {
+    method: 'GET',
+    auth: true,
+  });
+}
+export async function getCommonFeelingsByDateApi(date: string): Promise<CommonFeeling[]> {
+  return apiRequest<CommonFeeling[]>(
+    `/api/feelings/common/by-date?date=${encodeURIComponent(date)}`,
+    {
+      method: 'GET',
+      auth: true,
+    }
+  );
+}
+
+export async function getFoodByDateApi(date: string): Promise<Food[]> {
+  return apiRequest<Food[]>(
+    `/api/feelings/food/by-date?date=${encodeURIComponent(date)}`,
+    {
+      method: 'GET',
+      auth: true,
+    }
+  );
+}
+
+export async function getNotesByDateApi(date: string): Promise<Note[]> {
+  return apiRequest<Note[]>(
+    `/api/feelings/notes/date?date=${encodeURIComponent(date)}`,
+    {
+      method: 'GET',
+      auth: true,
+    }
+  );
 }

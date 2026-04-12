@@ -4,15 +4,6 @@ export type RegisterRequest = {
   email: string;
   password: string;
   fullName?: string;
-  country?: string;
-  timezone?: string;
-};
-
-export type RegisterResponse = {
-  userId: string;
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
 };
 
 export type LoginRequest = {
@@ -20,10 +11,12 @@ export type LoginRequest = {
   password: string;
 };
 
-export type LoginResponse = {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
+export type AuthResponse = {
+  accessToken?: string;
+  refreshToken?: string;
+  token?: string;
+  userId?: string | number;
+  expiresIn?: number;
 };
 
 export type RefreshTokenResponse = {
@@ -33,8 +26,8 @@ export type RefreshTokenResponse = {
 
 export async function registerApi(
   payload: RegisterRequest
-): Promise<RegisterResponse> {
-  return apiRequest<RegisterResponse>('/auth/registration', {
+): Promise<AuthResponse> {
+  return apiRequest<AuthResponse>('/api/user/registration', {
     method: 'POST',
     body: payload,
   });
@@ -42,8 +35,8 @@ export async function registerApi(
 
 export async function loginApi(
   payload: LoginRequest
-): Promise<LoginResponse> {
-  return apiRequest<LoginResponse>('/auth/login', {
+): Promise<AuthResponse> {
+  return apiRequest<AuthResponse>('/api/login', {
     method: 'POST',
     body: payload,
   });

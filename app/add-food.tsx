@@ -1,41 +1,26 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   SafeAreaView,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 
-import { createFoodApi, updateFoodApi } from '../src/api/diaryApi';
-
-type PresetFood = {
-  name: string;
-  aliases: string[];
-  category?: string;
-  unit?: string;
-};
-
-const PRESET_FOODS: PresetFood[] = [
-  { name: 'Йогурт', aliases: ['йог', 'yogurt', 'yog'], category: 'DAIRY', unit: 'GRAM' },
-  { name: 'Кефир', aliases: ['кеф', 'kefir'], category: 'DAIRY', unit: 'ML' },
-  { name: 'Творог', aliases: ['твор', 'curd'], category: 'DAIRY', unit: 'GRAM' },
-  { name: 'Овсяная каша', aliases: ['овс', 'каша', 'oat'], category: 'GRAINS', unit: 'GRAM' },
-  { name: 'Куриный суп', aliases: ['кур', 'суп', 'chicken soup'], category: 'SOUP', unit: 'ML' },
-  { name: 'Салат Цезарь', aliases: ['цез', 'caesar'], category: 'SALAD', unit: 'GRAM' },
-  { name: 'Пицца', aliases: ['пиц', 'pizza'], category: 'FAST_FOOD', unit: 'GRAM' },
-  { name: 'Борщ', aliases: ['бор', 'borsch'], category: 'SOUP', unit: 'ML' },
-  { name: 'Яблоко', aliases: ['ябл', 'apple'], category: 'FRUIT', unit: 'GRAM' },
-  { name: 'Банан', aliases: ['бан', 'banana'], category: 'FRUIT', unit: 'GRAM' },
-  { name: 'Омлет', aliases: ['омл', 'omelet'], category: 'BREAKFAST', unit: 'GRAM' },
-  { name: 'Гречка с курицей', aliases: ['греч', 'гр', 'buckwheat'], category: 'MAIN_DISH', unit: 'GRAM' },
-];
+import {
+  createFoodApi,
+  getFoodCategoriesApi,
+  searchFoodCatalogApi,
+  updateFoodApi,
+  type FoodCatalogItem,
+  type FoodCategory,
+} from '../src/api/diaryApi';
+import { formStyles as styles } from '../src/styles/formStyles';
 
 function isValidDateString(value: string) {
   if (!value.trim()) return false;
@@ -68,32 +53,79 @@ export default function AddFoodScreen() {
   const [reactionDescription, setReactionDescription] = useState(
     params.reactionDescription ?? ''
   );
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [catalogItems, setCatalogItems] = useState<FoodCatalogItem[]>([]);
+  const [categories, setCategories] = useState<FoodCategory[]>([]);
 
-  const filteredFoods = useMemo(() => {
-    const query = foodName.trim().toLowerCase();
+  useEffect(() => {
+    let isMounted = true;
 
-    if (!query) {
-      return PRESET_FOODS.slice(0, 8);
+    const loadCategories = async () => {
+      try {
+        const data = await getFoodCategoriesApi();
+        if (isMounted) {
+          setCategories(data ?? []);
+        }
+      } catch {
+        // категории не критичны для работы формы
+      }
+    };
+
+    void loadCategories();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const trimmed = foodName.trim();
+
+    if (!trimmed || trimmed.length < 2) {
+      setCatalogItems([]);
+      return;
     }
 
-    return PRESET_FOODS.filter((item) => {
-      const inName = item.name.toLowerCase().includes(query);
-      const inAliases = item.aliases.some((alias) =>
-        alias.toLowerCase().includes(query)
-      );
-      return inName || inAliases;
-    }).slice(0, 8);
+    const timeout = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        const data = await searchFoodCatalogApi(trimmed);
+        if (isMounted) {
+          setCatalogItems(data ?? []);
+        }
+      } catch {
+        if (isMounted) {
+          setCatalogItems([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsSearching(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+    };
   }, [foodName]);
 
-  const handleSelectPreset = (item: PresetFood) => {
+  const handleSelectCatalogItem = (item: FoodCatalogItem) => {
     setFoodName(item.name);
+
     if (!category.trim() && item.category) {
       setCategory(item.category);
     }
-    if (!unit.trim() && item.unit) {
-      setUnit(item.unit);
-    }
+
+    setCatalogItems([]);
+  };
+
+  const handleSelectCategory = (item: FoodCategory) => {
+    setCategory(item.name);
   };
 
   const handleSave = async () => {
@@ -113,14 +145,15 @@ export default function AddFoodScreen() {
       return;
     }
 
-    let parsedAmount: number | undefined = undefined;
-
+    let parsedAmount: number | undefined;
     if (amount.trim()) {
       parsedAmount = Number(amount);
+
       if (Number.isNaN(parsedAmount)) {
         Alert.alert('Ошибка', 'Количество должно быть числом');
         return;
       }
+
       if (parsedAmount <= 0) {
         Alert.alert('Ошибка', 'Количество должно быть больше нуля');
         return;
@@ -172,56 +205,156 @@ export default function AddFoodScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.title}>
-          {isEdit ? 'Редактировать питание' : 'Добавить питание'}
+          {isEdit ? 'Редактировать питание' : 'Питание'}
         </Text>
         <Text style={styles.subtitle}>
-          Выберите готовое блюдо или заполните запись вручную
+          Найдите продукт через бэк или заполните запись вручную
         </Text>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Поиск блюда</Text>
-
-          <View style={styles.searchBox}>
-            <Ionicons name="search-outline" size={20} color="#98A2B3" />
-
+        <View style={styles.card}>
+          <Text style={styles.label}>Поиск блюда</Text>
+          <View
+            style={{
+              minHeight: 54,
+              borderRadius: 16,
+              backgroundColor: '#F8FAFC',
+              borderWidth: 1,
+              borderColor: '#E4E7EC',
+              paddingHorizontal: 16,
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}
+          >
+            <Ionicons name="search-outline" size={18} color="#98A2B3" />
             <TextInput
-              style={styles.searchInput}
+              style={{
+                flex: 1,
+                minHeight: 54,
+                marginLeft: 10,
+                color: '#101828',
+                fontSize: 15,
+              }}
               value={foodName}
               onChangeText={setFoodName}
               editable={!isSubmitting}
             />
-
-            {foodName.length > 0 && (
+            {isSearching ? (
+              <ActivityIndicator size="small" color="#2F6690" />
+            ) : foodName.length > 0 ? (
               <TouchableOpacity
-                onPress={() => setFoodName('')}
+                onPress={() => {
+                  setFoodName('');
+                  setCatalogItems([]);
+                }}
                 disabled={isSubmitting}
                 activeOpacity={0.85}
               >
-                <Ionicons name="close-circle" size={20} color="#98A2B3" />
+                <Ionicons name="close-circle" size={18} color="#98A2B3" />
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
 
-          <View style={styles.chipsWrap}>
-            {filteredFoods.length > 0 ? (
-              filteredFoods.map((item) => (
+          {catalogItems.length > 0 && (
+            <View
+              style={{
+                marginTop: 10,
+                gap: 8,
+              }}
+            >
+              {catalogItems.map((item) => (
                 <TouchableOpacity
-                  key={item.name}
-                  style={styles.foodChip}
-                  onPress={() => handleSelectPreset(item)}
+                  key={String(item.id)}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: '#E4E7EC',
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
                   activeOpacity={0.85}
+                  onPress={() => handleSelectCatalogItem(item)}
                   disabled={isSubmitting}
                 >
-                  <Text style={styles.foodChipText}>{item.name}</Text>
-                </TouchableOpacity>
-              ))
-            ) : (
-              <Text style={styles.emptyText}>Ничего не найдено</Text>
-            )}
-          </View>
-        </View>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text
+                      style={{
+                        fontSize: 15,
+                        fontWeight: '600',
+                        color: '#233142',
+                      }}
+                    >
+                      {item.name}
+                    </Text>
+                    {!!item.category && (
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: '#98A2B3',
+                          marginTop: 2,
+                        }}
+                      >
+                        {item.category}
+                      </Text>
+                    )}
+                  </View>
 
-        <View style={styles.card}>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={16}
+                    color="#98A2B3"
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {!!categories.length && (
+            <>
+              <Text style={styles.label}>Категории</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingRight: 8 }}
+              >
+                {categories.map((item) => {
+                  const active = category === item.name;
+
+                  return (
+                    <TouchableOpacity
+                      key={String(item.id)}
+                      style={{
+                        height: 36,
+                        borderRadius: 18,
+                        paddingHorizontal: 14,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        backgroundColor: active ? '#2F6690' : '#EAF1F7',
+                        marginRight: 10,
+                      }}
+                      activeOpacity={0.85}
+                      onPress={() => handleSelectCategory(item)}
+                      disabled={isSubmitting}
+                    >
+                      <Text
+                        style={{
+                          color: active ? '#FFFFFF' : '#2F6690',
+                          fontSize: 13,
+                          fontWeight: '700',
+                        }}
+                      >
+                        {item.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </>
+          )}
+
           <Text style={styles.label}>Название блюда</Text>
           <TextInput
             style={styles.input}
@@ -270,21 +403,30 @@ export default function AddFoodScreen() {
           />
 
           <Text style={styles.label}>Была ли реакция</Text>
-          <View style={styles.toggleRow}>
+          <View style={styles.row}>
             <TouchableOpacity
               style={[
-                styles.toggleButton,
-                !reactionOccurred && styles.toggleButtonActive,
+                styles.half,
+                {
+                  minHeight: 48,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: !reactionOccurred ? '#2F6690' : '#D0D5DD',
+                  backgroundColor: !reactionOccurred ? '#EAF1F7' : '#FFFFFF',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                },
               ]}
-              onPress={() => setReactionOccurred(false)}
               activeOpacity={0.85}
+              onPress={() => setReactionOccurred(false)}
               disabled={isSubmitting}
             >
               <Text
-                style={[
-                  styles.toggleButtonText,
-                  !reactionOccurred && styles.toggleButtonTextActive,
-                ]}
+                style={{
+                  color: !reactionOccurred ? '#2F6690' : '#344054',
+                  fontSize: 15,
+                  fontWeight: '600',
+                }}
               >
                 Нет
               </Text>
@@ -292,18 +434,27 @@ export default function AddFoodScreen() {
 
             <TouchableOpacity
               style={[
-                styles.toggleButton,
-                reactionOccurred && styles.toggleButtonActive,
+                styles.half,
+                {
+                  minHeight: 48,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: reactionOccurred ? '#2F6690' : '#D0D5DD',
+                  backgroundColor: reactionOccurred ? '#EAF1F7' : '#FFFFFF',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                },
               ]}
-              onPress={() => setReactionOccurred(true)}
               activeOpacity={0.85}
+              onPress={() => setReactionOccurred(true)}
               disabled={isSubmitting}
             >
               <Text
-                style={[
-                  styles.toggleButtonText,
-                  reactionOccurred && styles.toggleButtonTextActive,
-                ]}
+                style={{
+                  color: reactionOccurred ? '#2F6690' : '#344054',
+                  fontSize: 15,
+                  fontWeight: '600',
+                }}
               >
                 Да
               </Text>
@@ -315,25 +466,25 @@ export default function AddFoodScreen() {
               <Text style={styles.label}>Описание реакции</Text>
               <TextInput
                 style={[styles.input, styles.multiline]}
+                multiline
                 value={reactionDescription}
                 onChangeText={setReactionDescription}
-                multiline
                 editable={!isSubmitting}
               />
             </>
           )}
 
           <TouchableOpacity
-            style={[styles.saveButton, isSubmitting && styles.saveButtonDisabled]}
+            style={[styles.button, isSubmitting && { opacity: 0.7 }]}
             onPress={handleSave}
-            activeOpacity={0.85}
             disabled={isSubmitting}
+            activeOpacity={0.85}
           >
             {isSubmitting ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.saveButtonText}>
-                {isEdit ? 'Обновить запись' : 'Сохранить запись'}
+              <Text style={styles.buttonText}>
+                {isEdit ? 'Обновить' : 'Сохранить'}
               </Text>
             )}
           </TouchableOpacity>
@@ -342,154 +493,3 @@ export default function AddFoodScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F5F7FB',
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#233142',
-    marginBottom: 6,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#667085',
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  section: {
-    marginBottom: 18,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#233142',
-    marginBottom: 12,
-  },
-  searchBox: {
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 15,
-    color: '#101828',
-  },
-  chipsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 14,
-  },
-  foodChip: {
-    backgroundColor: '#EAF1F7',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  foodChipText: {
-    color: '#2F6690',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  emptyText: {
-    color: '#98A2B3',
-    fontSize: 13,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 18,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  half: {
-    flex: 1,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#344054',
-    marginBottom: 8,
-    marginTop: 12,
-  },
-  input: {
-    minHeight: 54,
-    borderRadius: 16,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: '#101828',
-  },
-  multiline: {
-    minHeight: 110,
-    textAlignVertical: 'top',
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-  },
-  toggleButton: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#D0D5DD',
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  toggleButtonActive: {
-    backgroundColor: '#EAF1F7',
-    borderColor: '#2F6690',
-  },
-  toggleButtonText: {
-    color: '#344054',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  toggleButtonTextActive: {
-    color: '#2F6690',
-  },
-  saveButton: {
-    marginTop: 24,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: '#2F6690',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.7,
-  },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-});

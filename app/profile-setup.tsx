@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 
-import { updateUserProfileApi } from '../src/api/profileApi';
+import { createUserProfileApi } from '../src/api/profileApi';
 import { useAuth } from '../src/context/AuthContext';
 import { validateFullName } from '../src/utils/validation';
 
@@ -79,7 +79,7 @@ export default function ProfileSetup() {
 
       setIsSubmitting(true);
 
-      await updateUserProfileApi({
+      await createUserProfileApi({
         fullName: normalizedFullName,
         age: parsedAge,
         weight: parsedWeight,
