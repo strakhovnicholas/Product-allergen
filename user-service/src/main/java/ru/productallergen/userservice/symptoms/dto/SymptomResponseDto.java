@@ -1,5 +1,6 @@
 package ru.productallergen.userservice.symptoms.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.ZonedDateTime;
@@ -18,9 +19,11 @@ public record SymptomResponseDto(
                 requiredMode = Schema.RequiredMode.REQUIRED)
         Integer severity,
 
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ", timezone = "UTC")
         @Schema(description = "Дата и время создания записи", example = "2026-03-21T10:00:00+03:00")
         ZonedDateTime createdAt,
 
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ", timezone = "UTC")
         @Schema(description = "Дата и время последнего обновления", example = "2026-03-21T12:30:00+03:00")
         ZonedDateTime updatedAt
 ) {

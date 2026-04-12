@@ -1,5 +1,6 @@
 package ru.productallergen.userservice.userInfo.web;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -50,8 +51,12 @@ public class UserInfoWebDto {
     private List<String> medicationsRegular;
     @Schema(description = "Замечания лечащего врача")
     private String doctorNotes;
+
     @Schema(description = "Дата регистрации")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ", timezone = "UTC")
     private ZonedDateTime registeredAt;
+
     @Schema(description = "Дата обновления")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ", timezone = "UTC")
     private ZonedDateTime updatedAt;
 }

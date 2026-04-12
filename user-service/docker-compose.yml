@@ -1,13 +1,13 @@
-version: '3.8'
+version: '3.9'
 
 services:
 
-  app:
+  java_service:
     image: allergen:1.0
     container_name: java_service
     restart: on-failure
     ports:
-      - "8080:8080"
+      - "8082:8080"
     environment:
 
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/allergen_pg
@@ -15,7 +15,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
 
-      SPRING_DATA_MONGODB_URI: mongodb://mongo:allergen_mg@mongo:27017/admin
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:allergen_mg@mongo:27017/health_tracker?authSource=admin
 
     networks:
       - backend-net
