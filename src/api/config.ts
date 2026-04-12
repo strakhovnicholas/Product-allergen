@@ -1,1 +1,1 @@
-export const API_BASE_URL = 'http://BACKEND_IP:8080';
+export const API_BASE_URL = 'http://153.80.185.135';

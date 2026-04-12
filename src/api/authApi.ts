@@ -34,7 +34,7 @@ export type RefreshTokenResponse = {
 export async function registerApi(
   payload: RegisterRequest
 ): Promise<RegisterResponse> {
-  return apiRequest<RegisterResponse>('/api/user/registration', {
+  return apiRequest<RegisterResponse>('/auth/registration', {
     method: 'POST',
     body: payload,
   });
@@ -43,7 +43,7 @@ export async function registerApi(
 export async function loginApi(
   payload: LoginRequest
 ): Promise<LoginResponse> {
-  return apiRequest<LoginResponse>('/api/login', {
+  return apiRequest<LoginResponse>('/auth/login', {
     method: 'POST',
     body: payload,
   });
@@ -52,14 +52,14 @@ export async function loginApi(
 export async function refreshTokenApi(
   refreshToken: string
 ): Promise<RefreshTokenResponse> {
-  return apiRequest<RefreshTokenResponse>('/api/auth/refresh', {
+  return apiRequest<RefreshTokenResponse>('/auth/refresh', {
     method: 'POST',
     body: { refreshToken },
   });
 }
 
 export async function logoutApi(refreshToken: string): Promise<void> {
-  return apiRequest<void>('/api/auth/logout', {
+  return apiRequest<void>('/auth/logout', {
     method: 'POST',
     body: {
       refreshToken,
