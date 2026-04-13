@@ -4,7 +4,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -15,7 +15,7 @@ public class SymptomsDto {
     private UUID userId;
     private String symptomName;
     private Integer severity;
-    private ZonedDateTime startTime;
-    private ZonedDateTime endTime;
+    private LocalDateTime startTime;
+    private LocalDateTime endTime;
     private String possibleCause;
 }

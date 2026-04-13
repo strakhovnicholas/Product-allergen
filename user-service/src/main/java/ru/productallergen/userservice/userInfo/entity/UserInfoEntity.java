@@ -3,15 +3,18 @@ package ru.productallergen.userservice.userInfo.entity;
 import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.mongodb.core.mapping.FieldType;
 import ru.productallergen.userservice.userInfo.Predisposition;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 @Document(collection = "user_info")
 public record UserInfoEntity(
         @Id ObjectId id,
+        @Field(targetType = FieldType.STRING)
         UUID userId,
         String fullName,
         Integer age,
@@ -27,6 +30,6 @@ public record UserInfoEntity(
         Predisposition predisposition,
         List<String> medicationsRegular,
         String doctorNotes,
-        ZonedDateTime registeredAt,
-        ZonedDateTime updatedAt
+        LocalDateTime registeredAt,
+        LocalDateTime updatedAt
 ) {}

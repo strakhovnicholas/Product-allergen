@@ -3,13 +3,13 @@ package ru.productallergen.userservice.foodanalyzer.dto;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.constraints.NotNull;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 
 public record FoodComponentSymptomsAnalyzeRequest(
         @Parameter(description = "Дата начала анализа")
         @NotNull
-        ZonedDateTime from,
+        LocalDateTime from,
         @NotNull
         @Parameter(description = "Конечная дата анализа")
-        ZonedDateTime to) {
+        LocalDateTime to) {
 }

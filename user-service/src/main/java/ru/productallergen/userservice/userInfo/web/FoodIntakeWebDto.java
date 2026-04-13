@@ -9,7 +9,7 @@ import lombok.Setter;
 import ru.productallergen.userservice.userInfo.FoodCategory;
 import ru.productallergen.userservice.userInfo.FoodUnit;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,9 +25,9 @@ public class FoodIntakeWebDto {
     private Double amount;
     private FoodUnit unit;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ", timezone = "UTC")
-    private ZonedDateTime intakeTime;
+    private LocalDateTime intakeTime;
     private Boolean reactionOccurred;
     private String reactionDescription;
-    private ZonedDateTime createdAt;
+    private LocalDateTime createdAt;
     private List<String> components;
 }

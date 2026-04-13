@@ -17,7 +17,7 @@ import ru.productallergen.userservice.food.dto.FoodResponseDto;
 import ru.productallergen.userservice.food.service.FoodService;
 import ru.productallergen.userservice.userInfo.FoodCategory;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -56,8 +56,8 @@ class FoodControllerTest {
                 "Яблоко",
                 FoodCategory.FRUIT,
                 List.of("Яблоко"),
-                ZonedDateTime.parse("2023-10-27T10:00:00+03:00"),
-                ZonedDateTime.parse("2023-10-27T12:15:00+03:00")
+                LocalDateTime.parse("2023-10-27T10:00:00+03:00"),
+                LocalDateTime.parse("2023-10-27T12:15:00+03:00")
         );
     }
 

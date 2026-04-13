@@ -16,7 +16,7 @@ import ru.productallergen.userservice.symptoms.dto.SymptomEditRequestDto;
 import ru.productallergen.userservice.symptoms.dto.SymptomResponseDto;
 import ru.productallergen.userservice.symptoms.service.SymptomService;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -54,8 +54,8 @@ class SymptomControllerTest {
                 SYMPTOM_ID,
                 "Головная боль",
                 7,
-                ZonedDateTime.parse("2026-03-21T10:00:00+03:00"),
-                ZonedDateTime.parse("2026-03-21T12:30:00+03:00")
+                LocalDateTime.parse("2026-03-21T10:00:00+03:00"),
+                LocalDateTime.parse("2026-03-21T12:30:00+03:00")
         );
     }
 

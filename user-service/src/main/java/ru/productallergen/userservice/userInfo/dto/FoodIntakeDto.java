@@ -6,7 +6,7 @@ import lombok.Setter;
 import ru.productallergen.userservice.userInfo.FoodCategory;
 import ru.productallergen.userservice.userInfo.FoodUnit;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,9 +20,9 @@ public class FoodIntakeDto {
     private FoodCategory category;
     private Double amount;
     private FoodUnit unit;
-    private ZonedDateTime intakeTime;
+    private LocalDateTime intakeTime;
     private Boolean reactionOccurred;
     private String reactionDescription;
-    private ZonedDateTime createdAt;
+    private LocalDateTime createdAt;
     private List<String> components;
 }

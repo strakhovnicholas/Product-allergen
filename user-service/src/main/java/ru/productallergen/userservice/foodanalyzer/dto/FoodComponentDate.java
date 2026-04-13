@@ -1,11 +1,11 @@
 package ru.productallergen.userservice.foodanalyzer.dto;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 
 /**
  * Компонент еды с датой потребления
  */
 public record FoodComponentDate(
         String foodComponent,
-        ZonedDateTime dateTime) {
+        LocalDateTime dateTime) {
 }

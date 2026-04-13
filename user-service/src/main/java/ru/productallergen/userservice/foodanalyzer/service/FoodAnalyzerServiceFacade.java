@@ -14,7 +14,7 @@ import ru.productallergen.userservice.userInfo.dto.SymptomsDto;
 import ru.productallergen.userservice.userInfo.service.FoodIntakeService;
 import ru.productallergen.userservice.userInfo.service.SymptomsService;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,8 +34,8 @@ public class FoodAnalyzerServiceFacade {
 
     public List<FoodComponentSymptomsResponse> analyzeFoodAndSymptoms(
             UUID userId,
-            ZonedDateTime from,
-            ZonedDateTime to) {
+            LocalDateTime from,
+            LocalDateTime to) {
         var symptomsByFoodComponents = foodComponentAnalyzerService
                 .findPotentialSymptomsByFoodComponents(
                         findAnalyzableInformation(userId, from, to),
@@ -43,7 +43,7 @@ public class FoodAnalyzerServiceFacade {
         return foodComponentSymptomsResponseMapper.map(symptomsByFoodComponents);
     }
 
-    private AnalyzableInformation findAnalyzableInformation(UUID userId, ZonedDateTime from, ZonedDateTime to) {
+    private AnalyzableInformation findAnalyzableInformation(UUID userId, LocalDateTime from, LocalDateTime to) {
         List<FoodIntakeDto> foodsIntakeDto = foodIntakeService.getFoodIntakeBetweenDates(userId, from, to);
         List<SymptomsDto> symptomsDto = symptomsService.getSymptomsByDateRange(userId, from, to);
         return new AnalyzableInformation(

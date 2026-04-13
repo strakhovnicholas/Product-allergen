@@ -7,7 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -19,5 +19,5 @@ public class NoteWebDto {
     private UUID noteId;
     private String content;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ", timezone = "UTC")
-    private ZonedDateTime date;
+    private LocalDateTime date;
 }

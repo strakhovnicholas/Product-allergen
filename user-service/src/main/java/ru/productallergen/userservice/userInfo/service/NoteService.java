@@ -8,8 +8,7 @@ import ru.productallergen.userservice.userInfo.entity.NoteEntity;
 import ru.productallergen.userservice.userInfo.mapper.NoteMapper;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,8 +32,8 @@ public class NoteService {
     }
 
     public List<NoteDto> getNodeByDate(UUID userId, LocalDate date) {
-        ZonedDateTime start = date.atStartOfDay(ZoneId.systemDefault());
-        ZonedDateTime end = start.plusDays(1);
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = start.plusDays(1);
 
         return repository.findAllByUserIdAndDateBetween(userId, start, end)
                 .stream()

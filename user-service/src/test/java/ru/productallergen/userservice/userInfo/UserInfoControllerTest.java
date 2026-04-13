@@ -17,7 +17,7 @@ import ru.productallergen.userservice.userInfo.mapper.UserInfoMapper;
 import ru.productallergen.userservice.userInfo.service.UserInfoService;
 import ru.productallergen.userservice.userInfo.web.UserInfoWebDto;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -70,8 +70,8 @@ class UserInfoControllerTest {
                 .predisposition(Predisposition.LOW)
                 .medicationsRegular(List.of("Aspirin"))
                 .doctorNotes("Healthy")
-                .registeredAt(ZonedDateTime.parse("2024-01-01T00:00:00+03:00"))
-                .updatedAt(ZonedDateTime.parse("2024-06-01T00:00:00+03:00"))
+                .registeredAt(LocalDateTime.parse("2024-01-01T00:00:00+03:00"))
+                .updatedAt(LocalDateTime.parse("2024-06-01T00:00:00+03:00"))
                 .build();
 
         sampleDto = UserInfoDto.builder()
@@ -90,8 +90,8 @@ class UserInfoControllerTest {
                 .predisposition(Predisposition.LOW)
                 .medicationsRegular(List.of("Aspirin"))
                 .doctorNotes("Healthy")
-                .registeredAt(ZonedDateTime.parse("2024-01-01T00:00:00+03:00"))
-                .updatedAt(ZonedDateTime.parse("2024-06-01T00:00:00+03:00"))
+                .registeredAt(LocalDateTime.parse("2024-01-01T00:00:00+03:00"))
+                .updatedAt(LocalDateTime.parse("2024-06-01T00:00:00+03:00"))
                 .build();
     }
 

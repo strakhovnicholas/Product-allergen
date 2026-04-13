@@ -17,7 +17,7 @@ import ru.productallergen.userservice.userInfo.mapper.SymptomsMapper;
 import ru.productallergen.userservice.userInfo.service.SymptomsService;
 import ru.productallergen.userservice.userInfo.web.SymptomsWebDto;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -47,8 +47,8 @@ class SymptomsControllerTest {
     private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final UUID SYMPTOMS_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
-    private static final ZonedDateTime START_TIME = ZonedDateTime.parse("2024-06-01T08:00:00+03:00");
-    private static final ZonedDateTime END_TIME = ZonedDateTime.parse("2024-06-01T10:00:00+03:00");
+    private static final LocalDateTime START_TIME = LocalDateTime.parse("2024-06-01T08:00:00+03:00");
+    private static final LocalDateTime END_TIME = LocalDateTime.parse("2024-06-01T10:00:00+03:00");
 
     private SymptomsWebDto sampleWebDto;
     private SymptomsDto sampleDto;
@@ -149,7 +149,7 @@ class SymptomsControllerTest {
     @Test
     @DisplayName("GET /api/feelings/symptoms/range — фильтрация по диапазону дат")
     void getSymptomsByDateRange_success() throws Exception {
-        when(service.getSymptomsByDateRange(eq(USER_ID), any(ZonedDateTime.class), any(ZonedDateTime.class)))
+        when(service.getSymptomsByDateRange(eq(USER_ID), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(List.of(sampleDto));
         when(mapper.toWebDto(sampleDto)).thenReturn(sampleWebDto);
 
@@ -162,7 +162,7 @@ class SymptomsControllerTest {
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].symptomsId").value(SYMPTOMS_ID.toString()));
 
-        verify(service).getSymptomsByDateRange(eq(USER_ID), any(ZonedDateTime.class), any(ZonedDateTime.class));
+        verify(service).getSymptomsByDateRange(eq(USER_ID), any(LocalDateTime.class), any(LocalDateTime.class));
     }
 
     @Test

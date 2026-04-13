@@ -18,7 +18,7 @@ import ru.productallergen.userservice.userInfo.service.FoodIntakeService;
 import ru.productallergen.userservice.userInfo.web.FoodIntakeWebDto;
 
 import java.time.LocalDate;
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -62,10 +62,10 @@ class FoodIntakeControllerTest {
                 .category(FoodCategory.FRUIT)
                 .amount(150.0)
                 .unit(FoodUnit.GRAM)
-                .intakeTime(ZonedDateTime.parse("2024-06-01T08:00:00+03:00"))
+                .intakeTime(LocalDateTime.parse("2024-06-01T08:00:00+03:00"))
                 .reactionOccurred(false)
                 .reactionDescription(null)
-                .createdAt(ZonedDateTime.parse("2024-06-01T08:05:00+03:00"))
+                .createdAt(LocalDateTime.parse("2024-06-01T08:05:00+03:00"))
                 .build();
 
         sampleDto = FoodIntakeDto.builder()
@@ -75,10 +75,10 @@ class FoodIntakeControllerTest {
                 .category(FoodCategory.FRUIT)
                 .amount(150.0)
                 .unit(FoodUnit.GRAM)
-                .intakeTime(ZonedDateTime.parse("2024-06-01T08:00:00+03:00"))
+                .intakeTime(LocalDateTime.parse("2024-06-01T08:00:00+03:00"))
                 .reactionOccurred(false)
                 .reactionDescription(null)
-                .createdAt(ZonedDateTime.parse("2024-06-01T08:05:00+03:00"))
+                .createdAt(LocalDateTime.parse("2024-06-01T08:05:00+03:00"))
                 .build();
     }
 

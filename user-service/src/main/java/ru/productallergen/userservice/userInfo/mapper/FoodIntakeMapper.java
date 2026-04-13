@@ -7,7 +7,7 @@ import ru.productallergen.userservice.userInfo.dto.FoodIntakeDto;
 import ru.productallergen.userservice.userInfo.entity.FoodIntakeEntity;
 import ru.productallergen.userservice.userInfo.web.FoodIntakeWebDto;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Component
@@ -25,7 +25,7 @@ public class FoodIntakeMapper {
                 dto.getIntakeTime(),
                 dto.getReactionOccurred(),
                 dto.getReactionDescription(),
-                dto.getCreatedAt() != null ? dto.getCreatedAt() : ZonedDateTime.now(),
+                dto.getCreatedAt() != null ? dto.getCreatedAt() : LocalDateTime.now(),
                 dto.getComponents()
         );
     }

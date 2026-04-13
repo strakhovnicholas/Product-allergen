@@ -7,14 +7,14 @@ import ru.productallergen.userservice.foodanalyzer.dto.FoodComponentDate;
 import ru.productallergen.userservice.foodanalyzer.dto.SymptomDate;
 import ru.productallergen.userservice.foodanalyzer.service.FoodComponentAnalyzerServiceImpl;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 class FoodComponentAnalyzerServiceImplTest {
 
-    private static final ZonedDateTime DEFAULT_ZONED_TIME = ZonedDateTime.now();
+    private static final LocalDateTime DEFAULT_ZONED_TIME = LocalDateTime.now();
 
     private FoodComponentAnalyzerServiceImpl underTest;
 

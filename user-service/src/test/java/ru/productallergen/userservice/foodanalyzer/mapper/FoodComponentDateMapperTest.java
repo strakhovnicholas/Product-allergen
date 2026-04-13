@@ -7,8 +7,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ru.productallergen.userservice.foodanalyzer.dto.FoodComponentDate;
 import ru.productallergen.userservice.userInfo.dto.FoodIntakeDto;
 
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,7 +26,7 @@ class FoodComponentDateMapperTest {
 
     @Test
     void map_SingleFoodIntakeDtoWithMultipleComponents_ShouldReturnCorrectFoodComponentDates() {
-        ZonedDateTime intakeTime = ZonedDateTime.now();
+        LocalDateTime intakeTime = LocalDateTime.now();
         List<String> components = List.of("Component1", "Component2", "Component3");
 
         FoodIntakeDto dto = FoodIntakeDto.builder()
@@ -55,7 +54,7 @@ class FoodComponentDateMapperTest {
                 .foodIntakeId(UUID.randomUUID())
                 .userId(UUID.randomUUID())
                 .foodName("Test Food")
-                .intakeTime(ZonedDateTime.now())
+                .intakeTime(LocalDateTime.now())
                 .components(List.of())
                 .build();
 
@@ -66,8 +65,8 @@ class FoodComponentDateMapperTest {
 
     @Test
     void map_ListOfFoodIntakeDtoWithMultipleComponents_ShouldReturnAllFoodComponentDates() {
-        ZonedDateTime time1 = ZonedDateTime.of(2024, 1, 1, 10, 0, 0, 0, ZoneId.systemDefault());
-        ZonedDateTime time2 = ZonedDateTime.of(2024, 1, 1, 14, 0, 0, 0, ZoneId.systemDefault());
+        LocalDateTime time1 = LocalDateTime.of(2024, 1, 1, 10, 0, 0, 0);
+        LocalDateTime time2 = LocalDateTime.of(2024, 1, 1, 14, 0, 0, 0);
 
         FoodIntakeDto dto1 = FoodIntakeDto.builder()
                 .foodIntakeId(UUID.randomUUID())

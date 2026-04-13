@@ -4,7 +4,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -13,7 +13,7 @@ import java.util.UUID;
 public class CommonFeelingDto {
     private UUID feelingId;
     private UUID userId;
-    private ZonedDateTime dateTime;
+    private LocalDateTime dateTime;
     private Integer wellbeingScore;
     private Integer mood;
     private Integer energyLevel;

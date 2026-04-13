@@ -7,7 +7,7 @@ import ru.productallergen.userservice.userInfo.dto.SymptomsDto;
 import ru.productallergen.userservice.userInfo.entity.SymptomsEntity;
 import ru.productallergen.userservice.userInfo.mapper.SymptomsMapper;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,7 +30,7 @@ public class SymptomsService {
                 .toList();
     }
 
-    public List<SymptomsDto> getSymptomsByDateRange(UUID userId, ZonedDateTime from, ZonedDateTime to) {
+    public List<SymptomsDto> getSymptomsByDateRange(UUID userId, LocalDateTime from, LocalDateTime to) {
         return repository.findAllByUserIdAndStartTimeBetweenOrderByStartTimeAsc(userId, from, to)
                 .stream()
                 .map(mapper::toDto)

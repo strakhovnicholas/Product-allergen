@@ -7,8 +7,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ru.productallergen.userservice.foodanalyzer.dto.SymptomDate;
 import ru.productallergen.userservice.userInfo.dto.SymptomsDto;
 
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,8 +26,8 @@ class SymptomDateMapperTest {
 
     @Test
     void map_SingleSymptomsDto_ShouldReturnCorrectSymptomDate() {
-        ZonedDateTime startTime = ZonedDateTime.of(2024, 1, 1, 10, 0, 0, 0, ZoneId.systemDefault());
-        ZonedDateTime endTime = ZonedDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneId.systemDefault());
+        LocalDateTime startTime = LocalDateTime.of(2024, 1, 1, 10, 0, 0, 0);
+        LocalDateTime endTime = LocalDateTime.of(2024, 1, 1, 12, 0, 0, 0);
 
         SymptomsDto dto = SymptomsDto.builder()
                 .symptomsId(UUID.randomUUID())
@@ -48,7 +47,7 @@ class SymptomDateMapperTest {
 
     @Test
     void map_SingleSymptomsDtoWithNullEndTime_ShouldReturnSymptomDateWithNullEndTime() {
-        ZonedDateTime startTime = ZonedDateTime.now();
+        LocalDateTime startTime = LocalDateTime.now();
 
         SymptomsDto dto = SymptomsDto.builder()
                 .symptomsId(UUID.randomUUID())
@@ -68,7 +67,7 @@ class SymptomDateMapperTest {
 
     @Test
     void map_SingleSymptomsDtoWithNullStartTime_ShouldReturnSymptomDateWithNullStartTime() {
-        ZonedDateTime endTime = ZonedDateTime.now();
+        LocalDateTime endTime = LocalDateTime.now();
 
         SymptomsDto dto = SymptomsDto.builder()
                 .symptomsId(UUID.randomUUID())
@@ -88,11 +87,11 @@ class SymptomDateMapperTest {
 
     @Test
     void map_ListOfSymptomsDto_ShouldReturnListOfSymptomDates() {
-        ZonedDateTime time1Start = ZonedDateTime.of(2024, 1, 1, 9, 0, 0, 0, ZoneId.systemDefault());
-        ZonedDateTime time1End = ZonedDateTime.of(2024, 1, 1, 10, 0, 0, 0, ZoneId.systemDefault());
+        LocalDateTime time1Start = LocalDateTime.of(2024, 1, 1, 9, 0, 0, 0);
+        LocalDateTime time1End = LocalDateTime.of(2024, 1, 1, 10, 0, 0, 0);
 
-        ZonedDateTime time2Start = ZonedDateTime.of(2024, 1, 1, 14, 0, 0, 0, ZoneId.systemDefault());
-        ZonedDateTime time2End = ZonedDateTime.of(2024, 1, 1, 15, 30, 0, 0, ZoneId.systemDefault());
+        LocalDateTime time2Start = LocalDateTime.of(2024, 1, 1, 14, 0, 0, 0);
+        LocalDateTime time2End = LocalDateTime.of(2024, 1, 1, 15, 30, 0, 0);
 
         SymptomsDto dto1 = SymptomsDto.builder()
                 .symptomsId(UUID.randomUUID())
@@ -129,7 +128,7 @@ class SymptomDateMapperTest {
     @Test
     void map_ListOfSymptomsDtoWithNullValues_ShouldHandleGracefully() {
         // given
-        ZonedDateTime startTime = ZonedDateTime.now();
+        LocalDateTime startTime = LocalDateTime.now();
 
         SymptomsDto dto1 = SymptomsDto.builder()
                 .symptomsId(UUID.randomUUID())
@@ -174,7 +173,7 @@ class SymptomDateMapperTest {
 
     @Test
     void map_SingleSymptomsDtoWithSameStartAndEndTime_ShouldReturnSymptomDateWithEqualTimes() {
-        ZonedDateTime time = ZonedDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneId.systemDefault());
+        LocalDateTime time = LocalDateTime.of(2024, 1, 1, 12, 0, 0, 0);
 
         SymptomsDto dto = SymptomsDto.builder()
                 .symptomsId(UUID.randomUUID())
