@@ -1,5 +1,6 @@
 package ru.productallergen.userservice.userInfo.web;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -23,6 +24,7 @@ public class FoodIntakeWebDto {
     private FoodCategory category;
     private Double amount;
     private FoodUnit unit;
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ", timezone = "UTC")
     private ZonedDateTime intakeTime;
     private Boolean reactionOccurred;
     private String reactionDescription;

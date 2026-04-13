@@ -1,5 +1,6 @@
 package ru.productallergen.userservice.medicines.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.productallergen.userservice.medicines.entity.Unit;
 
@@ -25,9 +26,11 @@ public record MedicineResponseDto(
                 example = "MG", requiredMode = Schema.RequiredMode.REQUIRED)
         Unit unit,
 
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ", timezone = "UTC")
         @Schema(description = "Дата и время создания записи", example = "2023-10-27T10:00:00+03:00")
         ZonedDateTime createdAt,
 
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ", timezone = "UTC")
         @Schema(description = "Дата и время последнего обновления записи", example = "2023-10-27T12:15:00+03:00")
         ZonedDateTime updatedAt) {
 }
