@@ -5,17 +5,17 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import ru.productallergen.userservice.userInfo.entity.SymptomsEntity;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 public interface SymptomsRepository extends MongoRepository<SymptomsEntity, ObjectId> {
     List<SymptomsEntity> findAllByUserId(UUID userId);
 
-    List<SymptomsEntity> findAllByUserIdAndStartTimeBetween(
+    List<SymptomsEntity> findAllByUserIdAndStartTimeBetweenOrderByStartTimeAsc(
             UUID userId,
-            ZonedDateTime from,
-            ZonedDateTime to
+            LocalDateTime from,
+            LocalDateTime to
     );
 
     void deleteByUserIdAndId(UUID userId, UUID symptomsId);

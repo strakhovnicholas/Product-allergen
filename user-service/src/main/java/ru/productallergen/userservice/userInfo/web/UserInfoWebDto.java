@@ -11,7 +11,7 @@ import ru.productallergen.userservice.userInfo.ChronicDisease;
 import ru.productallergen.userservice.userInfo.Gender;
 import ru.productallergen.userservice.userInfo.Predisposition;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -54,9 +54,9 @@ public class UserInfoWebDto {
 
     @Schema(description = "Дата регистрации")
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ", timezone = "UTC")
-    private ZonedDateTime registeredAt;
+    private LocalDateTime registeredAt;
 
     @Schema(description = "Дата обновления")
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ", timezone = "UTC")
-    private ZonedDateTime updatedAt;
+    private LocalDateTime updatedAt;
 }

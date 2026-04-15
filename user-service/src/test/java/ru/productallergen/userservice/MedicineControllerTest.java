@@ -17,7 +17,7 @@ import ru.productallergen.userservice.medicines.dto.MedicineResponseDto;
 import ru.productallergen.userservice.medicines.entity.Unit;
 import ru.productallergen.userservice.medicines.service.MedicineService;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -57,8 +57,8 @@ class MedicineControllerTest {
                 "Парацетамол",
                 500,
                 Unit.MG,
-                ZonedDateTime.parse("2023-10-27T10:00:00+03:00"),
-                ZonedDateTime.parse("2023-10-27T12:15:00+03:00")
+                LocalDateTime.parse("2023-10-27T10:00:00+03:00"),
+                LocalDateTime.parse("2023-10-27T12:15:00+03:00")
         );
     }
 

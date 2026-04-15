@@ -1,4 +1,6 @@
-package ru.productallergen.userservice.foodanalyzer;
+package ru.productallergen.userservice.foodanalyzer.service;
+
+import ru.productallergen.userservice.foodanalyzer.dto.AnalyzableInformation;
 
 import java.util.Map;
 import java.util.Set;

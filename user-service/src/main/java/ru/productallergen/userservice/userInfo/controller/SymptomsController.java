@@ -20,7 +20,7 @@ import ru.productallergen.userservice.userInfo.mapper.SymptomsMapper;
 import ru.productallergen.userservice.userInfo.service.SymptomsService;
 import ru.productallergen.userservice.userInfo.web.SymptomsWebDto;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -59,9 +59,9 @@ public class SymptomsController {
             description = "Возвращает список записей о симптомах за указанный период времени")
     @GetMapping("/feelings/symptoms/range")
     public ResponseEntity<List<SymptomsWebDto>> getSymptomsByDateRange(@Parameter(description = "Начальная дата и время диапазона (ISO-8601)", required = true)
-                                                                       @RequestParam ZonedDateTime from,
+                                                                       @RequestParam LocalDateTime from,
                                                                        @Parameter(description = "Конечная дата и время диапазона (ISO-8601)", required = true)
-                                                                       @RequestParam ZonedDateTime to,
+                                                                       @RequestParam LocalDateTime to,
                                                                        @CurrentUserId UUID userId) {
         List<SymptomsWebDto> response = service.getSymptomsByDateRange(userId, from, to)
                 .stream()

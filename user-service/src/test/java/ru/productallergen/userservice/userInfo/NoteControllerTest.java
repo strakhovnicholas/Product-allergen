@@ -18,7 +18,7 @@ import ru.productallergen.userservice.userInfo.service.NoteService;
 import ru.productallergen.userservice.userInfo.web.NoteWebDto;
 
 import java.time.LocalDate;
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -59,14 +59,14 @@ class NoteControllerTest {
         sampleWebDto = NoteWebDto.builder()
                 .noteId(NOTE_ID)
                 .content("Test note content")
-                .date(ZonedDateTime.parse("2024-06-01T10:00:00+03:00"))
+                .date(LocalDateTime.parse("2024-06-01T10:00:00+03:00"))
                 .build();
 
         sampleDto = NoteDto.builder()
                 .noteId(NOTE_ID)
                 .userId(USER_ID)
                 .content("Test note content")
-                .date(ZonedDateTime.parse("2024-06-01T10:00:00+03:00"))
+                .date(LocalDateTime.parse("2024-06-01T10:00:00+03:00"))
                 .build();
     }
 

@@ -7,7 +7,7 @@ import ru.productallergen.userservice.userInfo.ChronicDisease;
 import ru.productallergen.userservice.userInfo.Gender;
 import ru.productallergen.userservice.userInfo.Predisposition;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,6 +30,6 @@ public class UserInfoDto {
     private Predisposition predisposition;
     private List<String> medicationsRegular;
     private String doctorNotes;
-    private ZonedDateTime registeredAt;
-    private ZonedDateTime updatedAt;
+    private LocalDateTime registeredAt;
+    private LocalDateTime updatedAt;
 }

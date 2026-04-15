@@ -4,7 +4,7 @@ import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import ru.productallergen.userservice.userInfo.entity.FoodIntakeEntity;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,11 +15,17 @@ public interface FoodIntakeRepository extends MongoRepository<FoodIntakeEntity, 
 
     List<FoodIntakeEntity> findAllByUserIdAndIntakeTimeBetween(
             UUID userId,
-            ZonedDateTime from,
-            ZonedDateTime to
+            LocalDateTime from,
+            LocalDateTime to
     );
 
     void deleteByUserIdAndFoodIntakeId(UUID userId, UUID foodIntakeId);
 
     Optional<FoodIntakeEntity> findByUserIdAndFoodIntakeId(UUID userId, UUID foodIntakeId);
+
+    List<FoodIntakeEntity> findAllByUserIdAndIntakeTimeBetweenOrderByIntakeTimeAsc(
+            UUID userId,
+            LocalDateTime from,
+            LocalDateTime to
+    );
 }

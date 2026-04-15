@@ -4,7 +4,7 @@ import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import ru.productallergen.userservice.userInfo.entity.CommonFeelingEntity;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -13,7 +13,7 @@ public interface CommonFeelingRepository extends MongoRepository<CommonFeelingEn
 
     List<CommonFeelingEntity> findAllByUserId(UUID userId);
 
-    List<CommonFeelingEntity> findAllByUserIdAndDateTimeBetween(UUID userId, ZonedDateTime from, ZonedDateTime to);
+    List<CommonFeelingEntity> findAllByUserIdAndDateTimeBetween(UUID userId, LocalDateTime from, LocalDateTime to);
 
     Optional<CommonFeelingEntity> findByUserIdAndFeelingId(UUID userId, UUID feelingId);
 

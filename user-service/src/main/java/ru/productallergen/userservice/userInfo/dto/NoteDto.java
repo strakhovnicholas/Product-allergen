@@ -4,7 +4,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -14,5 +14,5 @@ public class NoteDto {
     private UUID noteId;
     private UUID userId;
     private String content;
-    private ZonedDateTime date;
+    private LocalDateTime date;
 }

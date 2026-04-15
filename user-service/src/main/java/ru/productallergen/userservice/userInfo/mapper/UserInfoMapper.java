@@ -7,7 +7,7 @@ import ru.productallergen.userservice.userInfo.dto.UserInfoDto;
 import ru.productallergen.userservice.userInfo.entity.UserInfoEntity;
 import ru.productallergen.userservice.userInfo.web.UserInfoWebDto;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -128,7 +128,7 @@ public class UserInfoMapper {
                 dto.getMedicationsRegular(),
                 dto.getDoctorNotes(),
                 entity.registeredAt(),
-                ZonedDateTime.now()
+                LocalDateTime.now()
         );
     }
 }

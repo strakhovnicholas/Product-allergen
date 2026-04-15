@@ -18,7 +18,7 @@ import ru.productallergen.userservice.userInfo.service.CommonFeelingService;
 import ru.productallergen.userservice.userInfo.web.CommonFeelingWebDto;
 
 import java.time.LocalDate;
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -57,7 +57,7 @@ class CommonFeelingControllerTest {
 
         sampleWebDto = CommonFeelingWebDto.builder()
                 .feelingId(FEELING_ID)
-                .dateTime(ZonedDateTime.parse("2024-06-01T10:00:00+03:00"))
+                .dateTime(LocalDateTime.parse("2024-06-01T10:00:00+03:00"))
                 .wellbeingScore(8)
                 .mood(7)
                 .energyLevel(6)
@@ -67,7 +67,7 @@ class CommonFeelingControllerTest {
         sampleDto = CommonFeelingDto.builder()
                 .feelingId(FEELING_ID)
                 .userId(USER_ID)
-                .dateTime(ZonedDateTime.parse("2024-06-01T10:00:00+03:00"))
+                .dateTime(LocalDateTime.parse("2024-06-01T10:00:00+03:00"))
                 .wellbeingScore(8)
                 .mood(7)
                 .energyLevel(6)

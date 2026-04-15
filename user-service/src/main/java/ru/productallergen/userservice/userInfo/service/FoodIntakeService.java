@@ -8,8 +8,7 @@ import ru.productallergen.userservice.userInfo.entity.FoodIntakeEntity;
 import ru.productallergen.userservice.userInfo.mapper.FoodIntakeMapper;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,10 +32,17 @@ public class FoodIntakeService {
     }
 
     public List<FoodIntakeDto> getFoodIntakeByDate(UUID userId, LocalDate date) {
-        ZonedDateTime start = date.atStartOfDay(ZoneId.systemDefault());
-        ZonedDateTime end = start.plusDays(1);
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = start.plusDays(1);
 
         return repository.findAllByUserIdAndIntakeTimeBetween(userId, start, end)
+                .stream()
+                .map(mapper::toDto)
+                .toList();
+    }
+
+    public List<FoodIntakeDto> getFoodIntakeBetweenDates(UUID userId, LocalDateTime from, LocalDateTime to) {
+        return repository.findAllByUserIdAndIntakeTimeBetweenOrderByIntakeTimeAsc(userId, from, to)
                 .stream()
                 .map(mapper::toDto)
                 .toList();
@@ -57,7 +63,8 @@ public class FoodIntakeService {
                 dto.getIntakeTime(),
                 dto.getReactionOccurred(),
                 dto.getReactionDescription(),
-                entity.createdAt()
+                entity.createdAt(),
+                entity.components()
         );
 
         return mapper.toDto(repository.save(updated));

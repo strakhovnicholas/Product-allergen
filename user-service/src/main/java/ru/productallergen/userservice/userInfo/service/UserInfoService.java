@@ -7,7 +7,7 @@ import ru.productallergen.userservice.userInfo.dto.UserInfoDto;
 import ru.productallergen.userservice.userInfo.entity.UserInfoEntity;
 import ru.productallergen.userservice.userInfo.mapper.UserInfoMapper;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -20,7 +20,7 @@ public class UserInfoService {
     public UserInfoDto createUserInfo(UUID userId, UserInfoDto dto) {
         UserInfoEntity entity = mapper.toEntity(dto, userId);
 
-        ZonedDateTime now = ZonedDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
         entity = new UserInfoEntity(
                 entity.id(),
                 entity.userId(),
