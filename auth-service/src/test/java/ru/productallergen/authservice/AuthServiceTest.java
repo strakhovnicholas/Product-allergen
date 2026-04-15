@@ -99,7 +99,8 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.register(request))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessage("User already exists");
+                .hasMessage("User with email test@example.com already exists");
+
 
         verify(userRepository, never()).save(any(User.class));
         verify(refreshTokenService, never()).saveRefreshToken(anyString(), anyString());
@@ -155,8 +156,8 @@ class AuthServiceTest {
     void login_WithUserNotFound_ShouldThrowException() {
         LoginRequest request = new LoginRequest("nonexistent@example.com", "password");
 
-        doNothing().when(authenticationManager)
-                .authenticate(new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(mock(org.springframework.security.core.Authentication.class));
 
         when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
 

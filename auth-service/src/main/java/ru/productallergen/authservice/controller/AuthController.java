@@ -1,6 +1,5 @@
 package ru.productallergen.authservice.controller;
 
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -11,7 +10,6 @@ import ru.productallergen.authservice.dto.auth.AuthResponse;
 import ru.productallergen.authservice.dto.auth.LoginRequest;
 import ru.productallergen.authservice.dto.auth.LogoutRequest;
 import ru.productallergen.authservice.dto.auth.RegisterRequest;
-import ru.productallergen.authservice.security.JwtService;
 import ru.productallergen.authservice.service.auth.AuthService;
 
 @RestController
@@ -20,7 +18,6 @@ import ru.productallergen.authservice.service.auth.AuthService;
 public class AuthController {
 
     private final AuthService authService;
-    private final JwtService jwtService;
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
