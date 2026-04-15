@@ -11,19 +11,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import ru.productallergen.authservice.security.JwtService;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 
 @ExtendWith(SpringExtension.class)
-@SpringBootTest
 class JwtServiceTest {
 
-    @Mock
     private JwtService jwtService;
 
     private Key testKey;
@@ -32,8 +33,30 @@ class JwtServiceTest {
 
     @BeforeEach
     void setUp() {
-        String secret = "test-secret-key-for-jwt-tests-that-is-at-least-32-bytes-long-for-testing";
-        testKey = Keys.hmacShaKeyFor(secret.getBytes());
+        jwtService = new JwtService();
+        String secret = "my-very-long-and-secure-test-secret-key-64-bytes-long";
+        testKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+
+        ReflectionTestUtils.setField(jwtService, "secret", secret);
+        ReflectionTestUtils.setField(jwtService, "accessTokenValiditySeconds", 3600);
+        ReflectionTestUtils.setField(jwtService, "refreshTokenValiditySeconds", 3600);
+        ReflectionTestUtils.setField(jwtService, "idClaim", "id");
+        ReflectionTestUtils.setField(jwtService, "typeClaim", "type");
+        ReflectionTestUtils.setField(jwtService, "accessTokenType", "access");
+
+        jwtService.init();
+    }
+
+    @Test
+    void extractId_ShouldWorkCorrectly_WhenIdIsUUID() {
+        String email = "test@example.com";
+        UUID userId = UUID.randomUUID();
+        String token = jwtService.generateAccessToken(email, userId);
+
+        assertThatCode(() -> {
+            String extractedId = jwtService.extractId(token);
+            assertThat(extractedId).isEqualTo(userId.toString());
+        }).doesNotThrowAnyException();
     }
 
     @Test
@@ -60,7 +83,7 @@ class JwtServiceTest {
         String token = jwtService.generateAccessToken(testEmail, testId);
 
         String extractedId = jwtService.extractId(token);
-        assertThat(extractedId).isEqualTo(testId);
+        assertThat(extractedId).isEqualTo(testId.toString());
     }
 
     @Test
