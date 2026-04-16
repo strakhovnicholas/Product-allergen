@@ -1,6 +1,7 @@
 package ru.productallergen.authservice.controller;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -12,6 +13,7 @@ import ru.productallergen.authservice.dto.auth.LogoutRequest;
 import ru.productallergen.authservice.dto.auth.RegisterRequest;
 import ru.productallergen.authservice.service.auth.AuthService;
 
+@Slf4j
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
@@ -21,20 +23,24 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
+        log.info("REST request to login user: {}", request.email());
         AuthResponse authResponse = authService.login(request);
+        log.info("User {} successfully authenticated", request.email());
         return ResponseEntity.ok(authResponse);
     }
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@RequestBody RegisterRequest request) {
+        log.info("REST request to register new user: {}", request.email());
         AuthResponse authResponse = authService.register(request);
+        log.info("New user registered successfully: {}", request.email());
         return ResponseEntity.ok(authResponse);
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(LogoutRequest logoutRequest) {
+    public ResponseEntity<?> logout(@RequestBody LogoutRequest logoutRequest) {
+        log.info("REST request to logout");
         authService.logout(logoutRequest.refreshToken());
         return ResponseEntity.ok("Logged out successfully");
     }
-
 }

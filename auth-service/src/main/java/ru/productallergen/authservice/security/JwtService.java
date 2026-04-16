@@ -7,12 +7,13 @@ import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
+import lombok.extern.slf4j.Slf4j;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class JwtService {
 
@@ -38,10 +39,12 @@ public class JwtService {
 
     @PostConstruct
     public void init() {
+        log.info("Initializing JwtService with secret from properties...");
         SECRET_KEY = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
     public String generateAccessToken(String email, UUID id) {
+        log.debug("Generating Access Token for user: {}", email);
         return Jwts.builder()
                 .setSubject(email)
                 .claim(idClaim, id)
@@ -53,6 +56,7 @@ public class JwtService {
     }
 
     public String generateRefreshToken(String email) {
+        log.debug("Generating Refresh Token for user: {}", email);
         return Jwts.builder()
                 .setSubject(email)
                 .claim(typeClaim, "refresh")
@@ -79,8 +83,20 @@ public class JwtService {
             Claims claims = getClaims(token);
             String type = claims.get(typeClaim, String.class);
             Date expiration = claims.getExpiration();
-            return expectedType.equals(type) && expiration.after(new Date());
+
+            if (!expectedType.equals(type)) {
+                log.warn("Token validation failed: Expected type {}, but got {}", expectedType, type);
+                return false;
+            }
+
+            if (expiration.before(new Date())) {
+                log.warn("Token validation failed: Token expired at {}", expiration);
+                return false;
+            }
+
+            return true;
         } catch (Exception e) {
+            log.warn("Token validation failed: {}", e.getMessage());
             return false;
         }
     }
@@ -92,7 +108,14 @@ public class JwtService {
                     .build()
                     .parseClaimsJws(token)
                     .getBody();
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            log.debug("JWT token is expired: {}", e.getMessage());
+            throw e;
+        } catch (io.jsonwebtoken.MalformedJwtException e) {
+            log.error("Invalid JWT token: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
+            log.error("Could not parse JWT claims: {}", e.getMessage());
             throw new RuntimeException("Invalid JWT token", e);
         }
     }
