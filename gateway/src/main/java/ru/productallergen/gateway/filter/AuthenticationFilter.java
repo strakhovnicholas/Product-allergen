@@ -45,11 +45,13 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
-
             ServerHttpRequest request = exchange.getRequest();
-            HttpHeaders headers = request.getHeaders();
+            String path = request.getURI().getPath();
+
+            log.debug("Processing authentication for path: {}", path);
 
             if (config.skipAuth) {
+                log.info("Skipping authentication for request to: {} (Test Mode)", path);
                 ServerHttpRequest mutated = request.mutate()
                         .header(X_USER_ID, TEST_USER_ID)
                         .header(X_INTERNAL_TOKEN, internalSecret)
@@ -58,23 +60,37 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
                 return chain.filter(exchange.mutate().request(mutated).build());
             }
 
-            if (!headers.containsKey(HttpHeaders.AUTHORIZATION)) {
+            if (!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
+                log.warn("Authentication failed for path {}: Missing Authorization header", path);
                 return Mono.error(new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED, "Authorization header is missing"));
             }
 
-            String authHeader = headers.getFirst(HttpHeaders.AUTHORIZATION);
+            String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
             if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
-                return Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Authorization header format"));
+                log.warn("Authentication failed for path {}: Invalid header format", path);
+                return Mono.error(new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED, "Invalid Authorization header format"));
             }
 
             String token = authHeader.substring(BEARER_OFFSET);
-            if (!jwtUtils.validateToken(token, EXPECTED_TOKEN_TYPE)) {
-                return Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired access token"));
+
+            try {
+                if (!jwtUtils.validateToken(token, EXPECTED_TOKEN_TYPE)) {
+                    log.warn("Authentication failed for path {}: Invalid or expired access token", path);
+                    return Mono.error(new ResponseStatusException(
+                            HttpStatus.UNAUTHORIZED, "Invalid or expired access token"));
+                }
+            } catch (Exception e) {
+                log.error("Error during token validation for path {}: {}", path, e.getMessage());
+                return Mono.error(new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED, "Token validation error"));
             }
 
             String userId = jwtUtils.extractId(token);
+            log.debug("User authenticated. Path: {}, UserId: {}", path, userId);
+
             ServerHttpRequest modifiedRequest = request.mutate()
                     .header(X_USER_ID, userId)
                     .header(X_INTERNAL_TOKEN, internalSecret)

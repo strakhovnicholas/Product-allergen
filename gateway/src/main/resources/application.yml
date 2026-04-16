@@ -7,13 +7,13 @@ spring:
       routes:
         #Маршрут для AUTH-SERVICE
         - id: auth_route
-          uri: http://auth-service:8080
+          uri: http://auth-service:8081
           predicates:
             - Path=/auth/**
 
         #Маршрут для USER-SERVICE
         - id: user_route
-          uri: http://user-service:8080
+          uri: http://user-service:8082
           predicates:
             - Path=/api/**
           filters:
