@@ -7,10 +7,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import ru.productallergen.authservice.dto.auth.AuthResponse;
-import ru.productallergen.authservice.dto.auth.LoginRequest;
-import ru.productallergen.authservice.dto.auth.LogoutRequest;
-import ru.productallergen.authservice.dto.auth.RegisterRequest;
+import ru.productallergen.authservice.dto.auth.*;
 import ru.productallergen.authservice.service.auth.AuthService;
 
 @Slf4j
@@ -42,5 +39,13 @@ public class AuthController {
         log.info("REST request to logout");
         authService.logout(logoutRequest.refreshToken());
         return ResponseEntity.ok("Logged out successfully");
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(@RequestBody RefreshRequest request) {
+        log.info("REST request to refresh token");
+        AuthResponse authResponse = authService.refresh(request.refreshToken());
+        log.info("Token successfully refreshed");
+        return ResponseEntity.ok(authResponse);
     }
 }
