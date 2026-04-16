@@ -3,7 +3,6 @@ import { apiRequest } from './client';
 export type RegisterRequest = {
   email: string;
   password: string;
-  fullName?: string;
 };
 
 export type LoginRequest = {
@@ -15,19 +14,12 @@ export type AuthResponse = {
   accessToken?: string;
   refreshToken?: string;
   token?: string;
-  userId?: string | number;
-  expiresIn?: number;
-};
-
-export type RefreshTokenResponse = {
-  accessToken: string;
-  expiresIn: number;
 };
 
 export async function registerApi(
   payload: RegisterRequest
 ): Promise<AuthResponse> {
-  return apiRequest<AuthResponse>('/api/user/registration', {
+  return apiRequest<AuthResponse>('/auth/register', {
     method: 'POST',
     body: payload,
   });
@@ -36,28 +28,8 @@ export async function registerApi(
 export async function loginApi(
   payload: LoginRequest
 ): Promise<AuthResponse> {
-  return apiRequest<AuthResponse>('/api/login', {
+  return apiRequest<AuthResponse>('/auth/login', {
     method: 'POST',
     body: payload,
-  });
-}
-
-export async function refreshTokenApi(
-  refreshToken: string
-): Promise<RefreshTokenResponse> {
-  return apiRequest<RefreshTokenResponse>('/auth/refresh', {
-    method: 'POST',
-    body: { refreshToken },
-  });
-}
-
-export async function logoutApi(refreshToken: string): Promise<void> {
-  return apiRequest<void>('/auth/logout', {
-    method: 'POST',
-    body: {
-      refreshToken,
-      logoutFromAllDevices: false,
-    },
-    auth: true,
   });
 }
