@@ -18,6 +18,6 @@ import java.util.UUID;
 public class NoteWebDto {
     private UUID noteId;
     private String content;
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ", timezone = "UTC")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime date;
 }

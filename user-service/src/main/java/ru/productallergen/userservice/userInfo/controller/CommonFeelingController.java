@@ -22,6 +22,7 @@ import ru.productallergen.userservice.userInfo.service.CommonFeelingService;
 import ru.productallergen.userservice.userInfo.web.CommonFeelingWebDto;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,11 +46,15 @@ public class CommonFeelingController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @Operation(summary = "Получить все записи о самочувствии",
-            description = "Возвращает полный список записей об общем самочувствии для текущего пользователя")
+    @Operation(summary = "Получить записи о самочувствии за период",
+            description = "Возвращает полный список записей об общем самочувствии для текущего пользователя за период")
     @GetMapping("feelings/common")
-    public ResponseEntity<List<CommonFeelingWebDto>> getAll(@CurrentUserId UUID userId) {
-        List<CommonFeelingWebDto> response = service.getAllCommonFeelings(userId)
+    public ResponseEntity<List<CommonFeelingWebDto>> getByPeriod(@CurrentUserId UUID userId,
+                                                                 @Parameter(description = "Начало периода", required = true)
+                                                                 @RequestParam LocalDateTime from,
+                                                                 @Parameter(description = "Конец периода", required = true)
+                                                                 @RequestParam LocalDateTime to) {
+        List<CommonFeelingWebDto> response = service.getCommonFeelingsByPeriod(userId, from, to)
                 .stream()
                 .map(mapper::toWebDto)
                 .toList();

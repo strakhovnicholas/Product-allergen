@@ -54,8 +54,8 @@ class SymptomControllerTest {
                 SYMPTOM_ID,
                 "Головная боль",
                 7,
-                LocalDateTime.parse("2026-03-21T10:00:00+03:00"),
-                LocalDateTime.parse("2026-03-21T12:30:00+03:00")
+                LocalDateTime.parse("2026-03-21T10:00:00"),
+                LocalDateTime.parse("2026-03-21T12:30:00")
         );
     }
 
@@ -65,7 +65,8 @@ class SymptomControllerTest {
         when(symptomService.getAllUserSymptoms(MOCK_USER_ID)).thenReturn(List.of(sampleResponse));
 
         mockMvc.perform(get("/api/symptoms")
-                        .with(user("test")))
+                        .with(user("test"))
+                        .header("X-User-Id", MOCK_USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -82,7 +83,8 @@ class SymptomControllerTest {
         when(symptomService.getAllUserSymptoms(MOCK_USER_ID)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/symptoms")
-                        .with(user("test")))
+                        .with(user("test"))
+                        .header("X-User-Id", MOCK_USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(0));
@@ -109,7 +111,8 @@ class SymptomControllerTest {
                         .with(user("test"))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(createRequest)))
+                        .content(objectMapper.writeValueAsString(createRequest))
+                        .header("X-User-Id", MOCK_USER_ID))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(SYMPTOM_ID))
                 .andExpect(jsonPath("$.symptomName").value("Головная боль"))
@@ -142,7 +145,8 @@ class SymptomControllerTest {
                         .with(user("test"))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(editRequest)))
+                        .content(objectMapper.writeValueAsString(editRequest))
+                        .header("X-User-Id", MOCK_USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(SYMPTOM_ID))
                 .andExpect(jsonPath("$.symptomName").value("Головная боль"))
@@ -168,7 +172,8 @@ class SymptomControllerTest {
 
         mockMvc.perform(delete("/api/symptoms/{id}", SYMPTOM_ID)
                         .with(user("test"))
-                        .with(csrf()))
+                        .with(csrf())
+                        .header("X-User-Id", MOCK_USER_ID))
                 .andExpect(status().isNoContent());
 
         verify(symptomService).delete(SYMPTOM_ID, MOCK_USER_ID);

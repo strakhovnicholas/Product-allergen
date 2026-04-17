@@ -47,8 +47,8 @@ class SymptomsControllerTest {
     private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final UUID SYMPTOMS_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
-    private static final LocalDateTime START_TIME = LocalDateTime.parse("2024-06-01T08:00:00+03:00");
-    private static final LocalDateTime END_TIME = LocalDateTime.parse("2024-06-01T10:00:00+03:00");
+    private static final LocalDateTime START_TIME = LocalDateTime.parse("2024-06-01T08:00:00");
+    private static final LocalDateTime END_TIME = LocalDateTime.parse("2024-06-01T10:00:00");
 
     private SymptomsWebDto sampleWebDto;
     private SymptomsDto sampleDto;
@@ -90,8 +90,9 @@ class SymptomsControllerTest {
                         .with(userJwt())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(sampleWebDto)))
-                .andExpect(status().isOk())
+                        .content(objectMapper.writeValueAsString(sampleWebDto))
+                        .header("X-User-Id", USER_ID))
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.symptomsId").value(SYMPTOMS_ID.toString()))
                 .andExpect(jsonPath("$.symptomName").value("Headache"))
                 .andExpect(jsonPath("$.severity").value(5))
@@ -117,7 +118,8 @@ class SymptomsControllerTest {
         when(mapper.toWebDto(sampleDto)).thenReturn(sampleWebDto);
 
         mockMvc.perform(get("/api/feelings/symptoms/all")
-                        .with(userJwt()))
+                        .with(userJwt())
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -133,7 +135,8 @@ class SymptomsControllerTest {
         when(service.getAllSymptoms(USER_ID)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/feelings/symptoms/all")
-                        .with(userJwt()))
+                        .with(userJwt())
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(0));
@@ -155,8 +158,9 @@ class SymptomsControllerTest {
 
         mockMvc.perform(get("/api/feelings/symptoms/range")
                         .with(userJwt())
-                        .param("from", "2024-06-01T08:00:00+03:00")
-                        .param("to", "2024-06-01T10:00:00+03:00"))
+                        .param("from", "2024-06-01T08:00:00")
+                        .param("to", "2024-06-01T10:00:00")
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -194,7 +198,8 @@ class SymptomsControllerTest {
                         .with(userJwt())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(sampleWebDto)))
+                        .content(objectMapper.writeValueAsString(sampleWebDto))
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.symptomsId").value(SYMPTOMS_ID.toString()))
                 .andExpect(jsonPath("$.symptomName").value("Headache"))
@@ -220,8 +225,9 @@ class SymptomsControllerTest {
 
         mockMvc.perform(delete("/api/feelings/symptoms/{symptomsId}", SYMPTOMS_ID)
                         .with(userJwt())
-                        .with(csrf()))
-                .andExpect(status().isOk());
+                        .with(csrf())
+                        .header("X-User-Id", USER_ID))
+                .andExpect(status().isNoContent());
 
         verify(service).deleteSymptoms(USER_ID, SYMPTOMS_ID);
     }
