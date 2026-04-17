@@ -20,11 +20,11 @@ public record SymptomResponseDto(
         Integer severity,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-        @Schema(description = "Дата и время создания записи", example = "2026-03-21T10:00:00+03:00")
+        @Schema(description = "Дата и время создания записи", example = "2026-03-21T10:00:00")
         LocalDateTime createdAt,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-        @Schema(description = "Дата и время последнего обновления", example = "2026-03-21T12:30:00+03:00")
+        @Schema(description = "Дата и время последнего обновления", example = "2026-03-21T12:30:00")
         LocalDateTime updatedAt
 ) {
 }

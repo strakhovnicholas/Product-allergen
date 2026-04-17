@@ -174,7 +174,7 @@ class SymptomsControllerTest {
     void getSymptomsByDateRange_missingFrom() throws Exception {
         mockMvc.perform(get("/api/feelings/symptoms/range")
                         .with(userJwt())
-                        .param("to", "2024-06-01T10:00:00+03:00"))
+                        .param("to", "2024-06-01T10:00:00"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -183,7 +183,7 @@ class SymptomsControllerTest {
     void getSymptomsByDateRange_missingTo() throws Exception {
         mockMvc.perform(get("/api/feelings/symptoms/range")
                         .with(userJwt())
-                        .param("from", "2024-06-01T08:00:00+03:00"))
+                        .param("from", "2024-06-01T08:00:00"))
                 .andExpect(status().isBadRequest());
     }
 
