@@ -24,8 +24,10 @@ public class CommonFeelingService {
         return mapper.toDto(repository.save(entity));
     }
 
-    public List<CommonFeelingDto> getAllCommonFeelings(UUID userId) {
-        return repository.findAllByUserId(userId)
+    public List<CommonFeelingDto> getCommonFeelingsByPeriod(UUID userId,
+                                                            LocalDateTime from,
+                                                            LocalDateTime to) {
+        return repository.findAllByUserIdAndDateTimeBetween(userId, from, to)
                 .stream()
                 .map(mapper::toDto)
                 .toList();

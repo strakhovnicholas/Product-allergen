@@ -59,14 +59,14 @@ class NoteControllerTest {
         sampleWebDto = NoteWebDto.builder()
                 .noteId(NOTE_ID)
                 .content("Test note content")
-                .date(LocalDateTime.parse("2024-06-01T10:00:00+03:00"))
+                .date(LocalDateTime.parse("2024-06-01T10:00:00"))
                 .build();
 
         sampleDto = NoteDto.builder()
                 .noteId(NOTE_ID)
                 .userId(USER_ID)
                 .content("Test note content")
-                .date(LocalDateTime.parse("2024-06-01T10:00:00+03:00"))
+                .date(LocalDateTime.parse("2024-06-01T10:00:00"))
                 .build();
     }
 
@@ -81,8 +81,9 @@ class NoteControllerTest {
                         .with(userJwt())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(sampleWebDto)))
-                .andExpect(status().isOk())
+                        .content(objectMapper.writeValueAsString(sampleWebDto))
+                        .header("X-User-Id", USER_ID))
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.noteId").value(NOTE_ID.toString()))
                 .andExpect(jsonPath("$.content").value("Test note content"));
 
@@ -106,7 +107,8 @@ class NoteControllerTest {
         when(mapper.toWebDto(sampleDto)).thenReturn(sampleWebDto);
 
         mockMvc.perform(get("/api/feelings/notes")
-                        .with(userJwt()))
+                        .with(userJwt())
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -122,7 +124,8 @@ class NoteControllerTest {
         when(service.getAllNods(USER_ID)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/feelings/notes")
-                        .with(userJwt()))
+                        .with(userJwt())
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(0));
@@ -145,7 +148,8 @@ class NoteControllerTest {
 
         mockMvc.perform(get("/api/feelings/notes/date")
                         .with(userJwt())
-                        .param("date", "2024-06-01"))
+                        .param("date", "2024-06-01")
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -182,7 +186,8 @@ class NoteControllerTest {
                         .with(userJwt())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(sampleWebDto)))
+                        .content(objectMapper.writeValueAsString(sampleWebDto))
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.noteId").value(NOTE_ID.toString()))
                 .andExpect(jsonPath("$.content").value("Test note content"));
@@ -208,8 +213,9 @@ class NoteControllerTest {
 
         mockMvc.perform(delete("/api/feelings/notes/{noteId}", NOTE_ID)
                         .with(userJwt())
-                        .with(csrf()))
-                .andExpect(status().isOk());
+                        .with(csrf())
+                        .header("X-User-Id", USER_ID))
+                .andExpect(status().isNoContent());
 
         verify(service).deleteNode(USER_ID, NOTE_ID);
     }

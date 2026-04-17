@@ -57,8 +57,8 @@ class MedicineControllerTest {
                 "Парацетамол",
                 500,
                 Unit.MG,
-                LocalDateTime.parse("2023-10-27T10:00:00+03:00"),
-                LocalDateTime.parse("2023-10-27T12:15:00+03:00")
+                LocalDateTime.parse("2023-10-27T10:00:00"),
+                LocalDateTime.parse("2023-10-27T12:15:00")
         );
     }
 
@@ -68,7 +68,8 @@ class MedicineControllerTest {
         when(medicineService.getAllUserMedicines(MOCK_USER_ID)).thenReturn(List.of(sampleResponse));
 
         mockMvc.perform(get("/api/medicines")
-                        .with(user("test")))
+                        .with(user("test"))
+                        .header("X-User-Id", MOCK_USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -85,7 +86,8 @@ class MedicineControllerTest {
         when(medicineService.getAllUserMedicines(MOCK_USER_ID)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/medicines")
-                        .with(user("test")))
+                        .with(user("test"))
+                        .header("X-User-Id", MOCK_USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(0));
@@ -112,7 +114,8 @@ class MedicineControllerTest {
                         .with(user("test"))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(createRequest)))
+                        .content(objectMapper.writeValueAsString(createRequest))
+                        .header("X-User-Id", MOCK_USER_ID))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(MEDICINE_ID))
                 .andExpect(jsonPath("$.medicineName").value("Парацетамол"))
@@ -146,7 +149,8 @@ class MedicineControllerTest {
                         .with(user("test"))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(editRequest)))
+                        .content(objectMapper.writeValueAsString(editRequest))
+                        .header("X-User-Id", MOCK_USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(MEDICINE_ID))
                 .andExpect(jsonPath("$.medicineName").value("Парацетамол"))
@@ -172,7 +176,8 @@ class MedicineControllerTest {
 
         mockMvc.perform(delete("/api/medicines/{id}", MEDICINE_ID)
                         .with(user("test"))
-                        .with(csrf()))
+                        .with(csrf())
+                        .header("X-User-Id", MOCK_USER_ID))
                 .andExpect(status().isNoContent());
 
         verify(medicineService).delete(MEDICINE_ID, MOCK_USER_ID);

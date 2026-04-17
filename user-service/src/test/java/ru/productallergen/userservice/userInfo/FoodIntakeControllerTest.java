@@ -62,10 +62,10 @@ class FoodIntakeControllerTest {
                 .category(FoodCategory.FRUIT)
                 .amount(150.0)
                 .unit(FoodUnit.GRAM)
-                .intakeTime(LocalDateTime.parse("2024-06-01T08:00:00+03:00"))
+                .intakeTime(LocalDateTime.parse("2024-06-01T08:00:00"))
                 .reactionOccurred(false)
                 .reactionDescription(null)
-                .createdAt(LocalDateTime.parse("2024-06-01T08:05:00+03:00"))
+                .createdAt(LocalDateTime.parse("2024-06-01T08:05:00"))
                 .build();
 
         sampleDto = FoodIntakeDto.builder()
@@ -75,10 +75,10 @@ class FoodIntakeControllerTest {
                 .category(FoodCategory.FRUIT)
                 .amount(150.0)
                 .unit(FoodUnit.GRAM)
-                .intakeTime(LocalDateTime.parse("2024-06-01T08:00:00+03:00"))
+                .intakeTime(LocalDateTime.parse("2024-06-01T08:00:00"))
                 .reactionOccurred(false)
                 .reactionDescription(null)
-                .createdAt(LocalDateTime.parse("2024-06-01T08:05:00+03:00"))
+                .createdAt(LocalDateTime.parse("2024-06-01T08:05:00"))
                 .build();
     }
 
@@ -93,8 +93,9 @@ class FoodIntakeControllerTest {
                         .with(userJwt())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(sampleWebDto)))
-                .andExpect(status().isOk())
+                        .content(objectMapper.writeValueAsString(sampleWebDto))
+                        .header("X-User-Id", USER_ID))
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.foodIntakeId").value(FOOD_INTAKE_ID.toString()))
                 .andExpect(jsonPath("$.foodName").value("Apple"))
                 .andExpect(jsonPath("$.amount").value(150.0))
@@ -120,7 +121,8 @@ class FoodIntakeControllerTest {
         when(mapper.toWebDto(sampleDto)).thenReturn(sampleWebDto);
 
         mockMvc.perform(get("/api/feelings/food")
-                        .with(userJwt()))
+                        .with(userJwt())
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -136,7 +138,8 @@ class FoodIntakeControllerTest {
         when(service.getAllFoodsIntake(USER_ID)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/feelings/food")
-                        .with(userJwt()))
+                        .with(userJwt())
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(0));
@@ -159,7 +162,8 @@ class FoodIntakeControllerTest {
 
         mockMvc.perform(get("/api/feelings/food/by-date")
                         .with(userJwt())
-                        .param("date", "2024-06-01"))
+                        .param("date", "2024-06-01")
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -197,7 +201,8 @@ class FoodIntakeControllerTest {
                         .with(userJwt())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(sampleWebDto)))
+                        .content(objectMapper.writeValueAsString(sampleWebDto))
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.foodIntakeId").value(FOOD_INTAKE_ID.toString()))
                 .andExpect(jsonPath("$.foodName").value("Apple"))
@@ -223,8 +228,9 @@ class FoodIntakeControllerTest {
 
         mockMvc.perform(delete("/api/feelings/food/{foodIntakeId}", FOOD_INTAKE_ID)
                         .with(userJwt())
-                        .with(csrf()))
-                .andExpect(status().isOk());
+                        .with(csrf())
+                        .header("X-User-Id", USER_ID))
+                .andExpect(status().isNoContent());
 
         verify(service).deleteFoodIntake(USER_ID, FOOD_INTAKE_ID);
     }

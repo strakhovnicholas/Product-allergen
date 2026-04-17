@@ -70,8 +70,8 @@ class UserInfoControllerTest {
                 .predisposition(Predisposition.LOW)
                 .medicationsRegular(List.of("Aspirin"))
                 .doctorNotes("Healthy")
-                .registeredAt(LocalDateTime.parse("2024-01-01T00:00:00+03:00"))
-                .updatedAt(LocalDateTime.parse("2024-06-01T00:00:00+03:00"))
+                .registeredAt(LocalDateTime.parse("2024-01-01T00:00:00"))
+                .updatedAt(LocalDateTime.parse("2024-06-01T00:00:00"))
                 .build();
 
         sampleDto = UserInfoDto.builder()
@@ -90,8 +90,8 @@ class UserInfoControllerTest {
                 .predisposition(Predisposition.LOW)
                 .medicationsRegular(List.of("Aspirin"))
                 .doctorNotes("Healthy")
-                .registeredAt(LocalDateTime.parse("2024-01-01T00:00:00+03:00"))
-                .updatedAt(LocalDateTime.parse("2024-06-01T00:00:00+03:00"))
+                .registeredAt(LocalDateTime.parse("2024-01-01T00:00:00"))
+                .updatedAt(LocalDateTime.parse("2024-06-01T00:00:00"))
                 .build();
     }
 
@@ -107,8 +107,9 @@ class UserInfoControllerTest {
                         .with(userJwt())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(sampleWebDto)))
-                .andExpect(status().isOk())
+                        .content(objectMapper.writeValueAsString(sampleWebDto))
+                        .header("X-User-Id", USER_ID))
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.userId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.fullName").value("Иван Иванов"))
                 .andExpect(jsonPath("$.age").value(30))
@@ -138,7 +139,8 @@ class UserInfoControllerTest {
         when(mapper.toWebDto(sampleDto)).thenReturn(sampleWebDto);
 
         mockMvc.perform(get("/api/user/info")
-                        .with(userJwt()))
+                        .with(userJwt())
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.fullName").value("Иван Иванов"))
@@ -166,7 +168,8 @@ class UserInfoControllerTest {
                         .with(userJwt())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(sampleWebDto)))
+                        .content(objectMapper.writeValueAsString(sampleWebDto))
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(USER_ID.toString()))
                 .andExpect(jsonPath("$.fullName").value("Иван Иванов"))
@@ -192,8 +195,9 @@ class UserInfoControllerTest {
 
         mockMvc.perform(delete("/api/user/info")
                         .with(userJwt())
-                        .with(csrf()))
-                .andExpect(status().isOk());
+                        .with(csrf())
+                        .header("X-User-Id", USER_ID))
+                .andExpect(status().isNoContent());
 
         verify(service).deleteUserInfo(USER_ID);
     }

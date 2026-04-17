@@ -57,7 +57,7 @@ class CommonFeelingControllerTest {
 
         sampleWebDto = CommonFeelingWebDto.builder()
                 .feelingId(FEELING_ID)
-                .dateTime(LocalDateTime.parse("2024-06-01T10:00:00+03:00"))
+                .dateTime(LocalDateTime.parse("2024-06-01T10:00:00"))
                 .wellbeingScore(8)
                 .mood(7)
                 .energyLevel(6)
@@ -67,7 +67,7 @@ class CommonFeelingControllerTest {
         sampleDto = CommonFeelingDto.builder()
                 .feelingId(FEELING_ID)
                 .userId(USER_ID)
-                .dateTime(LocalDateTime.parse("2024-06-01T10:00:00+03:00"))
+                .dateTime(LocalDateTime.parse("2024-06-01T10:00:00"))
                 .wellbeingScore(8)
                 .mood(7)
                 .energyLevel(6)
@@ -86,8 +86,9 @@ class CommonFeelingControllerTest {
                         .with(userJwt())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(sampleWebDto)))
-                .andExpect(status().isOk())
+                        .content(objectMapper.writeValueAsString(sampleWebDto))
+                        .header("X-User-Id", USER_ID))
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.feelingId").value(FEELING_ID.toString()))
                 .andExpect(jsonPath("$.wellbeingScore").value(8))
                 .andExpect(jsonPath("$.mood").value(7))
@@ -103,33 +104,44 @@ class CommonFeelingControllerTest {
         mockMvc.perform(post("/api/feelings/common")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(sampleWebDto)))
+                        .content(objectMapper.writeValueAsString(sampleWebDto))
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
     @DisplayName("GET /api/feelings/common — возвращает список записей пользователя")
     void getAllCommonFeelings_success() throws Exception {
-        when(service.getAllCommonFeelings(USER_ID)).thenReturn(List.of(sampleDto));
+        LocalDateTime from = LocalDateTime.parse("2024-06-01T10:00:00");
+        LocalDateTime to = LocalDateTime.parse("2024-06-05T10:00:00");
+        when(service.getCommonFeelingsByPeriod(USER_ID, from, to)).thenReturn(List.of(sampleDto));
         when(mapper.toWebDto(sampleDto)).thenReturn(sampleWebDto);
 
         mockMvc.perform(get("/api/feelings/common")
-                .with(userJwt()))
+                        .with(userJwt())
+                        .param("from", from.toString())
+                        .param("to", to.toString())
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].feelingId").value(FEELING_ID.toString()));
 
-        verify(service).getAllCommonFeelings(USER_ID);
+        verify(service).getCommonFeelingsByPeriod(USER_ID, from, to);
     }
 
     @Test
     @DisplayName("GET /api/feelings/common — пустой список, если записей нет")
     void getAllCommonFeelings_empty() throws Exception {
-        when(service.getAllCommonFeelings(USER_ID)).thenReturn(List.of());
+        LocalDateTime from = LocalDateTime.parse("2024-06-01T10:00:00");
+        LocalDateTime to = LocalDateTime.parse("2024-06-05T10:00:00");
+        when(service.getCommonFeelingsByPeriod(USER_ID, from, to)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/feelings/common")
-                .with(userJwt()))
+                        .with(userJwt())
+                        .param("from", from.toString())
+                        .param("to", to.toString())
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(0));
@@ -145,7 +157,8 @@ class CommonFeelingControllerTest {
 
         mockMvc.perform(get("/api/feelings/common/by-date")
                         .with(userJwt())
-                        .param("date", "2024-06-01"))
+                        .param("date", "2024-06-01")
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -183,7 +196,8 @@ class CommonFeelingControllerTest {
                         .with(userJwt())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(sampleWebDto)))
+                        .content(objectMapper.writeValueAsString(sampleWebDto))
+                        .header("X-User-Id", USER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.feelingId").value(FEELING_ID.toString()))
                 .andExpect(jsonPath("$.wellbeingScore").value(8));
@@ -209,8 +223,9 @@ class CommonFeelingControllerTest {
 
         mockMvc.perform(delete("/api/feelings/common/{feelingId}", FEELING_ID)
                         .with(userJwt())
-                        .with(csrf()))
-                .andExpect(status().isOk());
+                        .with(csrf())
+                        .header("X-User-Id", USER_ID))
+                .andExpect(status().isNoContent());
 
         verify(service).deleteCommonFeeling(USER_ID, FEELING_ID);
     }
