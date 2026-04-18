@@ -52,10 +52,7 @@ public class CommonFeelingService {
                 entity.feelingId(),
                 entity.userId(),
                 dto.getDateTime(),
-                dto.getWellbeingScore(),
-                dto.getMood(),
-                dto.getEnergyLevel(),
-                dto.getComment()
+                dto.getWellbeingScore()
         );
 
         return mapper.toDto(repository.save(updated));

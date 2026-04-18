@@ -16,8 +16,5 @@ public record CommonFeelingEntity(@Id ObjectId id,
                                   @Field(targetType = FieldType.STRING)
                                   UUID userId,
                                   LocalDateTime dateTime,
-                                  Integer wellbeingScore,
-                                  Integer mood,
-                                  Integer energyLevel,
-                                  String comment) {
+                                  Integer wellbeingScore) {
 }

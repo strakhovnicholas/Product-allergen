@@ -15,7 +15,4 @@ public class CommonFeelingDto {
     private UUID userId;
     private LocalDateTime dateTime;
     private Integer wellbeingScore;
-    private Integer mood;
-    private Integer energyLevel;
-    private String comment;
 }

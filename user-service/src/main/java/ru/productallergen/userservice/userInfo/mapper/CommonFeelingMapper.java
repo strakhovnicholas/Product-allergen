@@ -16,10 +16,7 @@ public class CommonFeelingMapper {
                 dto.getFeelingId() != null ? dto.getFeelingId() : UUID.randomUUID(),
                 userId,
                 dto.getDateTime(),
-                dto.getWellbeingScore(),
-                dto.getMood(),
-                dto.getEnergyLevel(),
-                dto.getComment()
+                dto.getWellbeingScore()
         );
     }
 
@@ -29,9 +26,6 @@ public class CommonFeelingMapper {
                 .userId(entity.userId())
                 .dateTime(entity.dateTime())
                 .wellbeingScore(entity.wellbeingScore())
-                .mood(entity.mood())
-                .energyLevel(entity.energyLevel())
-                .comment(entity.comment())
                 .build();
     }
 
@@ -40,9 +34,6 @@ public class CommonFeelingMapper {
                 .feelingId(webDto.getFeelingId())
                 .dateTime(webDto.getDateTime())
                 .wellbeingScore(webDto.getWellbeingScore())
-                .mood(webDto.getMood())
-                .energyLevel(webDto.getEnergyLevel())
-                .comment(webDto.getComment())
                 .build();
     }
 
@@ -51,9 +42,6 @@ public class CommonFeelingMapper {
                 .feelingId(dto.getFeelingId())
                 .dateTime(dto.getDateTime())
                 .wellbeingScore(dto.getWellbeingScore())
-                .mood(dto.getMood())
-                .energyLevel(dto.getEnergyLevel())
-                .comment(dto.getComment())
                 .build();
     }
 }
