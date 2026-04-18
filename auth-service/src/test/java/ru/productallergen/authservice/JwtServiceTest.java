@@ -31,8 +31,8 @@ class JwtServiceTest {
         testKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
 
         ReflectionTestUtils.setField(jwtService, "secret", secret);
-        ReflectionTestUtils.setField(jwtService, "accessTokenValiditySeconds", 3600);
-        ReflectionTestUtils.setField(jwtService, "refreshTokenValiditySeconds", 3600);
+        ReflectionTestUtils.setField(jwtService, "accessTokenValidityMillis", 3600);
+        ReflectionTestUtils.setField(jwtService, "refreshTokenValidityMillis", 3600);
         ReflectionTestUtils.setField(jwtService, "idClaim", "id");
         ReflectionTestUtils.setField(jwtService, "typeClaim", "type");
         ReflectionTestUtils.setField(jwtService, "accessTokenType", "access");
