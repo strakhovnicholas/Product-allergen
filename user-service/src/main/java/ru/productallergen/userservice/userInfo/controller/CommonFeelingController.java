@@ -37,7 +37,7 @@ public class CommonFeelingController {
 
     @Operation(summary = "Создать запись о самочувствии",
             description = "Добавляет новую запись об общем самочувствии пользователя в систему")
-    @PostMapping("feelings/common")
+    @PostMapping("/feelings/common")
     public ResponseEntity<CommonFeelingWebDto> create(@CurrentUserId UUID userId,
                                                       @Parameter(description = "Данные для создания записи о самочувствии", required = true)
                                                       @RequestBody CommonFeelingWebDto request) {
@@ -48,7 +48,7 @@ public class CommonFeelingController {
 
     @Operation(summary = "Получить записи о самочувствии за период",
             description = "Возвращает полный список записей об общем самочувствии для текущего пользователя за период")
-    @GetMapping("feelings/common")
+    @GetMapping("/feelings/common")
     public ResponseEntity<List<CommonFeelingWebDto>> getByPeriod(@CurrentUserId UUID userId,
                                                                  @Parameter(description = "Начало периода", required = true)
                                                                  @RequestParam LocalDateTime from,
@@ -78,7 +78,7 @@ public class CommonFeelingController {
 
     @Operation(summary = "Обновить запись о самочувствии",
             description = "Полное обновление записи по ID. Поля, не указанные в запросе, не обновляются")
-    @PutMapping("feelings/common/{feelingId}")
+    @PutMapping("/feelings/common/{feelingId}")
     public ResponseEntity<CommonFeelingWebDto> update(@CurrentUserId UUID userId,
                                                       @Parameter(description = "ID записи о самочувствии для обновления", required = true)
                                                       @PathVariable UUID feelingId,
@@ -91,7 +91,7 @@ public class CommonFeelingController {
 
     @Operation(summary = "Удалить запись о самочувствии",
             description = "Безвозвратно удаляет запись о самочувствии по ID")
-    @DeleteMapping("feelings/common/{feelingId}")
+    @DeleteMapping("/feelings/common/{feelingId}")
     public ResponseEntity<Void> delete(@CurrentUserId UUID userId,
                                        @Parameter(description = "ID записи о самочувствии для удаления", required = true)
                                        @PathVariable UUID feelingId) {
