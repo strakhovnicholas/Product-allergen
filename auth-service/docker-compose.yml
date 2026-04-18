@@ -6,9 +6,10 @@ services:
     container_name: auth-service
     restart: on-failure
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
       - JWT_SECRET=${JWT_SECRET}
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/allergen_pg
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
       - SPRING_DATA_REDIS_HOST=redis
     networks:
       - backend-net
