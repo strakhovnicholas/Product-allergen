@@ -21,10 +21,10 @@ public class JwtService {
     private String secret;
 
     @Value("${jwt.access.expiration}")
-    private int accessTokenValiditySeconds;
+    private int accessTokenValidityMilis;
 
     @Value("${jwt.refresh.expiration}")
-    private int refreshTokenValiditySeconds;
+    private int refreshTokenValidityMilis;
 
     @Value("${jwt.claim.id}")
     private String idClaim;
@@ -50,7 +50,7 @@ public class JwtService {
                 .claim(idClaim, id)
                 .claim(typeClaim, accessTokenType)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + accessTokenValiditySeconds * 1000L))
+                .setExpiration(new Date(accessTokenValidityMilis))
                 .signWith(SECRET_KEY, SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -61,7 +61,7 @@ public class JwtService {
                 .setSubject(email)
                 .claim(typeClaim, "refresh")
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + refreshTokenValiditySeconds * 1000L))
+                .setExpiration(new Date(refreshTokenValidityMilis))
                 .signWith(SECRET_KEY, SignatureAlgorithm.HS256)
                 .compact();
     }
