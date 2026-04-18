@@ -21,10 +21,4 @@ public class CommonFeelingWebDto {
     private LocalDateTime dateTime;
 
     private Integer wellbeingScore;
-
-    private Integer mood;
-
-    private Integer energyLevel;
-
-    private String comment;
 }
