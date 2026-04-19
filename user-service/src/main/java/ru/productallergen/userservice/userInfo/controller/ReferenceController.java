@@ -24,7 +24,7 @@ public class ReferenceController {
         List<FoodCategoryResponse> response = Arrays.stream(FoodCategory.values())
                 .map(cat -> new FoodCategoryResponse(
                         cat.name(),
-                        cat.name(),
+                        cat.getFrontName(),
                         null
                 ))
                 .toList();
