@@ -64,8 +64,6 @@ public record UserInfoUpdateRequest(
 
         @Schema(description = "Замечания лечащего врача")
         @Size(max = 5000, message = "Замечания врача не должны превышать 5000 символов")
-        String doctorNotes,
-
-        LocalDateTime registeredAt
+        String doctorNotes
 ) {
 }

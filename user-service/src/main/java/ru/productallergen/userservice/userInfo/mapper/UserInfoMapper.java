@@ -104,7 +104,7 @@ public class UserInfoMapper {
                 request.predisposition(),
                 request.medicationsRegular(),
                 request.doctorNotes(),
-                request.registeredAt(),
+                null,
                 LocalDateTime.now()
         );
     }
