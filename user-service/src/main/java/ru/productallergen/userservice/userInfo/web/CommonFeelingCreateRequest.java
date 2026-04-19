@@ -12,7 +12,6 @@ public record CommonFeelingCreateRequest(
         LocalDateTime dateTime,
 
         @NotNull
-        @NotBlank
         @Schema(description = "Оценка самочувствия (1-10)")
         Integer wellbeingScore
 ) {

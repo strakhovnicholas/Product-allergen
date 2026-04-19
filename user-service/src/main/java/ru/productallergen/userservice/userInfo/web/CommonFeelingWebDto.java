@@ -12,7 +12,6 @@ import java.util.UUID;
 @Schema(description = "DTO для передачи данных о самочувствии")
 public record CommonFeelingWebDto(
         @NotNull
-        @NotBlank
         @Schema(description = "Уникальный идентификатор записи о самочувствии")
         UUID feelingId,
 
