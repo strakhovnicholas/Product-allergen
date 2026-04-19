@@ -267,21 +267,12 @@ export default function DiaryScreen() {
     [notes, filter]
   );
 
-  const totalCount = useMemo(
-    () =>
-      filteredCommonFeelings.length +
-      filteredSymptoms.length +
-      filteredMedicines.length +
-      filteredFoods.length +
-      filteredNotes.length,
-    [
-      filteredCommonFeelings,
-      filteredSymptoms,
-      filteredMedicines,
-      filteredFoods,
-      filteredNotes,
-    ]
-  );
+const totalCount =
+  commonFeelings.length +
+  symptoms.length +
+  medicines.length +
+  foods.length +
+  notes.length;
 
   const confirmDelete = useCallback(
     (id: string, title: string, onDelete: () => Promise<void>) => {

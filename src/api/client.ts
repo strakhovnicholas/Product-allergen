@@ -2,6 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const BASE_URL = 'http://185.240.102.95:8080';
 
+// 🔥 токен в памяти
+let memoryToken: string | null = null;
+
+export const setAccessToken = (token: string | null) => {
+  memoryToken = token;
+};
+
 export async function apiRequest<T>(
   path: string,
   options: {
@@ -10,8 +17,9 @@ export async function apiRequest<T>(
     auth?: boolean;
   } = {}
 ): Promise<T> {
+  const storageToken = await AsyncStorage.getItem('accessToken');
 
-  const token = await AsyncStorage.getItem('accessToken');
+  const token = memoryToken || storageToken;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

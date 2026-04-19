@@ -1,10 +1,12 @@
 import { apiRequest } from './client';
 
 export type Profile = {
-  firstName: string;
-  lastName: string;
+  fullName: string;
+
   age?: number;
   weight?: number;
+  height?: number; // ✅ ДОБАВИЛИ
+
   gender?: string;
 
   smoker?: boolean;

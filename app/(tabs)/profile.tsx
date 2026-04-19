@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 
-import { getUserProfileApi, UserProfile } from '../../src/api/profileApi';
+import { getUserProfileApi } from '../../src/api/profileApi';
 import { useAuth } from '../../src/context/AuthContext';
 
 function formatBoolean(value?: boolean) {
@@ -22,22 +22,10 @@ function formatBoolean(value?: boolean) {
   return 'Не указано';
 }
 
-function formatAlcohol(value?: string | boolean) {
-  if (typeof value === 'boolean') {
-    return value ? 'Да' : 'Нет';
-  }
-
-  if (typeof value === 'string' && value.trim()) {
-    return value;
-  }
-
-  return 'Не указано';
-}
-
 export default function ProfileScreen() {
   const { logout } = useAuth();
 
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [logoutSubmitting, setLogoutSubmitting] = useState(false);
@@ -48,6 +36,9 @@ export default function ProfileScreen() {
       else setLoading(true);
 
       const data = await getUserProfileApi();
+
+      console.log('PROFILE DATA:', data); // 🔥 лог для проверки
+
       setProfile(data ?? null);
     } catch (error) {
       Alert.alert(
@@ -78,7 +69,9 @@ export default function ProfileScreen() {
         id: 2,
         label: 'Возраст',
         value:
-          typeof profile?.age === 'number' ? `${profile.age} год` : 'Не указано',
+          typeof profile?.age === 'number'
+            ? `${profile.age} лет`
+            : 'Не указано',
         icon: 'calendar-outline',
       },
       {
@@ -107,30 +100,23 @@ export default function ProfileScreen() {
       {
         id: 1,
         title: 'Курение',
-        value: formatBoolean(profile?.smoking),
+        value: formatBoolean(profile?.smoker), // ✅ FIX
         color: '#2DCB70',
         bg: '#EAF8F0',
       },
       {
         id: 2,
         title: 'Алкоголь',
-        value: formatAlcohol(profile?.alcohol),
+        value: formatBoolean(profile?.alcohol),
         color: '#D4A017',
         bg: '#FCF8E8',
       },
       {
         id: 3,
         title: 'Спорт',
-        value: formatBoolean(profile?.sport),
+        value: formatBoolean(profile?.sports), // ✅ FIX
         color: '#2F6690',
         bg: '#EAF1F7',
-      },
-      {
-        id: 4,
-        title: 'Наследственность',
-        value: formatBoolean(profile?.heredity),
-        color: '#E63946',
-        bg: '#FCEBED',
       },
     ];
   }, [profile]);
@@ -181,9 +167,6 @@ export default function ProfileScreen() {
           <Text style={styles.userName}>
             {profile?.fullName?.trim() || 'Пользователь'}
           </Text>
-          <Text style={styles.userEmail}>
-            {profile?.email?.trim() || 'Email не указан'}
-          </Text>
 
           <TouchableOpacity
             style={styles.editButton}
@@ -191,7 +174,9 @@ export default function ProfileScreen() {
             onPress={() => router.push('/edit-profile' as any)}
           >
             <Ionicons name="create-outline" size={18} color="#2F6690" />
-            <Text style={styles.editButtonText}>Редактировать профиль</Text>
+            <Text style={styles.editButtonText}>
+              Редактировать профиль
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -203,7 +188,11 @@ export default function ProfileScreen() {
               <View key={item.id} style={styles.infoRow}>
                 <View style={styles.infoLeft}>
                   <View style={styles.infoIconWrap}>
-                    <Ionicons name={item.icon as any} size={20} color="#2F6690" />
+                    <Ionicons
+                      name={item.icon as any}
+                      size={20}
+                      color="#2F6690"
+                    />
                   </View>
 
                   <View>
@@ -248,7 +237,9 @@ export default function ProfileScreen() {
           ) : (
             <>
               <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
-              <Text style={styles.logoutText}>Выйти из аккаунта</Text>
+              <Text style={styles.logoutText}>
+                Выйти из аккаунта
+              </Text>
             </>
           )}
         </TouchableOpacity>
@@ -258,29 +249,18 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F5F5F7',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F7',
-  },
-  contentContainer: {
-    padding: 16,
-    paddingBottom: 120,
-  },
-  loaderWrap: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  safeArea: { flex: 1, backgroundColor: '#F5F5F7' },
+  container: { flex: 1, backgroundColor: '#F5F5F7' },
+  contentContainer: { padding: 16, paddingBottom: 120 },
+  loaderWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
   topSection: {
     backgroundColor: '#2F6690',
     borderRadius: 28,
     padding: 24,
     alignItems: 'center',
   },
+
   avatar: {
     width: 88,
     height: 88,
@@ -289,21 +269,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
-    borderWidth: 3,
-    borderColor: '#FFFFFF33',
   },
+
   userName: {
     fontSize: 24,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 6,
-    textAlign: 'center',
+    marginBottom: 12,
   },
-  userEmail: {
-    fontSize: 14,
-    color: '#DCEAF5',
-    marginBottom: 18,
-  },
+
   editButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -313,40 +287,36 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 8,
   },
+
   editButtonText: {
     fontSize: 14,
     fontWeight: '700',
     color: '#2F6690',
   },
+
   cardSection: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 20,
     marginTop: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
   },
+
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#233142',
     marginBottom: 18,
   },
-  infoList: {
-    gap: 14,
-  },
+
+  infoList: { gap: 14 },
+
   infoRow: {
     backgroundColor: '#F8FAFC',
     borderRadius: 18,
     padding: 14,
   },
-  infoLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+
+  infoLeft: { flexDirection: 'row', alignItems: 'center' },
+
   infoIconWrap: {
     width: 42,
     height: 42,
@@ -356,38 +326,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  infoLabel: {
-    fontSize: 13,
-    color: '#667085',
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#233142',
-  },
+
+  infoLabel: { fontSize: 13, color: '#667085' },
+  infoValue: { fontSize: 16, fontWeight: '700' },
+
   tagsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     gap: 12,
   },
+
   tagCard: {
     width: '48%',
     borderRadius: 18,
-    paddingVertical: 18,
-    paddingHorizontal: 14,
+    padding: 18,
   },
-  tagTitle: {
-    fontSize: 14,
-    color: '#344054',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  tagValue: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
+
+  tagTitle: { fontSize: 14 },
+  tagValue: { fontSize: 20, fontWeight: '700' },
+
   logoutButton: {
     marginTop: 20,
     backgroundColor: '#E63946',
@@ -398,12 +356,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  logoutButtonDisabled: {
-    opacity: 0.7,
-  },
+
   logoutText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
   },
+
+  logoutButtonDisabled: { opacity: 0.7 },
 });

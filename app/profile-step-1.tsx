@@ -2,37 +2,36 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export default function ProfileStep1() {
-
   const params = useLocalSearchParams();
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [age, setAge] = useState('');
   const [weight, setWeight] = useState('');
+  const [height, setHeight] = useState(''); // 🔥 НОВОЕ
   const [gender, setGender] = useState('');
 
   const handleNext = () => {
-
     if (!firstName || !lastName) {
       Alert.alert('Ошибка', 'Введите имя и фамилию');
       return;
     }
 
-    if (!age || !weight) {
-      Alert.alert('Ошибка', 'Введите возраст и вес');
+    if (!age || !weight || !height) {
+      Alert.alert('Ошибка', 'Введите возраст, вес и рост'); // 🔥 обновили
       return;
     }
 
@@ -51,10 +50,10 @@ export default function ProfileStep1() {
         lastName,
         age,
         weight,
+        height, // 🔥 ПРОКИНУЛИ
         gender,
       },
     });
-
   };
 
   const SelectButton = ({
@@ -63,95 +62,51 @@ export default function ProfileStep1() {
     selected,
     onPress,
   }: any) => (
-
     <TouchableOpacity
       style={[
         styles.selectButton,
-        selected === value &&
-          styles.selectButtonActive,
+        selected === value && styles.selectButtonActive,
       ]}
       onPress={() => onPress(value)}
     >
       <Text
         style={[
           styles.selectText,
-          selected === value &&
-            styles.selectTextActive,
+          selected === value && styles.selectTextActive,
         ]}
       >
         {title}
       </Text>
     </TouchableOpacity>
-
   );
 
   return (
-
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={
-          Platform.OS === 'ios'
-            ? 'padding'
-            : undefined
-        }
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-
         <ScrollView
-          contentContainerStyle={
-            styles.scrollContent
-          }
-          showsVerticalScrollIndicator={
-            false
-          }
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-
           <View style={styles.topBlock}>
-
             <View style={styles.logoCircle}>
-              <Ionicons
-                name="person-outline"
-                size={34}
-                color="#FFFFFF"
-              />
+              <Ionicons name="person-outline" size={34} color="#FFFFFF" />
             </View>
 
-            <Text style={styles.title}>
-              Данные пользователя
-            </Text>
-
-            <Text style={styles.stepText}>
-              Шаг 2 из 3
-            </Text>
-
+            <Text style={styles.title}>Данные пользователя</Text>
+            <Text style={styles.stepText}>Шаг 2 из 3</Text>
           </View>
 
           <View style={styles.formCard}>
+            <Text style={styles.label}>Имя</Text>
+            <TextInput style={styles.input} value={firstName} onChangeText={setFirstName} />
 
-            <Text style={styles.label}>
-              Имя
-            </Text>
+            <Text style={styles.label}>Фамилия</Text>
+            <TextInput style={styles.input} value={lastName} onChangeText={setLastName} />
 
-            <TextInput
-              style={styles.input}
-              value={firstName}
-              onChangeText={setFirstName}
-            />
-
-            <Text style={styles.label}>
-              Фамилия
-            </Text>
-
-            <TextInput
-              style={styles.input}
-              value={lastName}
-              onChangeText={setLastName}
-            />
-
-            <Text style={styles.label}>
-              Возраст
-            </Text>
-
+            <Text style={styles.label}>Возраст</Text>
             <TextInput
               style={styles.input}
               keyboardType="numeric"
@@ -159,10 +114,7 @@ export default function ProfileStep1() {
               onChangeText={setAge}
             />
 
-            <Text style={styles.label}>
-              Вес (кг)
-            </Text>
-
+            <Text style={styles.label}>Вес (кг)</Text>
             <TextInput
               style={styles.input}
               keyboardType="numeric"
@@ -170,12 +122,18 @@ export default function ProfileStep1() {
               onChangeText={setWeight}
             />
 
-            <Text style={styles.label}>
-              Пол
-            </Text>
+            {/* 🔥 НОВОЕ ПОЛЕ */}
+            <Text style={styles.label}>Рост (см)</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              value={height}
+              onChangeText={setHeight}
+            />
+
+            <Text style={styles.label}>Пол</Text>
 
             <View style={styles.row}>
-
               <SelectButton
                 title="Мужской"
                 value="male"
@@ -189,33 +147,19 @@ export default function ProfileStep1() {
                 selected={gender}
                 onPress={setGender}
               />
-
             </View>
 
-            <TouchableOpacity
-              style={styles.button}
-              onPress={handleNext}
-            >
-
-              <Text style={styles.buttonText}>
-                Далее
-              </Text>
-
+            <TouchableOpacity style={styles.button} onPress={handleNext}>
+              <Text style={styles.buttonText}>Далее</Text>
             </TouchableOpacity>
-
           </View>
-
         </ScrollView>
-
       </KeyboardAvoidingView>
     </SafeAreaView>
-
   );
-
 }
 
 const styles = StyleSheet.create({
-
   safeArea: {
     flex: 1,
     backgroundColor: '#2F6690',
@@ -321,5 +265,4 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
-
 });

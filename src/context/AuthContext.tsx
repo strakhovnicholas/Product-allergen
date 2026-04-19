@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useState } from 'react';
+import { setAccessToken } from '../api/client';
 
 type AuthContextType = {
   isAuthenticated: boolean;
@@ -27,6 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const savedToken = await AsyncStorage.getItem('accessToken');
 
       if (savedToken) {
+        setAccessToken(savedToken); // 🔥 ВАЖНО
         setToken(savedToken);
         setIsAuthenticated(true);
       }
@@ -39,6 +41,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (newToken: string) => {
     try {
+      setAccessToken(newToken); // 🔥 ВАЖНО
+
       await AsyncStorage.setItem('accessToken', newToken);
 
       setToken(newToken);
@@ -50,6 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
+      setAccessToken(null); // 🔥 ВАЖНО
+
       await AsyncStorage.removeItem('accessToken');
 
       setToken(null);

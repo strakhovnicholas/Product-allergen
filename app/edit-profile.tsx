@@ -27,6 +27,7 @@ export default function EditProfileScreen() {
   const [lastName, setLastName] = useState('');
   const [age, setAge] = useState('');
   const [weight, setWeight] = useState('');
+  const [height, setHeight] = useState('');
 
   const [smoker, setSmoker] = useState(false);
   const [alcohol, setAlcohol] = useState(false);
@@ -38,14 +39,14 @@ export default function EditProfileScreen() {
 
       const profile = await getUserProfileApi();
 
-      const fullName = profile?.fullName ?? '';
-      const [first = '', last = ''] = fullName.split(' ');
+      const parts = (profile?.fullName || '').split(' ');
 
-      setFirstName(first);
-      setLastName(last);
+      setFirstName(parts[0] || '');
+      setLastName(parts[1] || '');
 
-      setAge(profile?.age ? String(profile.age) : '');
-      setWeight(profile?.weight ? String(profile.weight) : '');
+      setAge(profile?.age !== undefined ? String(profile.age) : '');
+      setWeight(profile?.weight !== undefined ? String(profile.weight) : '');
+      setHeight(profile?.height !== undefined ? String(profile.height) : '');
 
       setSmoker(Boolean(profile?.smoker));
       setAlcohol(Boolean(profile?.alcohol));
@@ -72,20 +73,24 @@ export default function EditProfileScreen() {
     try {
       setSaving(true);
 
-      const payload = {
-        fullName: `${firstName} ${lastName}`, // ✅ FIX
-        age: age ? Number(age) : undefined,
-        weight: weight ? Number(weight) : undefined,
+      const payload: any = {
+        fullName: `${firstName} ${lastName}`,
         smoker,
         alcohol,
         sports,
       };
 
-      console.log('PROFILE SAVE:', payload);
+      // ✅ отправляем только если есть значение
+      if (age) payload.age = Number(age);
+      if (weight) payload.weight = Number(weight);
+      if (height) payload.height = Number(height);
+
+      console.log('SAVE PAYLOAD:', payload);
 
       await updateUserProfileApi(payload);
 
       Alert.alert('Успешно', 'Профиль обновлён');
+
       router.back();
     } catch (e) {
       console.log('SAVE ERROR:', e);
@@ -123,8 +128,11 @@ export default function EditProfileScreen() {
         <Text style={styles.label}>Возраст</Text>
         <TextInput style={styles.input} value={age} onChangeText={setAge} keyboardType="numeric" />
 
-        <Text style={styles.label}>Вес</Text>
+        <Text style={styles.label}>Вес (кг)</Text>
         <TextInput style={styles.input} value={weight} onChangeText={setWeight} keyboardType="numeric" />
+
+        <Text style={styles.label}>Рост (см)</Text>
+        <TextInput style={styles.input} value={height} onChangeText={setHeight} keyboardType="numeric" />
 
         <Text style={styles.section}>Образ жизни</Text>
 
