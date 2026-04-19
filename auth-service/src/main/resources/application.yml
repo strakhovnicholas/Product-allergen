@@ -29,3 +29,14 @@ jwt:
     role: role
     type: type
     token-type: access
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+    display-request-duration: true
+  show-actuator: true
+  packages-to-scan: ru.productallergen.authservice.controller
