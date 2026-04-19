@@ -1,15 +1,11 @@
 package ru.productallergen.userservice.userInfo.web;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Size;
 import ru.productallergen.userservice.userInfo.ChronicDisease;
 import ru.productallergen.userservice.userInfo.Gender;
@@ -17,17 +13,9 @@ import ru.productallergen.userservice.userInfo.Predisposition;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
-
-@Schema(description = "DTO информации о пользователе")
-public record UserInfoWebDto(
-        @Schema(description = "Id пользователя")
-        @NotNull(message = "userId не может быть null")
-        UUID userId,
-
+public record UserInfoUpdateRequest(
         @Schema(description = "ФИО")
-        @NotBlank(message = "ФИО не может быть пустым")
         @Size(max = 255, message = "ФИО не должно превышать 255 символов")
         String fullName,
 
@@ -47,7 +35,6 @@ public record UserInfoWebDto(
         Integer height,
 
         @Schema(description = "Пол")
-        @NotNull(message = "Пол обязателен")
         Gender gender,
 
         @Schema(description = "Город")
@@ -55,15 +42,12 @@ public record UserInfoWebDto(
         String country,
 
         @Schema(description = "Курящий")
-        @NotNull(message = "Информация о курении обязательна")
         Boolean smoker,
 
         @Schema(description = "Употребление алкоголя")
-        @NotNull(message = "Информация об употреблении алкоголя обязательна")
         Boolean alcohol,
 
         @Schema(description = "Наличие спорта")
-        @NotNull(message = "Информация о занятиях спортом обязательна")
         Boolean sports,
 
         @Schema(description = "Хронические заболевания")
@@ -73,7 +57,6 @@ public record UserInfoWebDto(
         List<String> allergies,
 
         @Schema(description = "Предрасположенность")
-        @NotNull(message = "Предрасположенность обязательна")
         Predisposition predisposition,
 
         @Schema(description = "Употребляемые медикаменты")
@@ -83,14 +66,6 @@ public record UserInfoWebDto(
         @Size(max = 5000, message = "Замечания врача не должны превышать 5000 символов")
         String doctorNotes,
 
-        @Schema(description = "Дата регистрации")
-        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-        @PastOrPresent(message = "Дата регистрации не может быть в будущем")
-        LocalDateTime registeredAt,
-
-        @Schema(description = "Дата обновления")
-        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-        @PastOrPresent(message = "Дата обновления не может быть в будущем")
-        LocalDateTime updatedAt
+        LocalDateTime registeredAt
 ) {
 }

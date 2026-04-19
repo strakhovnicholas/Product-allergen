@@ -3,6 +3,7 @@ package ru.productallergen.userservice.userInfo.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -42,7 +43,7 @@ public class CommonFeelingController {
     @PostMapping("/feelings/common")
     public ResponseEntity<CommonFeelingWebDto> create(@CurrentUserId UUID userId,
                                                       @Parameter(description = "Данные для создания записи о самочувствии", required = true)
-                                                      @RequestBody CommonFeelingCreateRequest request) {
+                                                      @Valid @RequestBody CommonFeelingCreateRequest request) {
         CommonFeelingWebDto response = mapper.toWebDto(service.createCommonFeeling(mapper.toDto(request, userId)));
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -85,7 +86,7 @@ public class CommonFeelingController {
                                                       @Parameter(description = "ID записи о самочувствии для обновления", required = true)
                                                       @PathVariable UUID feelingId,
                                                       @Parameter(description = "Обновленные данные записи о самочувствии", required = true)
-                                                      @RequestBody CommonFeelingUpdateRequest request) {
+                                                      @Valid @RequestBody CommonFeelingUpdateRequest request) {
 
         CommonFeelingWebDto response = mapper.toWebDto(service.updateCommonFeeling(mapper.toDto(request, feelingId, userId)));
 

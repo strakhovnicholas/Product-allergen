@@ -3,6 +3,7 @@ package ru.productallergen.userservice.userInfo.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,10 +13,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.productallergen.userservice.config.CurrentUserId;
 import ru.productallergen.userservice.userInfo.mapper.UserInfoMapper;
 import ru.productallergen.userservice.userInfo.service.UserInfoService;
+import ru.productallergen.userservice.userInfo.web.UserInfoCreateRequest;
+import ru.productallergen.userservice.userInfo.web.UserInfoUpdateRequest;
 import ru.productallergen.userservice.userInfo.web.UserInfoWebDto;
 
 import java.util.UUID;
@@ -32,9 +36,9 @@ public class UserInfoController {
             description = "Добавляет новую запись с личной информацией пользователя в систему")
     @PostMapping("/user/info")
     public ResponseEntity<UserInfoWebDto> createUserInfo(@Parameter(description = "Данные для создания информации о пользователе", required = true)
-                                                         @RequestBody UserInfoWebDto request,
+                                                         @Valid @RequestBody UserInfoCreateRequest request,
                                                          @CurrentUserId UUID userId) {
-        UserInfoWebDto response = mapper.toWebDto(service.createUserInfo(userId, mapper.toDto(request)));
+        UserInfoWebDto response = mapper.toWebDto(service.createUserInfo(mapper.toDto(request, userId)));
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -50,9 +54,9 @@ public class UserInfoController {
             description = "Полное обновление личной информации пользователя. Поля, не указанные в запросе, не обновляются")
     @PutMapping("/user/info")
     public ResponseEntity<UserInfoWebDto> updateUserInfo(@Parameter(description = "Обновленные данные информации о пользователе", required = true)
-                                                         @RequestBody UserInfoWebDto request,
-                                                         @CurrentUserId UUID userId) {
-        UserInfoWebDto response = mapper.toWebDto(service.updateUserInfo(userId, mapper.toDto(request)));
+                                                         @Valid @RequestBody UserInfoUpdateRequest request,
+                                                         @CurrentUserId  @RequestParam UUID userId) {
+        UserInfoWebDto response = mapper.toWebDto(service.updateUserInfo(mapper.toDto(request, userId)));
         return ResponseEntity.ok(response);
     }
 

@@ -5,6 +5,8 @@ import ru.productallergen.userservice.userInfo.ChronicDisease;
 import ru.productallergen.userservice.userInfo.Gender;
 import ru.productallergen.userservice.userInfo.dto.UserInfoDto;
 import ru.productallergen.userservice.userInfo.entity.UserInfoEntity;
+import ru.productallergen.userservice.userInfo.web.UserInfoCreateRequest;
+import ru.productallergen.userservice.userInfo.web.UserInfoUpdateRequest;
 import ru.productallergen.userservice.userInfo.web.UserInfoWebDto;
 
 import java.time.LocalDateTime;
@@ -63,72 +65,91 @@ public class UserInfoMapper {
                 .build();
     }
 
+    public UserInfoDto toDto(UserInfoCreateRequest request, UUID userId) {
+        return new UserInfoDto(
+                userId,
+                request.fullName(),
+                request.age(),
+                request.weight(),
+                request.height(),
+                request.gender(),
+                request.country(),
+                request.smoker(),
+                request.alcohol(),
+                request.sports(),
+                request.chronicDiseases(),
+                request.allergies(),
+                request.predisposition(),
+                request.medicationsRegular(),
+                request.doctorNotes(),
+                LocalDateTime.now(),
+                LocalDateTime.now()
+        );
+    }
+
+    public UserInfoDto toDto(UserInfoUpdateRequest request, UUID userId) {
+        return new UserInfoDto(
+                userId,
+                request.fullName(),
+                request.age(),
+                request.weight(),
+                request.height(),
+                request.gender(),
+                request.country(),
+                request.smoker(),
+                request.alcohol(),
+                request.sports(),
+                request.chronicDiseases(),
+                request.allergies(),
+                request.predisposition(),
+                request.medicationsRegular(),
+                request.doctorNotes(),
+                request.registeredAt(),
+                LocalDateTime.now()
+        );
+    }
+
     public UserInfoDto toDto(UserInfoWebDto webDto) {
         return UserInfoDto.builder()
-                .userId(webDto.getUserId())
-                .fullName(webDto.getFullName())
-                .age(webDto.getAge())
-                .weight(webDto.getWeight())
-                .height(webDto.getHeight())
-                .gender(webDto.getGender())
-                .country(webDto.getCountry())
-                .smoker(webDto.getSmoker())
-                .alcohol(webDto.getAlcohol())
-                .sports(webDto.getSports())
-                .chronicDiseases(webDto.getChronicDiseases())
-                .allergies(webDto.getAllergies())
-                .predisposition(webDto.getPredisposition())
-                .medicationsRegular(webDto.getMedicationsRegular())
-                .doctorNotes(webDto.getDoctorNotes())
-                .registeredAt(webDto.getRegisteredAt())
-                .updatedAt(webDto.getUpdatedAt())
+                .userId(webDto.userId())
+                .fullName(webDto.fullName())
+                .age(webDto.age())
+                .weight(webDto.weight())
+                .height(webDto.height())
+                .gender(webDto.gender())
+                .country(webDto.country())
+                .smoker(webDto.smoker())
+                .alcohol(webDto.alcohol())
+                .sports(webDto.sports())
+                .chronicDiseases(webDto.chronicDiseases())
+                .allergies(webDto.allergies())
+                .predisposition(webDto.predisposition())
+                .medicationsRegular(webDto.medicationsRegular())
+                .doctorNotes(webDto.doctorNotes())
+                .registeredAt(webDto.registeredAt())
+                .updatedAt(webDto.updatedAt())
                 .build();
     }
 
     public UserInfoWebDto toWebDto(UserInfoDto dto) {
-        return UserInfoWebDto.builder()
-                .userId(dto.getUserId())
-                .fullName(dto.getFullName())
-                .age(dto.getAge())
-                .weight(dto.getWeight())
-                .height(dto.getHeight())
-                .gender(dto.getGender())
-                .country(dto.getCountry())
-                .smoker(dto.getSmoker())
-                .alcohol(dto.getAlcohol())
-                .sports(dto.getSports())
-                .chronicDiseases(dto.getChronicDiseases())
-                .allergies(dto.getAllergies())
-                .predisposition(dto.getPredisposition())
-                .medicationsRegular(dto.getMedicationsRegular())
-                .doctorNotes(dto.getDoctorNotes())
-                .registeredAt(dto.getRegisteredAt())
-                .updatedAt(dto.getUpdatedAt())
-                .build();
-    }
-
-    public void updateEntity(UserInfoEntity entity, UserInfoDto dto) {
-        new UserInfoEntity(
-                entity.id(),
-                entity.userId(),
+        return new UserInfoWebDto(
+                dto.getUserId(),
                 dto.getFullName(),
                 dto.getAge(),
                 dto.getWeight(),
                 dto.getHeight(),
-                dto.getGender() != null ? dto.getGender().name() : entity.gender(),
+                dto.getGender(),
                 dto.getCountry(),
                 dto.getSmoker(),
                 dto.getAlcohol(),
                 dto.getSports(),
-                dto.getChronicDiseases() != null
-                        ? dto.getChronicDiseases().stream().map(Enum::name).toList()
-                        : entity.chronicDiseases(),
+                dto.getChronicDiseases(),
                 dto.getAllergies(),
                 dto.getPredisposition(),
                 dto.getMedicationsRegular(),
                 dto.getDoctorNotes(),
-                entity.registeredAt(),
-                LocalDateTime.now()
+                dto.getRegisteredAt(),
+                dto.getUpdatedAt()
         );
     }
 }

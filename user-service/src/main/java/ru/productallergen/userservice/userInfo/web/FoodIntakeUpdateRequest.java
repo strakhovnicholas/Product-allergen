@@ -36,12 +36,6 @@ public record FoodIntakeUpdateRequest(
         @NotNull
         LocalDateTime intakeTime,
 
-        @Schema(description = "Была ли реакция на продукт")
-        Boolean reactionOccurred,
-
-        @Schema(description = "Описание реакции (если была)")
-        String reactionDescription,
-
         @Schema(description = "Список компонентов/ингредиентов блюда")
         List<String> components
 ) {

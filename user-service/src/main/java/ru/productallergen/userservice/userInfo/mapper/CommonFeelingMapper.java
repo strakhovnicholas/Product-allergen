@@ -36,7 +36,7 @@ public class CommonFeelingMapper {
         return CommonFeelingDto.builder()
                 .userId(userId)
                 .feelingId(UUID.randomUUID())
-                .dateTime(LocalDateTime.now())
+                .dateTime(dto.dateTime())
                 .wellbeingScore(dto.wellbeingScore())
                 .build();
     }

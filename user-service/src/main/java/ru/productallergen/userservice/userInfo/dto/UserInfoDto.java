@@ -1,7 +1,9 @@
 package ru.productallergen.userservice.userInfo.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import ru.productallergen.userservice.userInfo.ChronicDisease;
 import ru.productallergen.userservice.userInfo.Gender;
@@ -14,6 +16,8 @@ import java.util.UUID;
 @Getter
 @Setter
 @Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class UserInfoDto {
     private UUID userId;
     private String fullName;

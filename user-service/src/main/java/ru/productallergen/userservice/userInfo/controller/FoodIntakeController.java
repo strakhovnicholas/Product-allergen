@@ -48,7 +48,7 @@ public class FoodIntakeController {
 
     @Operation(summary = "Получить записи о приёмах пищи по дате",
             description = "Возвращает список записей о приёмах пищи за указанную дату")
-    @GetMapping("/feelings/food/by-date")
+    @GetMapping("/feelings/food")
     public ResponseEntity<List<FoodIntakeWebDto>> getByDate(@Parameter(description = "Дата в формате ISO (YYYY-MM-DD) для фильтрации записей", required = true)
                                                             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                                                             @CurrentUserId UUID userId) {
