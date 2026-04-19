@@ -42,6 +42,7 @@ public class AuthController {
     @Operation(summary = "Регистрация нового пользователя")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Пользователь успешно создан"),
+            @ApiResponse(responseCode = "400", description = "Ошибка валидации входных данных", content = @Content),
             @ApiResponse(responseCode = "409", description = "Пользователь с таким email уже существует")
     })
     @PostMapping("/register")

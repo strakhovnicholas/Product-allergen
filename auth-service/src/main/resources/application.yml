@@ -35,8 +35,11 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
-    operations-sorter: alpha
-    tags-sorter: alpha
-    display-request-duration: true
-  show-actuator: true
-  packages-to-scan: ru.productallergen.authservice.controller
+    operations-sorter: method
+
+logging:
+  level:
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.springdoc: DEBUG
+    ru.productallergen: TRACE
