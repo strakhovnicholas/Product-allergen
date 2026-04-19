@@ -1,10 +1,11 @@
 package ru.productallergen.userservice.userInfo.mapper;
 
-import org.bson.types.ObjectId;
 import org.springframework.stereotype.Component;
 import ru.productallergen.userservice.userInfo.dto.SymptomsDto;
 import ru.productallergen.userservice.userInfo.entity.SymptomsEntity;
-import ru.productallergen.userservice.userInfo.web.SymptomsWebDto;
+import ru.productallergen.userservice.userInfo.web.SymptomCreateRequestDto;
+import ru.productallergen.userservice.userInfo.web.SymptomEditRequestDto;
+import ru.productallergen.userservice.userInfo.web.SymptomResponseDto;
 
 import java.util.UUID;
 
@@ -19,9 +20,30 @@ public class SymptomsMapper {
                 dto.getSymptomName(),
                 dto.getSeverity(),
                 dto.getStartTime(),
-                dto.getEndTime(),
-                dto.getPossibleCause()
+                dto.getEndTime()
         );
+    }
+
+    public SymptomsDto toDto(SymptomCreateRequestDto requestDto, UUID userId) {
+        return SymptomsDto.builder()
+                .symptomsId(UUID.randomUUID())
+                .userId(userId)
+                .symptomName(requestDto.symptomName())
+                .severity(requestDto.severity())
+                .startTime(requestDto.startTime())
+                .endTime(requestDto.endTime())
+                .build();
+    }
+
+    public SymptomsDto toDto(SymptomEditRequestDto requestDto, UUID userId, UUID symptomId) {
+        return SymptomsDto.builder()
+                .symptomsId(symptomId)
+                .userId(userId)
+                .symptomName(requestDto.symptomName())
+                .severity(requestDto.severity())
+                .startTime(requestDto.startTime())
+                .endTime(requestDto.endTime())
+                .build();
     }
 
     public SymptomsDto toDto(SymptomsEntity entity) {
@@ -32,30 +54,16 @@ public class SymptomsMapper {
                 .severity(entity.severity())
                 .startTime(entity.startTime())
                 .endTime(entity.endTime())
-                .possibleCause(entity.possibleCause())
                 .build();
     }
 
-    public SymptomsWebDto toWebDto(SymptomsDto dto) {
-        return SymptomsWebDto.builder()
-                .symptomsId(dto.getSymptomsId())
-                .symptomName(dto.getSymptomName())
-                .severity(dto.getSeverity())
-                .startTime(dto.getStartTime())
-                .endTime(dto.getEndTime())
-                .possibleCause(dto.getPossibleCause())
-                .build();
-    }
-
-    public SymptomsDto toDto(SymptomsWebDto webDto) {
-        return SymptomsDto.builder()
-                .symptomsId(webDto.getSymptomsId())
-                .symptomName(webDto.getSymptomName())
-                .severity(webDto.getSeverity())
-                .startTime(webDto.getStartTime())
-                .endTime(webDto.getEndTime())
-                .possibleCause(webDto.getPossibleCause())
-                .build();
+    public SymptomResponseDto toWebDto(SymptomsDto dto) {
+        return new SymptomResponseDto(
+                dto.getSymptomsId(),
+                dto.getSymptomName(),
+                dto.getSeverity(),
+                dto.getStartTime(),
+                dto.getEndTime());
     }
 }
 

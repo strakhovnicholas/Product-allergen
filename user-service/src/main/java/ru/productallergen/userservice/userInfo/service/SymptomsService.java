@@ -50,8 +50,7 @@ public class SymptomsService {
                 dto.getSymptomName(),
                 dto.getSeverity(),
                 dto.getStartTime(),
-                dto.getEndTime(),
-                dto.getPossibleCause()
+                dto.getEndTime()
         );
 
         return mapper.toDto(repository.save(updated));

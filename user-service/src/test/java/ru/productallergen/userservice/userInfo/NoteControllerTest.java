@@ -15,7 +15,8 @@ import ru.productallergen.userservice.userInfo.controller.NoteController;
 import ru.productallergen.userservice.userInfo.dto.NoteDto;
 import ru.productallergen.userservice.userInfo.mapper.NoteMapper;
 import ru.productallergen.userservice.userInfo.service.NoteService;
-import ru.productallergen.userservice.userInfo.web.NoteWebDto;
+import ru.productallergen.userservice.userInfo.web.NoteCreateRequestDto;
+import ru.productallergen.userservice.userInfo.web.NoteResponseDto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -48,7 +49,7 @@ class NoteControllerTest {
     private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final UUID NOTE_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
-    private NoteWebDto sampleWebDto;
+    private NoteResponseDto sampleWebDto;
     private NoteDto sampleDto;
 
     @BeforeEach
@@ -56,11 +57,16 @@ class NoteControllerTest {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
 
-        sampleWebDto = NoteWebDto.builder()
-                .noteId(NOTE_ID)
-                .content("Test note content")
-                .date(LocalDateTime.parse("2024-06-01T10:00:00"))
-                .build();
+//        sampleWebDto = NoteWebDto.builder()
+//                .noteId(NOTE_ID)
+//                .content("Test note content")
+//                .date(LocalDateTime.parse("2024-06-01T10:00:00"))
+//                .build();
+
+        sampleWebDto = new NoteResponseDto(
+                NOTE_ID,
+                "Test note content",
+                LocalDateTime.parse("2024-06-01T10:00:00"));
 
         sampleDto = NoteDto.builder()
                 .noteId(NOTE_ID)
@@ -73,8 +79,8 @@ class NoteControllerTest {
     @Test
     @DisplayName("POST /api/feelings/notes — успешное создание заметки")
     void createNote_success() throws Exception {
-        when(mapper.toDto(any(NoteWebDto.class))).thenReturn(sampleDto);
-        when(service.createNode(eq(USER_ID), any(NoteDto.class))).thenReturn(sampleDto);
+//        when(mapper.toDto(any(NoteCreateRequestDto.class), USER_ID)).thenReturn(sampleDto);
+        when(service.createNote(eq(USER_ID), any(NoteCreateRequestDto.class))).thenReturn(sampleDto);
         when(mapper.toWebDto(sampleDto)).thenReturn(sampleWebDto);
 
         mockMvc.perform(post("/api/feelings/notes")
@@ -87,7 +93,7 @@ class NoteControllerTest {
                 .andExpect(jsonPath("$.noteId").value(NOTE_ID.toString()))
                 .andExpect(jsonPath("$.content").value("Test note content"));
 
-        verify(service).createNode(eq(USER_ID), any(NoteDto.class));
+        verify(service).createNote(eq(USER_ID), any(NoteCreateRequestDto.class));
     }
 
     @Test
@@ -178,7 +184,6 @@ class NoteControllerTest {
     @Test
     @DisplayName("PUT /api/feelings/notes/{noteId} — успешное обновление")
     void updateNote_success() throws Exception {
-        when(mapper.toDto(any(NoteWebDto.class))).thenReturn(sampleDto);
         when(service.updateNode(eq(USER_ID), eq(NOTE_ID), any(NoteDto.class))).thenReturn(sampleDto);
         when(mapper.toWebDto(sampleDto)).thenReturn(sampleWebDto);
 
