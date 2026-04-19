@@ -33,50 +33,50 @@ public class JwtUtils {
 
     public boolean validateToken(String token, String expectedType) {
         try {
-            Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(getSigningKey())
-                    .build()
-                    .parseClaimsJws(token)
-                    .getBody();
+            Claims claims = getAllClaims(token);
 
             String type = claims.get(typeClaim, String.class);
             boolean isExpired = claims.getExpiration().before(new Date());
 
             if (!expectedType.equals(type)) {
-                log.warn("Token validation failed: Expected type '{}', but found '{}'", expectedType, type);
+                log.warn("Валидация токена провалена: ожидался тип '{}', но получен '{}'", expectedType, type);
                 return false;
             }
 
             if (isExpired) {
-                log.debug("Token validation failed: Token is expired");
+                log.debug("Валидация токена провалена: срок действия токена истек");
                 return false;
             }
 
             return true;
         } catch (ExpiredJwtException e) {
-            log.debug("Token validation failed: Token has expired");
+            log.debug("Валидация токена провалена: время жизни токена закончилось");
         } catch (SignatureException e) {
-            log.warn("Token validation failed: Invalid signature");
+            log.warn("Валидация токена провалена: некорректная цифровая подпись");
         } catch (MalformedJwtException e) {
-            log.warn("Token validation failed: Malformed token structure");
+            log.warn("Валидация токена провалена: поврежденная структура токена");
         } catch (Exception e) {
-            log.error("Token validation failed: Unexpected error during parsing: {}", e.getMessage());
+            log.error("Валидация токена провалена: непредвиденная ошибка при разборе: {}", e.getMessage());
         }
         return false;
     }
 
     public String extractId(String token) {
         try {
-            Object id = Jwts.parserBuilder()
-                    .setSigningKey(getSigningKey())
-                    .build()
-                    .parseClaimsJws(token)
-                    .getBody()
-                    .get(idClaim);
+            Claims claims = getAllClaims(token);
+            Object id = claims.get(idClaim);
             return String.valueOf(id);
         } catch (Exception e) {
-            log.error("Failed to extract ID from token: {}", e.getMessage());
+            log.error("Не удалось извлечь ID из токена: {}", e.getMessage());
             return null;
         }
+    }
+
+    private Claims getAllClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
     }
 }

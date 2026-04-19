@@ -48,10 +48,10 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
             ServerHttpRequest request = exchange.getRequest();
             String path = request.getURI().getPath();
 
-            log.debug("Processing authentication for path: {}", path);
+            log.debug("Обработка аутентификации для пути: {}", path);
 
             if (config.skipAuth) {
-                log.info("Skipping authentication for request to: {} (Test Mode)", path);
+                log.info("Аутентификация пропущена для пути: {} (Тестовый режим)", path);
                 ServerHttpRequest mutated = request.mutate()
                         .header(X_USER_ID, TEST_USER_ID)
                         .header(X_INTERNAL_TOKEN, internalSecret)
@@ -61,35 +61,35 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
             }
 
             if (!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
-                log.warn("Authentication failed for path {}: Missing Authorization header", path);
+                log.warn("Аутентификация не удалась для пути {}: Отсутствует заголовок Authorization", path);
                 return Mono.error(new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED, "Authorization header is missing"));
+                        HttpStatus.UNAUTHORIZED, "Заголовок Authorization отсутствует"));
             }
 
             String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
             if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
-                log.warn("Authentication failed for path {}: Invalid header format", path);
+                log.warn("Аутентификация не удалась для пути {}: Неверный формат заголовка", path);
                 return Mono.error(new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED, "Invalid Authorization header format"));
+                        HttpStatus.UNAUTHORIZED, "Неверный формат заголовка Authorization"));
             }
 
             String token = authHeader.substring(BEARER_OFFSET);
 
             try {
                 if (!jwtUtils.validateToken(token, EXPECTED_TOKEN_TYPE)) {
-                    log.warn("Authentication failed for path {}: Invalid or expired access token", path);
+                    log.warn("Аутентификация не удалась для пути {}: Невалидный или просроченный токен доступа", path);
                     return Mono.error(new ResponseStatusException(
-                            HttpStatus.UNAUTHORIZED, "Invalid or expired access token"));
+                            HttpStatus.UNAUTHORIZED, "Невалидный или просроченный токен доступа"));
                 }
             } catch (Exception e) {
-                log.error("Error during token validation for path {}: {}", path, e.getMessage());
+                log.error("Ошибка при валидации токена для пути {}: {}", path, e.getMessage());
                 return Mono.error(new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED, "Token validation error"));
+                        HttpStatus.UNAUTHORIZED, "Ошибка проверки токена"));
             }
 
             String userId = jwtUtils.extractId(token);
-            log.debug("User authenticated. Path: {}, UserId: {}", path, userId);
+            log.debug("Пользователь аутентифицирован. Путь: {}, UserId: {}", path, userId);
 
             ServerHttpRequest modifiedRequest = request.mutate()
                     .header(X_USER_ID, userId)

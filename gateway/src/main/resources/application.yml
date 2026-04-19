@@ -21,6 +21,20 @@ spring:
               args:
                 skipAuth: false
 
+      #Настройка CORS для обращения из браузера
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+
 #Настройки JWT и секретов
 jwt:
   secret: ${JWT_SECRET}
@@ -31,3 +45,7 @@ jwt:
 internal:
   api:
     secret: ${INTERNAL_SECRET}
+
+logging:
+  level:
+    ru.productallergen.gateway.filter: DEBUG

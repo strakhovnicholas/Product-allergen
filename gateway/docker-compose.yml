@@ -3,8 +3,6 @@ services:
   gateway:
     image: n1vvas1e/gateway-service:v1
     container_name: gateway-service
-    ports:
-      - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - JWT_SECRET=${JWT_SECRET}
