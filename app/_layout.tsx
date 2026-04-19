@@ -1,4 +1,4 @@
-import { Stack, router, usePathname } from 'expo-router';
+import { Stack, router, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -6,40 +6,48 @@ import { AuthProvider, useAuth } from '../src/context/AuthContext';
 
 function RootNavigation() {
   const { isAuthenticated, isLoading } = useAuth();
-  const pathname = usePathname();
+  const segments = useSegments();
 
   useEffect(() => {
     if (isLoading) return;
 
-    const inTabs = pathname.startsWith('/(tabs)');
-    const inLogin = pathname === '/login';
+    const currentSegment = segments[0];
 
-    const inRegisterFlow =
-      pathname === '/register' ||
-      pathname === '/profile-step-1' ||
-      pathname === '/profile-step-2';
+    const inAuth =
+      currentSegment === 'login' ||
+      currentSegment === 'register' ||
+      currentSegment === 'profile-step-1' ||
+      currentSegment === 'profile-step-2';
 
-    if (!isAuthenticated) {
-      if (!inLogin && !inRegisterFlow) {
+    const inTabs = currentSegment === '(tabs)';
+
+    if (!isAuthenticated && !inAuth) {
+      setTimeout(() => {
         router.replace('/register');
-      }
+      }, 0);
       return;
     }
 
-    if (isAuthenticated && (inLogin || inRegisterFlow)) {
-      router.replace('/(tabs)');
+    if (isAuthenticated && inAuth) {
+      setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 0);
       return;
     }
 
-    if (isAuthenticated && inTabs) {
-      return;
-    }
-  }, [isAuthenticated, isLoading, pathname]);
+  }, [isAuthenticated, isLoading, segments]);
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#F5F7FB',
+        }}
+      >
+        <ActivityIndicator size="large" color="#2F6690" />
       </View>
     );
   }
@@ -47,10 +55,16 @@ function RootNavigation() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="register" />
+      <Stack.Screen name="login" />
       <Stack.Screen name="profile-step-1" />
       <Stack.Screen name="profile-step-2" />
-      <Stack.Screen name="login" />
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="edit-profile" />
+      <Stack.Screen name="add-common" />
+      <Stack.Screen name="add-symptom" />
+      <Stack.Screen name="add-medicine" />
+      <Stack.Screen name="add-food" />
+      <Stack.Screen name="add-note" />
     </Stack>
   );
 }

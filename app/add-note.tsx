@@ -1,124 +1,201 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 
-import { createNoteApi, updateNoteApi } from '../src/api/diaryApi';
-import { formStyles as styles } from '../src/styles/formStyles';
+import {
+  deleteNoteApi,
+  getNotesByDateApi,
+} from '../src/api/diaryApi';
 
-function isValidDateString(value: string) {
-  if (!value.trim()) return false;
-  const parsedDate = new Date(value);
-  return !Number.isNaN(parsedDate.getTime());
-}
+const formatDate = (date: Date) =>
+  date.toISOString().split('T')[0];
 
-export default function AddNoteScreen() {
-  const params = useLocalSearchParams<{
-    noteId?: string;
-    content?: string;
-    date?: string;
-  }>();
+export default function NotesScreen() {
+  const [notes, setNotes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const isEdit = useMemo(() => Boolean(params.noteId), [params.noteId]);
+  const [selectedDate, setSelectedDate] = useState(
+    formatDate(new Date())
+  );
 
-  const [content, setContent] = useState(params.content ?? '');
-  const [date, setDate] = useState(params.date ?? '');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSave = async () => {
-    const normalizedContent = content.trim();
-    const normalizedDate = date.trim();
-
-    if (!normalizedContent || !normalizedDate) {
-      Alert.alert('Ошибка', 'Заполните текст заметки и дату');
-      return;
-    }
-
-    if (!isValidDateString(normalizedDate)) {
-      Alert.alert('Ошибка', 'Введите корректную дату');
-      return;
-    }
-
-    const payload = {
-      content: normalizedContent,
-      date: normalizedDate,
-    };
-
-    setIsSubmitting(true);
-
+  // ===== LOAD =====
+  const load = async () => {
     try {
-      if (isEdit && params.noteId) {
-        await updateNoteApi(params.noteId, payload);
-        Alert.alert('Успешно', 'Заметка обновлена');
-      } else {
-        await createNoteApi(payload);
-        Alert.alert('Успешно', 'Заметка сохранена');
-      }
+      console.log('LOAD NOTES FOR DATE:', selectedDate);
 
-      router.back();
-    } catch (error) {
-      Alert.alert(
-        'Ошибка',
-        error instanceof Error ? error.message : 'Не удалось сохранить заметку'
-      );
+      setLoading(true);
+
+      const data = await getNotesByDateApi(selectedDate);
+
+      console.log('NOTES RESULT:', data);
+
+      setNotes(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      console.log('NOTES ERROR FULL:', e);
+
+      if (e.message?.includes('401')) {
+        Alert.alert(
+          'Авторизация',
+          'Ты не авторизован. Перезайди в приложение'
+        );
+      } else {
+        Alert.alert('Ошибка загрузки заметок');
+      }
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    load();
+  }, [selectedDate]);
+
+  // ===== REFRESH =====
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
+
+  // ===== DELETE =====
+  const handleDelete = (id: string) => {
+    Alert.alert('Удаление', 'Удалить заметку?', [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Удалить',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteNoteApi(id);
+            load();
+          } catch (e) {
+            console.log('DELETE ERROR:', e);
+            Alert.alert('Ошибка удаления');
+          }
+        },
+      },
+    ]);
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F7FB' }}>
       <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: 16 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+          />
+        }
       >
-        <Text style={styles.title}>
-          {isEdit ? 'Редактировать заметку' : 'Заметка'}
+        {/* ===== TITLE ===== */}
+        <Text style={{ fontSize: 26, fontWeight: '700' }}>
+          Заметки
         </Text>
-        <Text style={styles.subtitle}>Добавьте наблюдение или важный комментарий</Text>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Дата</Text>
-          <TextInput
-            style={styles.input}
-            value={date}
-            onChangeText={setDate}
-            editable={!isSubmitting}
-          />
+        {/* ===== DATE ===== */}
+        <View
+          style={{
+            marginTop: 12,
+            backgroundColor: '#fff',
+            padding: 14,
+            borderRadius: 16,
+          }}
+        >
+          <Text style={{ color: '#667085' }}>Дата</Text>
 
-          <Text style={styles.label}>Текст заметки</Text>
-          <TextInput
-            style={[styles.input, styles.multiline]}
-            multiline
-            value={content}
-            onChangeText={setContent}
-            editable={!isSubmitting}
-          />
-
-          <TouchableOpacity
-            style={[styles.button, isSubmitting && { opacity: 0.7 }]}
-            onPress={handleSave}
-            disabled={isSubmitting}
-            activeOpacity={0.85}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.buttonText}>
-                {isEdit ? 'Обновить' : 'Сохранить'}
-              </Text>
-            )}
-          </TouchableOpacity>
+          <Text style={{ fontWeight: '600', marginTop: 6 }}>
+            {selectedDate}
+          </Text>
         </View>
+
+        {/* ===== ADD ===== */}
+        <TouchableOpacity
+          onPress={() => router.push('/add-note')}
+          style={{
+            marginTop: 12,
+            backgroundColor: '#2F6690',
+            padding: 14,
+            borderRadius: 16,
+          }}
+        >
+          <Text style={{ color: '#fff', textAlign: 'center' }}>
+            + Добавить заметку
+          </Text>
+        </TouchableOpacity>
+
+        {/* ===== CONTENT ===== */}
+        {loading ? (
+          <ActivityIndicator style={{ marginTop: 30 }} />
+        ) : notes.length === 0 ? (
+          <Text style={{ marginTop: 20 }}>
+            Нет заметок за этот день
+          </Text>
+        ) : (
+          notes.map((item) => (
+            <View
+              key={item.noteId}
+              style={{
+                backgroundColor: '#fff',
+                padding: 16,
+                borderRadius: 18,
+                marginTop: 12,
+              }}
+            >
+              <Text style={{ marginBottom: 8 }}>
+                {item.content}
+              </Text>
+
+              <Text style={{ fontSize: 12, color: '#98A2B3' }}>
+                {new Date(item.date).toLocaleString('ru-RU')}
+              </Text>
+
+              {/* ACTIONS */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  marginTop: 10,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push({
+                      pathname: '/add-note',
+                      params: {
+                        noteId: item.noteId,
+                        content: item.content,
+                        date: item.date,
+                      },
+                    })
+                  }
+                  style={{ marginRight: 16 }}
+                >
+                  <Text style={{ color: '#2F6690' }}>
+                    Редактировать
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => handleDelete(item.noteId)}
+                >
+                  <Text style={{ color: '#E63946' }}>
+                    Удалить
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )}
       </ScrollView>
     </SafeAreaView>
   );

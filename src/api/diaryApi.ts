@@ -98,6 +98,35 @@ export type FoodCategory = {
   name: string;
 };
 
+export type UserProfile = {
+  userId: string;
+  fullName?: string;
+  age?: number;
+  weight?: number;
+  height?: number;
+  gender?: string;
+  smoker?: boolean;
+  alcohol?: boolean;
+  sports?: boolean;
+};
+
+export async function getUserProfileApi(): Promise<UserProfile> {
+  return apiRequest<UserProfile>('/api/profile', {
+    method: 'GET',
+    auth: true,
+  });
+}
+
+export async function updateUserProfileApi(
+  payload: Partial<UserProfile>
+): Promise<UserProfile> {
+  return apiRequest<UserProfile>('/api/profile', {
+    method: 'PUT',
+    body: payload,
+    auth: true,
+  });
+}
+
 
 export async function getCommonFeelingsApi(): Promise<CommonFeeling[]> {
   return apiRequest<CommonFeeling[]>('/api/feelings/common', {
@@ -321,10 +350,24 @@ export async function getFoodByDateApi(date: string): Promise<Food[]> {
 
 export async function getNotesByDateApi(date: string): Promise<Note[]> {
   return apiRequest<Note[]>(
-    `/api/feelings/notes/date?date=${encodeURIComponent(date)}`,
+    `/api/feelings/notes/by-date?date=${encodeURIComponent(date)}`,
     {
       method: 'GET',
       auth: true,
     }
   );
+}
+
+export async function getSymptomsByDateApi(date: string) {
+  return apiRequest(`/api/symptoms/by-date?date=${date}`, {
+    method: 'GET',
+    auth: true,
+  });
+}
+
+export async function getMedicinesByDateApi(date: string) {
+  return apiRequest(`/api/medicines/by-date?date=${date}`, {
+    method: 'GET',
+    auth: true,
+  });
 }

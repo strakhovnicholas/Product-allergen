@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -6,6 +5,7 @@ import {
   Alert,
   SafeAreaView,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -14,184 +14,143 @@ import {
 
 import {
   createFoodApi,
-  getFoodCategoriesApi,
-  searchFoodCatalogApi,
+  getFoodApi,
   updateFoodApi,
-  type FoodCatalogItem,
-  type FoodCategory,
 } from '../src/api/diaryApi';
-import { formStyles as styles } from '../src/styles/formStyles';
 
-function isValidDateString(value: string) {
-  if (!value.trim()) return false;
-  const date = new Date(value);
-  return !Number.isNaN(date.getTime());
-}
+import { formStyles as styles } from '../src/styles/formStyles';
 
 export default function AddFoodScreen() {
   const params = useLocalSearchParams<{
     foodIntakeId?: string;
     foodName?: string;
-    category?: string;
     amount?: string;
     unit?: string;
-    intakeTime?: string;
-    reactionOccurred?: string;
-    reactionDescription?: string;
   }>();
 
-  const isEdit = useMemo(() => Boolean(params.foodIntakeId), [params.foodIntakeId]);
+  const isEdit = useMemo(
+    () => Boolean(params.foodIntakeId),
+    [params.foodIntakeId]
+  );
 
-  const [foodName, setFoodName] = useState(params.foodName ?? '');
-  const [category, setCategory] = useState(params.category ?? '');
+  // ===== STATE =====
+  const [foodList, setFoodList] = useState<string[]>([]);
+  const [search, setSearch] = useState(params.foodName ?? '');
+  const [selectedFood, setSelectedFood] = useState(
+    params.foodName ?? ''
+  );
+
   const [amount, setAmount] = useState(params.amount ?? '');
-  const [unit, setUnit] = useState(params.unit ?? '');
-  const [intakeTime, setIntakeTime] = useState(params.intakeTime ?? '');
-  const [reactionOccurred, setReactionOccurred] = useState(
-    params.reactionOccurred === 'true'
-  );
-  const [reactionDescription, setReactionDescription] = useState(
-    params.reactionDescription ?? ''
-  );
+  const [unit, setUnit] = useState(params.unit ?? 'GRAM');
 
+  const [reaction, setReaction] = useState(false);
+  const [reactionText, setReactionText] = useState('');
+
+  const [components, setComponents] = useState<string[]>([]);
+  const [componentInput, setComponentInput] = useState('');
+
+  const [showDropdown, setShowDropdown] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [catalogItems, setCatalogItems] = useState<FoodCatalogItem[]>([]);
-  const [categories, setCategories] = useState<FoodCategory[]>([]);
 
+  // ===== LOAD FOOD =====
   useEffect(() => {
-    let isMounted = true;
-
-    const loadCategories = async () => {
+    const load = async () => {
       try {
-        const data = await getFoodCategoriesApi();
-        if (isMounted) {
-          setCategories(data ?? []);
-        }
-      } catch {
-        // категории не критичны для работы формы
+        const userId = 'test-user-id'; 
+
+        const data = await getFoodApi();
+
+        console.log('FOOD API:', data);
+
+        const unique = [
+          ...new Set(
+            data?.map((i: any) => i.foodName).filter(Boolean)
+          ),
+        ];
+
+        setFoodList(unique);
+      } catch (e) {
+        console.log('FOOD ERROR:', e);
       }
     };
 
-    void loadCategories();
-
-    return () => {
-      isMounted = false;
-    };
+    load();
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
+  // ===== FILTER =====
+  const filtered = useMemo(() => {
+    if (!search.trim()) return foodList;
 
-    const trimmed = foodName.trim();
+    return foodList.filter((item) =>
+      item.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [search, foodList]);
 
-    if (!trimmed || trimmed.length < 2) {
-      setCatalogItems([]);
-      return;
-    }
+  // ===== COMPONENTS =====
+  const addComponent = () => {
+    const value = componentInput.trim();
+    if (!value) return;
 
-    const timeout = setTimeout(async () => {
-      try {
-        setIsSearching(true);
-        const data = await searchFoodCatalogApi(trimmed);
-        if (isMounted) {
-          setCatalogItems(data ?? []);
-        }
-      } catch {
-        if (isMounted) {
-          setCatalogItems([]);
-        }
-      } finally {
-        if (isMounted) {
-          setIsSearching(false);
-        }
-      }
-    }, 350);
-
-    return () => {
-      isMounted = false;
-      clearTimeout(timeout);
-    };
-  }, [foodName]);
-
-  const handleSelectCatalogItem = (item: FoodCatalogItem) => {
-    setFoodName(item.name);
-
-    if (!category.trim() && item.category) {
-      setCategory(item.category);
-    }
-
-    setCatalogItems([]);
+    setComponents((prev) => [...prev, value]);
+    setComponentInput('');
   };
 
-  const handleSelectCategory = (item: FoodCategory) => {
-    setCategory(item.name);
+  const removeComponent = (index: number) => {
+    setComponents((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // ===== UNIT MAP =====
+  const mapUnit = (u: string) => {
+    switch (u) {
+      case 'GRAM':
+        return 'GRAM';
+      case 'PORTION':
+        return 'PORTION';
+      case 'PIECE':
+        return 'PIECE';
+      case 'ML':
+        return 'MILLILITER';
+      default:
+        return 'GRAM';
+    }
+  };
+
+  // ===== SAVE =====
   const handleSave = async () => {
-    const normalizedFoodName = foodName.trim();
-    const normalizedCategory = category.trim();
-    const normalizedUnit = unit.trim();
-    const normalizedIntakeTime = intakeTime.trim();
-    const normalizedReactionDescription = reactionDescription.trim();
+    const name = selectedFood || search.trim();
 
-    if (!normalizedFoodName || !normalizedIntakeTime) {
-      Alert.alert('Ошибка', 'Заполните название блюда и время приёма');
+    if (!name) {
+      Alert.alert('Ошибка', 'Введите название блюда');
       return;
     }
 
-    if (!isValidDateString(normalizedIntakeTime)) {
-      Alert.alert('Ошибка', 'Введите корректное время приёма');
-      return;
-    }
-
-    let parsedAmount: number | undefined;
-    if (amount.trim()) {
-      parsedAmount = Number(amount);
-
-      if (Number.isNaN(parsedAmount)) {
-        Alert.alert('Ошибка', 'Количество должно быть числом');
-        return;
-      }
-
-      if (parsedAmount <= 0) {
-        Alert.alert('Ошибка', 'Количество должно быть больше нуля');
-        return;
-      }
-    }
-
-    if (reactionOccurred && !normalizedReactionDescription) {
-      Alert.alert('Ошибка', 'Опишите реакцию, если она была');
-      return;
-    }
+    const parsedAmount = Number(amount);
 
     const payload = {
-      foodName: normalizedFoodName,
-      category: normalizedCategory || undefined,
-      amount: parsedAmount,
-      unit: normalizedUnit || undefined,
-      intakeTime: normalizedIntakeTime,
-      reactionOccurred,
-      reactionDescription: normalizedReactionDescription || undefined,
+      foodName: name,
+      amount: !Number.isNaN(parsedAmount) ? parsedAmount : undefined,
+      unit: mapUnit(unit),
+      intakeTime: new Date().toISOString(),
+      reactionOccurred: reaction,
+      reactionDescription: reaction ? reactionText : '',
+      components: components,
     };
+
+    console.log('PAYLOAD:', payload);
 
     setIsSubmitting(true);
 
     try {
       if (isEdit && params.foodIntakeId) {
         await updateFoodApi(params.foodIntakeId, payload);
-        Alert.alert('Успешно', 'Запись о еде обновлена');
       } else {
         await createFoodApi(payload);
-        Alert.alert('Успешно', 'Запись о еде сохранена');
       }
 
       router.back();
-    } catch (error) {
-      Alert.alert(
-        'Ошибка',
-        error instanceof Error ? error.message : 'Не удалось сохранить запись о еде'
-      );
+    } catch (e: any) {
+      console.log('SAVE ERROR:', e?.message || e);
+      Alert.alert('Ошибка сохранения');
     } finally {
       setIsSubmitting(false);
     }
@@ -199,289 +158,162 @@ export default function AddFoodScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>
           {isEdit ? 'Редактировать питание' : 'Питание'}
         </Text>
-        <Text style={styles.subtitle}>
-          Найдите продукт через бэк или заполните запись вручную
-        </Text>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Поиск блюда</Text>
-          <View
-            style={{
-              minHeight: 54,
-              borderRadius: 16,
-              backgroundColor: '#F8FAFC',
-              borderWidth: 1,
-              borderColor: '#E4E7EC',
-              paddingHorizontal: 16,
-              flexDirection: 'row',
-              alignItems: 'center',
-            }}
-          >
-            <Ionicons name="search-outline" size={18} color="#98A2B3" />
-            <TextInput
-              style={{
-                flex: 1,
-                minHeight: 54,
-                marginLeft: 10,
-                color: '#101828',
-                fontSize: 15,
-              }}
-              value={foodName}
-              onChangeText={setFoodName}
-              editable={!isSubmitting}
-            />
-            {isSearching ? (
-              <ActivityIndicator size="small" color="#2F6690" />
-            ) : foodName.length > 0 ? (
-              <TouchableOpacity
-                onPress={() => {
-                  setFoodName('');
-                  setCatalogItems([]);
-                }}
-                disabled={isSubmitting}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="close-circle" size={18} color="#98A2B3" />
-              </TouchableOpacity>
-            ) : null}
-          </View>
+          {/* ===== ПОИСК ===== */}
+          <Text style={styles.label}>Блюдо</Text>
 
-          {catalogItems.length > 0 && (
-            <View
-              style={{
-                marginTop: 10,
-                gap: 8,
-              }}
-            >
-              {catalogItems.map((item) => (
-                <TouchableOpacity
-                  key={String(item.id)}
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: '#E4E7EC',
-                    paddingHorizontal: 14,
-                    paddingVertical: 12,
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                  activeOpacity={0.85}
-                  onPress={() => handleSelectCatalogItem(item)}
-                  disabled={isSubmitting}
-                >
-                  <View style={{ flex: 1, paddingRight: 10 }}>
-                    <Text
-                      style={{
-                        fontSize: 15,
-                        fontWeight: '600',
-                        color: '#233142',
+          <TextInput
+            style={styles.input}
+            value={search}
+            onChangeText={(t) => {
+              setSearch(t);
+              setShowDropdown(true);
+            }}
+            onFocus={() => setShowDropdown(true)}
+            placeholder="Введите блюдо..."
+          />
+
+          {showDropdown && (
+            <View style={searchStyles.dropdown}>
+              <ScrollView style={{ maxHeight: 150 }}>
+                {filtered.length > 0 ? (
+                  filtered.map((item) => (
+                    <TouchableOpacity
+                      key={item}
+                      style={searchStyles.item}
+                      onPress={() => {
+                        setSelectedFood(item);
+                        setSearch(item);
+                        setShowDropdown(false);
                       }}
                     >
-                      {item.name}
-                    </Text>
-                    {!!item.category && (
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: '#98A2B3',
-                          marginTop: 2,
-                        }}
-                      >
-                        {item.category}
-                      </Text>
-                    )}
-                  </View>
+                      <Text>{item}</Text>
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <Text style={searchStyles.empty}>
+                    Ничего не найдено
+                  </Text>
+                )}
+              </ScrollView>
+            </View>
+          )}
 
-                  <Ionicons
-                    name="chevron-forward"
-                    size={16}
-                    color="#98A2B3"
-                  />
+          {/* ===== КОЛИЧЕСТВО ===== */}
+          <Text style={styles.label}>Количество</Text>
+
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              keyboardType="numeric"
+              value={amount}
+              onChangeText={setAmount}
+              placeholder="Например: 200"
+            />
+
+            <View style={unitStyles.container}>
+              {[
+                { label: 'г', value: 'GRAM' },
+                { label: 'порц', value: 'PORTION' },
+                { label: 'шт', value: 'PIECE' },
+                { label: 'мл', value: 'ML' },
+              ].map((u) => (
+                <TouchableOpacity
+                  key={u.value}
+                  style={[
+                    unitStyles.item,
+                    unit === u.value && unitStyles.active,
+                  ]}
+                  onPress={() => setUnit(u.value)}
+                >
+                  <Text style={unit === u.value && { color: '#fff' }}>
+                    {u.label}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
-          )}
-
-          {!!categories.length && (
-            <>
-              <Text style={styles.label}>Категории</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingRight: 8 }}
-              >
-                {categories.map((item) => {
-                  const active = category === item.name;
-
-                  return (
-                    <TouchableOpacity
-                      key={String(item.id)}
-                      style={{
-                        height: 36,
-                        borderRadius: 18,
-                        paddingHorizontal: 14,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        backgroundColor: active ? '#2F6690' : '#EAF1F7',
-                        marginRight: 10,
-                      }}
-                      activeOpacity={0.85}
-                      onPress={() => handleSelectCategory(item)}
-                      disabled={isSubmitting}
-                    >
-                      <Text
-                        style={{
-                          color: active ? '#FFFFFF' : '#2F6690',
-                          fontSize: 13,
-                          fontWeight: '700',
-                        }}
-                      >
-                        {item.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </>
-          )}
-
-          <Text style={styles.label}>Название блюда</Text>
-          <TextInput
-            style={styles.input}
-            value={foodName}
-            onChangeText={setFoodName}
-            editable={!isSubmitting}
-          />
-
-          <Text style={styles.label}>Категория</Text>
-          <TextInput
-            style={styles.input}
-            value={category}
-            onChangeText={setCategory}
-            editable={!isSubmitting}
-          />
-
-          <View style={styles.row}>
-            <View style={styles.half}>
-              <Text style={styles.label}>Количество</Text>
-              <TextInput
-                style={styles.input}
-                value={amount}
-                onChangeText={setAmount}
-                keyboardType="numeric"
-                editable={!isSubmitting}
-              />
-            </View>
-
-            <View style={styles.half}>
-              <Text style={styles.label}>Единица</Text>
-              <TextInput
-                style={styles.input}
-                value={unit}
-                onChangeText={setUnit}
-                editable={!isSubmitting}
-              />
-            </View>
           </View>
 
-          <Text style={styles.label}>Время приёма</Text>
-          <TextInput
-            style={styles.input}
-            value={intakeTime}
-            onChangeText={setIntakeTime}
-            editable={!isSubmitting}
-          />
+          {/* ===== СОСТАВ ===== */}
+          <Text style={styles.label}>Состав блюда</Text>
 
-          <Text style={styles.label}>Была ли реакция</Text>
-          <View style={styles.row}>
+          <View style={{ flexDirection: 'row', marginBottom: 10 }}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={componentInput}
+              onChangeText={setComponentInput}
+              placeholder="Ингредиент..."
+            />
+
+            <TouchableOpacity
+              onPress={addComponent}
+              style={compStyles.addBtn}
+            >
+              <Text style={{ color: '#fff' }}>+</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={compStyles.wrap}>
+            {components.map((item, index) => (
+              <View key={index} style={compStyles.tag}>
+                <Text>{item}</Text>
+                <TouchableOpacity
+                  onPress={() => removeComponent(index)}
+                >
+                  <Text style={compStyles.remove}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+
+          {/* ===== РЕАКЦИЯ ===== */}
+          <Text style={styles.label}>Была реакция?</Text>
+
+          <View style={{ flexDirection: 'row', marginBottom: 10 }}>
             <TouchableOpacity
               style={[
-                styles.half,
-                {
-                  minHeight: 48,
-                  borderRadius: 14,
-                  borderWidth: 1,
-                  borderColor: !reactionOccurred ? '#2F6690' : '#D0D5DD',
-                  backgroundColor: !reactionOccurred ? '#EAF1F7' : '#FFFFFF',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                },
+                toggleStyles.btn,
+                reaction && toggleStyles.active,
               ]}
-              activeOpacity={0.85}
-              onPress={() => setReactionOccurred(false)}
-              disabled={isSubmitting}
+              onPress={() => setReaction(true)}
             >
-              <Text
-                style={{
-                  color: !reactionOccurred ? '#2F6690' : '#344054',
-                  fontSize: 15,
-                  fontWeight: '600',
-                }}
-              >
-                Нет
-              </Text>
+              <Text>Да</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
-                styles.half,
-                {
-                  minHeight: 48,
-                  borderRadius: 14,
-                  borderWidth: 1,
-                  borderColor: reactionOccurred ? '#2F6690' : '#D0D5DD',
-                  backgroundColor: reactionOccurred ? '#EAF1F7' : '#FFFFFF',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                },
+                toggleStyles.btn,
+                !reaction && toggleStyles.active,
               ]}
-              activeOpacity={0.85}
-              onPress={() => setReactionOccurred(true)}
-              disabled={isSubmitting}
+              onPress={() => setReaction(false)}
             >
-              <Text
-                style={{
-                  color: reactionOccurred ? '#2F6690' : '#344054',
-                  fontSize: 15,
-                  fontWeight: '600',
-                }}
-              >
-                Да
-              </Text>
+              <Text>Нет</Text>
             </TouchableOpacity>
           </View>
 
-          {reactionOccurred && (
-            <>
-              <Text style={styles.label}>Описание реакции</Text>
-              <TextInput
-                style={[styles.input, styles.multiline]}
-                multiline
-                value={reactionDescription}
-                onChangeText={setReactionDescription}
-                editable={!isSubmitting}
-              />
-            </>
+          {reaction && (
+            <TextInput
+              style={[styles.input, styles.multiline]}
+              value={reactionText}
+              onChangeText={setReactionText}
+              placeholder="Опишите реакцию"
+              multiline
+            />
           )}
 
+          {/* ===== SAVE ===== */}
           <TouchableOpacity
             style={[styles.button, isSubmitting && { opacity: 0.7 }]}
             onPress={handleSave}
             disabled={isSubmitting}
-            activeOpacity={0.85}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color="#FFF" />
             ) : (
               <Text style={styles.buttonText}>
                 {isEdit ? 'Обновить' : 'Сохранить'}
@@ -493,3 +325,63 @@ export default function AddFoodScreen() {
     </SafeAreaView>
   );
 }
+
+// ===== STYLES =====
+const searchStyles = StyleSheet.create({
+  dropdown: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 10,
+  },
+  item: { padding: 12 },
+  empty: { padding: 12, color: '#999' },
+});
+
+const unitStyles = StyleSheet.create({
+  container: { flexDirection: 'row' },
+  item: {
+    padding: 10,
+    backgroundColor: '#EAF1F7',
+    marginRight: 6,
+    borderRadius: 10,
+  },
+  active: { backgroundColor: '#2F6690' },
+});
+
+const compStyles = StyleSheet.create({
+  addBtn: {
+    marginLeft: 8,
+    backgroundColor: '#2F6690',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+  },
+  wrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+  tag: {
+    flexDirection: 'row',
+    backgroundColor: '#EAF1F7',
+    padding: 8,
+    borderRadius: 10,
+    marginRight: 6,
+    marginBottom: 6,
+  },
+  remove: { marginLeft: 6, color: '#E63946' },
+});
+
+const toggleStyles = StyleSheet.create({
+  btn: {
+    padding: 10,
+    backgroundColor: '#EAF1F7',
+    marginRight: 8,
+    borderRadius: 10,
+  },
+  active: {
+    backgroundColor: '#2F6690',
+  },
+});

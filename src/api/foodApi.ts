@@ -14,3 +14,10 @@ export async function searchFoodApi(query: string, limit = 10) {
     }
   );
 }
+
+export async function getFoodCategoriesApi() {
+  return apiRequest<any[]>('/api/reference/food-categories', {
+    method: 'GET',
+    auth: true,
+  });
+}

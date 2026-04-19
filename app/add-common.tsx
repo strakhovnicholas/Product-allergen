@@ -5,6 +5,7 @@ import {
   Alert,
   SafeAreaView,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -15,99 +16,50 @@ import {
   createCommonFeelingApi,
   updateCommonFeelingApi,
 } from '../src/api/diaryApi';
+
 import { formStyles as styles } from '../src/styles/formStyles';
 
-function isValidDateString(value: string) {
-  if (!value.trim()) return false;
-  const parsed = new Date(value);
-  return !Number.isNaN(parsed.getTime());
-}
-
-function parseScore(value: string, fieldName: string): number | undefined {
-  const normalized = value.trim();
-
-  if (!normalized) return undefined;
-
-  const parsed = Number(normalized);
-
-  if (Number.isNaN(parsed)) {
-    throw new Error(`Поле "${fieldName}" должно быть числом`);
-  }
-
-  if (parsed < 0 || parsed > 10) {
-    throw new Error(`Поле "${fieldName}" должно быть в диапазоне от 0 до 10`);
-  }
-
-  return parsed;
-}
-
-export default function AddCommonScreen() {
+export default function AddCommonFeelingScreen() {
   const params = useLocalSearchParams<{
     feelingId?: string;
-    dateTime?: string;
     wellbeingScore?: string;
-    mood?: string;
-    energyLevel?: string;
     comment?: string;
   }>();
 
   const isEdit = useMemo(() => Boolean(params.feelingId), [params.feelingId]);
 
-  const [dateTime, setDateTime] = useState(params.dateTime ?? '');
-  const [wellbeing, setWellbeing] = useState(params.wellbeingScore ?? '');
-  const [mood, setMood] = useState(params.mood ?? '');
-  const [energyLevel, setEnergyLevel] = useState(params.energyLevel ?? '');
+  const [score, setScore] = useState(
+    params.wellbeingScore ? Number(params.wellbeingScore) : 3
+  );
+
   const [comment, setComment] = useState(params.comment ?? '');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSave = async () => {
-    const normalizedDateTime = dateTime.trim();
-    const normalizedComment = comment.trim();
-
-    if (!normalizedDateTime || !wellbeing.trim()) {
-      Alert.alert('Ошибка', 'Заполните дату и самочувствие');
+    if (!score) {
+      Alert.alert('Ошибка', 'Выберите самочувствие');
       return;
     }
 
-    if (!isValidDateString(normalizedDateTime)) {
-      Alert.alert('Ошибка', 'Введите корректную дату и время');
-      return;
-    }
+    const payload = {
+      dateTime: new Date().toISOString(),
+      wellbeingScore: score,
+      comment: comment.trim() || undefined,
+    };
+
+    setIsSubmitting(true);
 
     try {
-      const parsedWellbeing = parseScore(wellbeing, 'Самочувствие');
-      const parsedMood = parseScore(mood, 'Настроение');
-      const parsedEnergyLevel = parseScore(energyLevel, 'Энергия');
-
-      if (parsedWellbeing === undefined) {
-        Alert.alert('Ошибка', 'Укажите самочувствие');
-        return;
-      }
-
-      const payload = {
-        dateTime: normalizedDateTime,
-        wellbeingScore: parsedWellbeing,
-        mood: parsedMood,
-        energyLevel: parsedEnergyLevel,
-        comment: normalizedComment || undefined,
-      };
-
-      setIsSubmitting(true);
-
       if (isEdit && params.feelingId) {
         await updateCommonFeelingApi(params.feelingId, payload);
-        Alert.alert('Успешно', 'Запись самочувствия обновлена');
       } else {
         await createCommonFeelingApi(payload);
-        Alert.alert('Успешно', 'Запись сохранена');
       }
 
       router.back();
-    } catch (error) {
-      Alert.alert(
-        'Ошибка',
-        error instanceof Error ? error.message : 'Не удалось сохранить запись'
-      );
+    } catch (e) {
+      console.log('FEELING ERROR:', e);
+      Alert.alert('Ошибка сохранения');
     } finally {
       setIsSubmitting(false);
     }
@@ -115,69 +67,54 @@ export default function AddCommonScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>
           {isEdit ? 'Редактировать самочувствие' : 'Самочувствие'}
         </Text>
-        <Text style={styles.subtitle}>Оцените своё состояние</Text>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Дата и время</Text>
-          <TextInput
-            style={styles.input}
-            value={dateTime}
-            onChangeText={setDateTime}
-            editable={!isSubmitting}
-          />
+          {/* ===== SCORE ===== */}
+          <Text style={styles.label}>Самочувствие</Text>
 
-          <Text style={styles.label}>Самочувствие (0-10)</Text>
-          <TextInput
-            style={styles.input}
-            value={wellbeing}
-            onChangeText={setWellbeing}
-            keyboardType="numeric"
-            editable={!isSubmitting}
-          />
+          <View style={ui.row}>
+            {[1, 2, 3, 4, 5].map((s) => {
+              const active = s <= score;
 
-          <Text style={styles.label}>Настроение (0-10)</Text>
-          <TextInput
-            style={styles.input}
-            value={mood}
-            onChangeText={setMood}
-            keyboardType="numeric"
-            editable={!isSubmitting}
-          />
+              return (
+                <TouchableOpacity
+                  key={s}
+                  onPress={() => setScore(s)}
+                >
+                  <View
+                    style={[
+                      ui.circle,
+                      active && ui.circleActive,
+                    ]}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-          <Text style={styles.label}>Энергия (0-10)</Text>
-          <TextInput
-            style={styles.input}
-            value={energyLevel}
-            onChangeText={setEnergyLevel}
-            keyboardType="numeric"
-            editable={!isSubmitting}
-          />
-
+          {/* ===== COMMENT ===== */}
           <Text style={styles.label}>Комментарий</Text>
+
           <TextInput
             style={[styles.input, styles.multiline]}
             value={comment}
             onChangeText={setComment}
+            placeholder="Опишите состояние..."
             multiline
-            editable={!isSubmitting}
           />
 
+          {/* ===== BUTTON ===== */}
           <TouchableOpacity
             style={[styles.button, isSubmitting && { opacity: 0.7 }]}
             onPress={handleSave}
             disabled={isSubmitting}
-            activeOpacity={0.85}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color="#FFF" />
             ) : (
               <Text style={styles.buttonText}>
                 {isEdit ? 'Обновить' : 'Сохранить'}
@@ -189,3 +126,21 @@ export default function AddCommonScreen() {
     </SafeAreaView>
   );
 }
+
+// ===== UI =====
+const ui = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  circle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#D0D5DD',
+    marginRight: 12,
+  },
+  circleActive: {
+    backgroundColor: '#2F6690',
+  },
+});

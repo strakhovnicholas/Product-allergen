@@ -18,52 +18,19 @@ import {
   getUserProfileApi,
   updateUserProfileApi,
 } from '../src/api/profileApi';
-import {
-  validateEmail,
-  validateFullName,
-} from '../src/utils/validation';
-
-function parseOptionalNumber(
-  value: string,
-  fieldName: string,
-  min?: number,
-  max?: number
-): number | undefined {
-  const normalized = value.trim();
-
-  if (!normalized) return undefined;
-
-  const parsed = Number(normalized);
-
-  if (Number.isNaN(parsed)) {
-    throw new Error(`Поле "${fieldName}" должно быть числом`);
-  }
-
-  if (min !== undefined && parsed < min) {
-    throw new Error(`Поле "${fieldName}" должно быть не меньше ${min}`);
-  }
-
-  if (max !== undefined && parsed > max) {
-    throw new Error(`Поле "${fieldName}" должно быть не больше ${max}`);
-  }
-
-  return parsed;
-}
 
 export default function EditProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [age, setAge] = useState('');
   const [weight, setWeight] = useState('');
-  const [height, setHeight] = useState('');
 
-  const [smoking, setSmoking] = useState(false);
+  const [smoker, setSmoker] = useState(false);
   const [alcohol, setAlcohol] = useState(false);
-  const [sport, setSport] = useState(false);
-  const [heredity, setHeredity] = useState(false);
+  const [sports, setSports] = useState(false);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -71,26 +38,20 @@ export default function EditProfileScreen() {
 
       const profile = await getUserProfileApi();
 
-      setFullName(profile?.fullName ?? '');
-      setEmail(profile?.email ?? '');
-      setAge(
-        typeof profile?.age === 'number' ? String(profile.age) : ''
-      );
-      setWeight(
-        typeof profile?.weight === 'number' ? String(profile.weight) : ''
-      );
-      setHeight(
-        typeof profile?.height === 'number' ? String(profile.height) : ''
-      );
-      setSmoking(Boolean(profile?.smoking));
+      const fullName = profile?.fullName ?? '';
+      const [first = '', last = ''] = fullName.split(' ');
+
+      setFirstName(first);
+      setLastName(last);
+
+      setAge(profile?.age ? String(profile.age) : '');
+      setWeight(profile?.weight ? String(profile.weight) : '');
+
+      setSmoker(Boolean(profile?.smoker));
       setAlcohol(Boolean(profile?.alcohol));
-      setSport(Boolean(profile?.sport));
-      setHeredity(Boolean(profile?.heredity));
-    } catch (error) {
-      Alert.alert(
-        'Ошибка',
-        error instanceof Error ? error.message : 'Не удалось загрузить профиль'
-      );
+      setSports(Boolean(profile?.sports));
+    } catch (e) {
+      Alert.alert('Ошибка', 'Ошибка загрузки профиля');
     } finally {
       setLoading(false);
     }
@@ -103,48 +64,32 @@ export default function EditProfileScreen() {
   );
 
   const handleSave = async () => {
-    const normalizedFullName = fullName.trim();
-    const normalizedEmail = email.trim();
-
-    const fullNameError = validateFullName(normalizedFullName);
-    if (fullNameError) {
-      Alert.alert('Ошибка', fullNameError);
+    if (!firstName || !lastName) {
+      Alert.alert('Ошибка', 'Введите имя и фамилию');
       return;
     }
 
-    if (normalizedEmail) {
-      const emailError = validateEmail(normalizedEmail);
-      if (emailError) {
-        Alert.alert('Ошибка', emailError);
-        return;
-      }
-    }
-
     try {
-      const parsedAge = parseOptionalNumber(age, 'Возраст', 0, 120);
-      const parsedWeight = parseOptionalNumber(weight, 'Вес', 1, 500);
-      const parsedHeight = parseOptionalNumber(height, 'Рост', 30, 300);
-
       setSaving(true);
 
-      await updateUserProfileApi({
-        fullName: normalizedFullName,
-        age: parsedAge,
-        weight: parsedWeight,
-        height: parsedHeight,
-        smoking,
+      const payload = {
+        fullName: `${firstName} ${lastName}`, // ✅ FIX
+        age: age ? Number(age) : undefined,
+        weight: weight ? Number(weight) : undefined,
+        smoker,
         alcohol,
-        sport,
-        heredity,
-      });
+        sports,
+      };
+
+      console.log('PROFILE SAVE:', payload);
+
+      await updateUserProfileApi(payload);
 
       Alert.alert('Успешно', 'Профиль обновлён');
       router.back();
-    } catch (error) {
-      Alert.alert(
-        'Ошибка',
-        error instanceof Error ? error.message : 'Не удалось сохранить профиль'
-      );
+    } catch (e) {
+      console.log('SAVE ERROR:', e);
+      Alert.alert('Ошибка сохранения');
     } finally {
       setSaving(false);
     }
@@ -153,7 +98,7 @@ export default function EditProfileScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.loaderWrap}>
+        <View style={styles.loader}>
           <ActivityIndicator size="large" color="#2F6690" />
         </View>
       </SafeAreaView>
@@ -162,119 +107,47 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.topBar}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            activeOpacity={0.8}
-            disabled={saving}
-          >
-            <Ionicons name="arrow-back" size={24} color="#233142" />
-          </TouchableOpacity>
-        </View>
+      <ScrollView contentContainerStyle={styles.container}>
+        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} />
+        </TouchableOpacity>
 
         <Text style={styles.title}>Редактировать профиль</Text>
-        <Text style={styles.subtitle}>
-          Измените основные данные и параметры образа жизни
-        </Text>
 
-        <Text style={styles.label}>ФИО</Text>
-        <TextInput
-          style={styles.input}
-          value={fullName}
-          onChangeText={setFullName}
-          placeholder="Введите ФИО"
-          placeholderTextColor="#98A2B3"
-          editable={!saving}
-        />
+        <Text style={styles.label}>Имя</Text>
+        <TextInput style={styles.input} value={firstName} onChangeText={setFirstName} />
 
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={[styles.input, styles.disabledInput]}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="Введите email"
-          placeholderTextColor="#98A2B3"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          editable={false}
-        />
-
-        <Text style={styles.helperText}>
-          Email отображается из профиля. Сохранение email лучше делать только если backend это поддерживает отдельным endpoint.
-        </Text>
+        <Text style={styles.label}>Фамилия</Text>
+        <TextInput style={styles.input} value={lastName} onChangeText={setLastName} />
 
         <Text style={styles.label}>Возраст</Text>
-        <TextInput
-          style={styles.input}
-          value={age}
-          onChangeText={setAge}
-          placeholder="Введите возраст"
-          placeholderTextColor="#98A2B3"
-          keyboardType="numeric"
-          editable={!saving}
-        />
+        <TextInput style={styles.input} value={age} onChangeText={setAge} keyboardType="numeric" />
 
-        <Text style={styles.label}>Вес (кг)</Text>
-        <TextInput
-          style={styles.input}
-          value={weight}
-          onChangeText={setWeight}
-          placeholder="Введите вес"
-          placeholderTextColor="#98A2B3"
-          keyboardType="numeric"
-          editable={!saving}
-        />
+        <Text style={styles.label}>Вес</Text>
+        <TextInput style={styles.input} value={weight} onChangeText={setWeight} keyboardType="numeric" />
 
-        <Text style={styles.label}>Рост (см)</Text>
-        <TextInput
-          style={styles.input}
-          value={height}
-          onChangeText={setHeight}
-          placeholder="Введите рост"
-          placeholderTextColor="#98A2B3"
-          keyboardType="numeric"
-          editable={!saving}
-        />
+        <Text style={styles.section}>Образ жизни</Text>
 
-        <Text style={styles.sectionTitle}>Образ жизни</Text>
-
-        <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Курение</Text>
-          <Switch value={smoking} onValueChange={setSmoking} disabled={saving} />
+        <View style={styles.row}>
+          <Text>Курение</Text>
+          <Switch value={smoker} onValueChange={setSmoker} />
         </View>
 
-        <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Алкоголь</Text>
-          <Switch value={alcohol} onValueChange={setAlcohol} disabled={saving} />
+        <View style={styles.row}>
+          <Text>Алкоголь</Text>
+          <Switch value={alcohol} onValueChange={setAlcohol} />
         </View>
 
-        <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Спорт</Text>
-          <Switch value={sport} onValueChange={setSport} disabled={saving} />
+        <View style={styles.row}>
+          <Text>Спорт</Text>
+          <Switch value={sports} onValueChange={setSports} />
         </View>
 
-        <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Наследственность</Text>
-          <Switch value={heredity} onValueChange={setHeredity} disabled={saving} />
-        </View>
-
-        <TouchableOpacity
-          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-          onPress={handleSave}
-          activeOpacity={0.85}
-          disabled={saving}
-        >
+        <TouchableOpacity style={styles.button} onPress={handleSave} disabled={saving}>
           {saving ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.saveButtonText}>Сохранить изменения</Text>
+            <Text style={styles.buttonText}>Сохранить</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -283,116 +156,26 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F5F7FB',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F7FB',
-  },
-  contentContainer: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  loaderWrap: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#233142',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#667085',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#344054',
-    marginBottom: 8,
-    marginTop: 12,
-  },
+  safeArea: { flex: 1, backgroundColor: '#F5F7FB' },
+  container: { padding: 20 },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  back: { marginBottom: 10 },
+  title: { fontSize: 26, fontWeight: '700', marginBottom: 20 },
+  label: { marginBottom: 6, fontWeight: '600' },
   input: {
-    minHeight: 54,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E4E7EC',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: '#101828',
-  },
-  disabledInput: {
-    backgroundColor: '#F8FAFC',
-    color: '#667085',
-  },
-  helperText: {
-    marginTop: 8,
-    fontSize: 12,
-    lineHeight: 18,
-    color: '#667085',
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#233142',
-    marginTop: 28,
-    marginBottom: 14,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    padding: 12,
     marginBottom: 12,
   },
-  switchLabel: {
-    fontSize: 15,
-    color: '#233142',
-    fontWeight: '500',
-  },
-  saveButton: {
-    height: 54,
-    borderRadius: 16,
+  section: { marginTop: 20, marginBottom: 10, fontWeight: '700' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  button: {
+    marginTop: 20,
     backgroundColor: '#2F6690',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 28,
+    padding: 14,
+    borderRadius: 12,
   },
-  saveButtonDisabled: {
-    opacity: 0.7,
-  },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
+  buttonText: { color: '#fff', textAlign: 'center', fontWeight: '700' },
 });
