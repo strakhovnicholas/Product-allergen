@@ -20,15 +20,8 @@ public class FoodIntakeService {
     private final FoodIntakeMapper mapper;
 
     public FoodIntakeDto createFoodIntake(FoodIntakeDto dto) {
-        FoodIntakeEntity entity = mapper.toEntity(dto, dto.getFoodIntakeId());
+        FoodIntakeEntity entity = mapper.toEntity(dto, dto.getUserId());
         return mapper.toDto(repository.save(entity));
-    }
-
-    public List<FoodIntakeDto> getAllFoodsIntake(UUID userId) {
-        return repository.findAllByUserId(userId)
-                .stream()
-                .map(mapper::toDto)
-                .toList();
     }
 
     public List<FoodIntakeDto> getFoodIntakeByDate(UUID userId, LocalDate date) {

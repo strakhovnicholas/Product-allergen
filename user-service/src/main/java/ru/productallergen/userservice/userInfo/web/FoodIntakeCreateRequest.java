@@ -8,15 +8,9 @@ import ru.productallergen.userservice.userInfo.FoodUnit;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 @Schema(description = "Запрос на создание/обновление данных о приеме пищи")
 public record FoodIntakeCreateRequest(
-
-        @Schema(description = "Уникальный идентификатор пользователя")
-        @NotNull
-        @NotBlank
-        UUID userId,
 
         @Schema(description = "Название продукта или блюда")
         @NotNull

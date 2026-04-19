@@ -46,18 +46,6 @@ public class FoodIntakeController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @Operation(summary = "Получить все записи о приёмах пищи",
-            description = "Возвращает полный список записей о приёмах пищи для текущего пользователя")
-    @GetMapping("/feelings/food")
-    public ResponseEntity<List<FoodIntakeWebDto>> getAll(@CurrentUserId UUID userId) {
-        List<FoodIntakeWebDto> response = service.getAllFoodsIntake(userId)
-                .stream()
-                .map(mapper::toWebDto)
-                .toList();
-
-        return ResponseEntity.ok(response);
-    }
-
     @Operation(summary = "Получить записи о приёмах пищи по дате",
             description = "Возвращает список записей о приёмах пищи за указанную дату")
     @GetMapping("/feelings/food/by-date")
