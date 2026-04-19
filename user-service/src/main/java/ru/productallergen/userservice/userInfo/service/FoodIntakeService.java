@@ -19,8 +19,8 @@ public class FoodIntakeService {
     private final FoodIntakeRepository repository;
     private final FoodIntakeMapper mapper;
 
-    public FoodIntakeDto createFoodIntake(UUID userId, FoodIntakeDto dto) {
-        FoodIntakeEntity entity = mapper.toEntity(dto, userId);
+    public FoodIntakeDto createFoodIntake(FoodIntakeDto dto) {
+        FoodIntakeEntity entity = mapper.toEntity(dto, dto.getFoodIntakeId());
         return mapper.toDto(repository.save(entity));
     }
 
@@ -48,8 +48,8 @@ public class FoodIntakeService {
                 .toList();
     }
 
-    public FoodIntakeDto updateFoodIntake(UUID userId, UUID foodIntakeId, FoodIntakeDto dto) {
-        FoodIntakeEntity entity = repository.findByUserIdAndFoodIntakeId(userId, foodIntakeId)
+    public FoodIntakeDto updateFoodIntake(FoodIntakeDto dto) {
+        FoodIntakeEntity entity = repository.findByUserIdAndFoodIntakeId(dto.getUserId(), dto.getFoodIntakeId())
                 .orElseThrow(() -> new RuntimeException("Not found"));
 
         FoodIntakeEntity updated = new FoodIntakeEntity(
@@ -61,8 +61,6 @@ public class FoodIntakeService {
                 dto.getAmount(),
                 dto.getUnit() != null ? dto.getUnit().name() : entity.unit(),
                 dto.getIntakeTime(),
-                dto.getReactionOccurred(),
-                dto.getReactionDescription(),
                 entity.createdAt(),
                 entity.components()
         );

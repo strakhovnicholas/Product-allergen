@@ -21,8 +21,6 @@ public record FoodIntakeEntity(@Id ObjectId id,
                                Double amount,
                                String unit,
                                LocalDateTime intakeTime,
-                               Boolean reactionOccurred,
-                               String reactionDescription,
                                LocalDateTime createdAt,
                                List<String> components) {
 }

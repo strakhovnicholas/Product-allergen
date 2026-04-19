@@ -1,6 +1,8 @@
 package ru.productallergen.userservice.userInfo.web;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import ru.productallergen.userservice.userInfo.FoodCategory;
 import ru.productallergen.userservice.userInfo.FoodUnit;
 
@@ -8,32 +10,40 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-@Schema(description = "DTO для передачи данных о приеме пищи")
-public record FoodIntakeWebDto(
-
-        @Schema(description = "Уникальный идентификатор приема пищи")
-        UUID foodIntakeId,
+@Schema(description = "Запрос на создание/обновление данных о приеме пищи")
+public record FoodIntakeCreateRequest(
 
         @Schema(description = "Уникальный идентификатор пользователя")
+        @NotNull
+        @NotBlank
         UUID userId,
 
         @Schema(description = "Название продукта или блюда")
+        @NotNull
+        @NotBlank
         String foodName,
 
         @Schema(description = "Категория продукта")
+        @NotNull
         FoodCategory category,
 
         @Schema(description = "Количество съеденного продукта")
+        @NotNull
         Double amount,
 
         @Schema(description = "Единица измерения количества")
+        @NotNull
         FoodUnit unit,
 
         @Schema(description = "Время приема пищи")
+        @NotNull
         LocalDateTime intakeTime,
 
-        @Schema(description = "Дата и время создания записи")
-        LocalDateTime createdAt,
+        @Schema(description = "Была ли реакция на продукт")
+        Boolean reactionOccurred,
+
+        @Schema(description = "Описание реакции (если была)")
+        String reactionDescription,
 
         @Schema(description = "Список компонентов/ингредиентов блюда")
         List<String> components
