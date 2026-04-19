@@ -3,21 +3,42 @@ package ru.productallergen.userservice.userInfo.mapper;
 import org.springframework.stereotype.Component;
 import ru.productallergen.userservice.userInfo.dto.CommonFeelingDto;
 import ru.productallergen.userservice.userInfo.entity.CommonFeelingEntity;
+import ru.productallergen.userservice.userInfo.web.CommonFeelingCreateRequest;
+import ru.productallergen.userservice.userInfo.web.CommonFeelingUpdateRequest;
 import ru.productallergen.userservice.userInfo.web.CommonFeelingWebDto;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Component
 public class CommonFeelingMapper {
 
-    public CommonFeelingEntity toEntity(CommonFeelingDto dto, UUID userId) {
+    public CommonFeelingEntity toEntity(CommonFeelingDto dto) {
         return new CommonFeelingEntity(
                 null,
                 dto.getFeelingId() != null ? dto.getFeelingId() : UUID.randomUUID(),
-                userId,
+                dto.getUserId(),
                 dto.getDateTime(),
                 dto.getWellbeingScore()
         );
+    }
+
+    public CommonFeelingDto toDto(CommonFeelingUpdateRequest dto, UUID feelingId, UUID userId) {
+        return CommonFeelingDto.builder()
+                .userId(userId)
+                .feelingId(feelingId)
+                .dateTime(dto.dateTime())
+                .wellbeingScore(dto.wellbeingScore())
+                .build();
+    }
+
+    public CommonFeelingDto toDto(CommonFeelingCreateRequest dto, UUID userId) {
+        return CommonFeelingDto.builder()
+                .userId(userId)
+                .feelingId(UUID.randomUUID())
+                .dateTime(LocalDateTime.now())
+                .wellbeingScore(dto.wellbeingScore())
+                .build();
     }
 
     public CommonFeelingDto toDto(CommonFeelingEntity entity) {
@@ -31,18 +52,18 @@ public class CommonFeelingMapper {
 
     public CommonFeelingDto toDto(CommonFeelingWebDto webDto) {
         return CommonFeelingDto.builder()
-                .feelingId(webDto.getFeelingId())
-                .dateTime(webDto.getDateTime())
-                .wellbeingScore(webDto.getWellbeingScore())
+                .feelingId(webDto.feelingId())
+                .dateTime(webDto.dateTime())
+                .wellbeingScore(webDto.wellbeingScore())
                 .build();
     }
 
     public CommonFeelingWebDto toWebDto(CommonFeelingDto dto) {
-        return CommonFeelingWebDto.builder()
-                .feelingId(dto.getFeelingId())
-                .dateTime(dto.getDateTime())
-                .wellbeingScore(dto.getWellbeingScore())
-                .build();
+        return new CommonFeelingWebDto(
+                dto.getFeelingId(),
+                dto.getDateTime(),
+                dto.getWellbeingScore()
+        );
     }
 }
 

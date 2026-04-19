@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.productallergen.userservice.config.CurrentUserId;
 import ru.productallergen.userservice.userInfo.mapper.CommonFeelingMapper;
 import ru.productallergen.userservice.userInfo.service.CommonFeelingService;
+import ru.productallergen.userservice.userInfo.web.CommonFeelingCreateRequest;
+import ru.productallergen.userservice.userInfo.web.CommonFeelingUpdateRequest;
 import ru.productallergen.userservice.userInfo.web.CommonFeelingWebDto;
 
 import java.time.LocalDate;
@@ -40,8 +42,8 @@ public class CommonFeelingController {
     @PostMapping("/feelings/common")
     public ResponseEntity<CommonFeelingWebDto> create(@CurrentUserId UUID userId,
                                                       @Parameter(description = "Данные для создания записи о самочувствии", required = true)
-                                                      @RequestBody CommonFeelingWebDto request) {
-        CommonFeelingWebDto response = mapper.toWebDto(service.createCommonFeeling(userId, mapper.toDto(request)));
+                                                      @RequestBody CommonFeelingCreateRequest request) {
+        CommonFeelingWebDto response = mapper.toWebDto(service.createCommonFeeling(mapper.toDto(request, userId)));
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -83,8 +85,9 @@ public class CommonFeelingController {
                                                       @Parameter(description = "ID записи о самочувствии для обновления", required = true)
                                                       @PathVariable UUID feelingId,
                                                       @Parameter(description = "Обновленные данные записи о самочувствии", required = true)
-                                                      @RequestBody CommonFeelingWebDto request) {
-        CommonFeelingWebDto response = mapper.toWebDto(service.updateCommonFeeling(userId, feelingId, mapper.toDto(request)));
+                                                      @RequestBody CommonFeelingUpdateRequest request) {
+
+        CommonFeelingWebDto response = mapper.toWebDto(service.updateCommonFeeling(mapper.toDto(request, feelingId, userId)));
 
         return ResponseEntity.ok(response);
     }
