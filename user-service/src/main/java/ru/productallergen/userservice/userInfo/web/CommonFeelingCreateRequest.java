@@ -8,8 +8,6 @@ import java.time.LocalDateTime;
 
 @Schema(description = "Запрос на создание записи о самочувствии")
 public record CommonFeelingCreateRequest(
-        @NotNull
-        @NotBlank
         @Schema(description = "Дата и время фиксации самочувствия")
         LocalDateTime dateTime,
 

@@ -1,5 +1,6 @@
 package ru.productallergen.userservice.userInfo.web;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -29,7 +30,7 @@ public record FoodIntakeUpdateRequest(
         FoodUnit unit,
 
         @Schema(description = "Время создания приёма пищи")
-        @NotNull
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime createdAt,
 
         @Schema(description = "Время приема пищи")

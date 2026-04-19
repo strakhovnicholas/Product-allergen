@@ -1,5 +1,6 @@
 package ru.productallergen.userservice.userInfo.web;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -13,9 +14,9 @@ public record SymptomEditRequestDto(
         @Min(1)
         @Max(10)
         Integer severity,
-        @NotNull
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime startTime,
-        @NotNull
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime endTime
 ) {
 }

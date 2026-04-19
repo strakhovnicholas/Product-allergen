@@ -10,7 +10,6 @@ public record NoteEditRequestDto(
         @NotNull
         @NotBlank
         String content,
-        @NotNull
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime date
 ) {

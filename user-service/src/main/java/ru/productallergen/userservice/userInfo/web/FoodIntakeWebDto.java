@@ -1,5 +1,6 @@
 package ru.productallergen.userservice.userInfo.web;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.productallergen.userservice.userInfo.FoodCategory;
 import ru.productallergen.userservice.userInfo.FoodUnit;
@@ -33,6 +34,7 @@ public record FoodIntakeWebDto(
         LocalDateTime intakeTime,
 
         @Schema(description = "Дата и время создания записи")
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime createdAt,
 
         @Schema(description = "Список компонентов/ингредиентов блюда")
