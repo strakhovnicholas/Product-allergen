@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: user-service
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres_user_db:5432/user_pg}
+    username: ${SPRING_DATASOURCE_USERNAME:USER-SERVICE-POSTGRES-KOLYASKA}
+    password: ${SPRING_DATASOURCE_PASSWORD:X2E1cAUfHybG8uQ2S/rg0g==}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  data:
+    mongodb:
+      connection-string: ${SPRING_DATA_MONGODB_URI:mongodb://mongo:allergen_mg@mongo:27017/health_tracker?authSource=admin}
+
+internal:
+  api:
+    secret: ${INTERNAL_SECRET:default_secret_for_local_dev}
+
+logging:
+  level:
+    root: INFO
+    ru.productallergen: DEBUG
+    org.springframework.data.mongodb: DEBUG
