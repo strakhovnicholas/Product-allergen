@@ -17,9 +17,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.productallergen.userservice.config.CurrentUserId;
-import ru.productallergen.userservice.userInfo.dto.FoodIntakeDto;
 import ru.productallergen.userservice.userInfo.mapper.FoodIntakeMapper;
 import ru.productallergen.userservice.userInfo.service.FoodIntakeService;
+import ru.productallergen.userservice.userInfo.web.FoodIntakeCreateRequest;
+import ru.productallergen.userservice.userInfo.web.FoodIntakeUpdateRequest;
 import ru.productallergen.userservice.userInfo.web.FoodIntakeWebDto;
 
 import java.time.LocalDate;
@@ -38,28 +39,16 @@ public class FoodIntakeController {
             description = "Добавляет новую запись о приёме пищи в систему")
     @PostMapping("/feelings/food")
     public ResponseEntity<FoodIntakeWebDto> create(@Parameter(description = "Данные для создания записи о приёме пищи", required = true)
-                                                   @RequestBody FoodIntakeWebDto request,
+                                                   @RequestBody FoodIntakeCreateRequest request,
                                                    @CurrentUserId UUID userId) {
-        FoodIntakeWebDto response = mapper.toWebDto(service.createFoodIntake(userId, mapper.toDto(request)));
+        FoodIntakeWebDto response = mapper.toWebDto(service.createFoodIntake(mapper.toDto(request, userId)));
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @Operation(summary = "Получить все записи о приёмах пищи",
-            description = "Возвращает полный список записей о приёмах пищи для текущего пользователя")
-    @GetMapping("/feelings/food")
-    public ResponseEntity<List<FoodIntakeWebDto>> getAll(@CurrentUserId UUID userId) {
-        List<FoodIntakeWebDto> response = service.getAllFoodsIntake(userId)
-                .stream()
-                .map(mapper::toWebDto)
-                .toList();
-
-        return ResponseEntity.ok(response);
-    }
-
     @Operation(summary = "Получить записи о приёмах пищи по дате",
             description = "Возвращает список записей о приёмах пищи за указанную дату")
-    @GetMapping("/feelings/food/by-date")
+    @GetMapping("/feelings/food")
     public ResponseEntity<List<FoodIntakeWebDto>> getByDate(@Parameter(description = "Дата в формате ISO (YYYY-MM-DD) для фильтрации записей", required = true)
                                                             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                                                             @CurrentUserId UUID userId) {
@@ -77,10 +66,9 @@ public class FoodIntakeController {
     public ResponseEntity<FoodIntakeWebDto> update(@Parameter(description = "ID записи о приёме пищи для обновления", required = true)
                                                    @PathVariable UUID foodIntakeId,
                                                    @Parameter(description = "Обновленные данные записи о приёме пищи", required = true)
-                                                   @RequestBody FoodIntakeWebDto request,
+                                                   @RequestBody FoodIntakeUpdateRequest request,
                                                    @CurrentUserId UUID userId) {
-        FoodIntakeDto dto = mapper.toDto(request);
-        FoodIntakeWebDto response = mapper.toWebDto(service.updateFoodIntake(userId, foodIntakeId, dto));
+        FoodIntakeWebDto response = mapper.toWebDto(service.updateFoodIntake(mapper.toDto(request, foodIntakeId, userId)));
 
         return ResponseEntity.ok(response);
     }

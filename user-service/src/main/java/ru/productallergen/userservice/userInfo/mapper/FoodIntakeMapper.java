@@ -5,6 +5,8 @@ import ru.productallergen.userservice.userInfo.FoodCategory;
 import ru.productallergen.userservice.userInfo.FoodUnit;
 import ru.productallergen.userservice.userInfo.dto.FoodIntakeDto;
 import ru.productallergen.userservice.userInfo.entity.FoodIntakeEntity;
+import ru.productallergen.userservice.userInfo.web.FoodIntakeCreateRequest;
+import ru.productallergen.userservice.userInfo.web.FoodIntakeUpdateRequest;
 import ru.productallergen.userservice.userInfo.web.FoodIntakeWebDto;
 
 import java.time.LocalDateTime;
@@ -23,8 +25,6 @@ public class FoodIntakeMapper {
                 dto.getAmount(),
                 dto.getUnit() != null ? dto.getUnit().name() : null,
                 dto.getIntakeTime(),
-                dto.getReactionOccurred(),
-                dto.getReactionDescription(),
                 dto.getCreatedAt() != null ? dto.getCreatedAt() : LocalDateTime.now(),
                 dto.getComponents()
         );
@@ -39,42 +39,64 @@ public class FoodIntakeMapper {
                 .amount(entity.amount())
                 .unit(entity.unit() != null ? FoodUnit.valueOf(entity.unit()) : null)
                 .intakeTime(entity.intakeTime())
-                .reactionOccurred(entity.reactionOccurred())
-                .reactionDescription(entity.reactionDescription())
                 .createdAt(entity.createdAt())
                 .components(entity.components())
                 .build();
     }
 
+    public FoodIntakeDto toDto(FoodIntakeUpdateRequest request, UUID foodIntakeId, UUID userId) {
+        return FoodIntakeDto.builder()
+                .foodIntakeId(foodIntakeId)
+                .userId(userId)
+                .foodName(request.foodName())
+                .category(request.category())
+                .amount(request.amount())
+                .unit(request.unit())
+                .intakeTime(request.intakeTime())
+                .createdAt(request.createdAt())
+                .components(request.components())
+                .build();
+    }
+
+    public FoodIntakeDto toDto(FoodIntakeCreateRequest request, UUID userId) {
+        return FoodIntakeDto.builder()
+                .foodIntakeId(UUID.randomUUID())
+                .userId(userId)
+                .foodName(request.foodName())
+                .category(request.category())
+                .amount(request.amount())
+                .unit(request.unit())
+                .intakeTime(request.intakeTime())
+                .createdAt(LocalDateTime.now())
+                .components(request.components())
+                .build();
+    }
+
     public FoodIntakeDto toDto(FoodIntakeWebDto webDto) {
         return FoodIntakeDto.builder()
-                .foodIntakeId(webDto.getFoodIntakeId())
-                .foodName(webDto.getFoodName())
-                .category(webDto.getCategory())
-                .amount(webDto.getAmount())
-                .unit(webDto.getUnit())
-                .intakeTime(webDto.getIntakeTime())
-                .reactionOccurred(webDto.getReactionOccurred())
-                .reactionDescription(webDto.getReactionDescription())
-                .createdAt(webDto.getCreatedAt())
-                .components(webDto.getComponents())
+                .foodIntakeId(webDto.foodIntakeId())
+                .foodName(webDto.foodName())
+                .category(webDto.category())
+                .amount(webDto.amount())
+                .unit(webDto.unit())
+                .intakeTime(webDto.intakeTime())
+                .createdAt(webDto.createdAt())
+                .components(webDto.components())
                 .build();
     }
 
     public FoodIntakeWebDto toWebDto(FoodIntakeDto dto) {
-        return FoodIntakeWebDto.builder()
-                .foodIntakeId(dto.getFoodIntakeId())
-                .foodName(dto.getFoodName())
-                .category(dto.getCategory())
-                .amount(dto.getAmount())
-                .unit(dto.getUnit())
-                .intakeTime(dto.getIntakeTime())
-                .reactionOccurred(dto.getReactionOccurred())
-                .reactionDescription(dto.getReactionDescription())
-                .createdAt(dto.getCreatedAt())
-                .components(dto.getComponents())
-                .build();
+        return new FoodIntakeWebDto(
+                dto.getFoodIntakeId(),
+                dto.getUserId(),
+                dto.getFoodName(),
+                dto.getCategory(),
+                dto.getAmount(),
+                dto.getUnit(),
+                dto.getIntakeTime(),
+                dto.getCreatedAt(),
+                dto.getComponents()
+        );
     }
-
 }
 

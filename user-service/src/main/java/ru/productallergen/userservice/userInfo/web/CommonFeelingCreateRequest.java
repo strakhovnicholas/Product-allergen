@@ -5,16 +5,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
-
-@Schema(description = "DTO для передачи данных о самочувствии")
-public record CommonFeelingWebDto(
-        @NotNull
-        @NotBlank
-        @Schema(description = "Уникальный идентификатор записи о самочувствии")
-        UUID feelingId,
-
+@Schema(description = "Запрос на создание записи о самочувствии")
+public record CommonFeelingCreateRequest(
         @NotNull
         @NotBlank
         @Schema(description = "Дата и время фиксации самочувствия")

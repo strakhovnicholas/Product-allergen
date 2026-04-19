@@ -21,8 +21,6 @@ public class FoodIntakeDto {
     private Double amount;
     private FoodUnit unit;
     private LocalDateTime intakeTime;
-    private Boolean reactionOccurred;
-    private String reactionDescription;
     private LocalDateTime createdAt;
     private List<String> components;
 }

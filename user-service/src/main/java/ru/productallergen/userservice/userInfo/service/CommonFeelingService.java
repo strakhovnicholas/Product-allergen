@@ -19,8 +19,8 @@ public class CommonFeelingService {
     private final CommonFeelingRepository repository;
     private final CommonFeelingMapper mapper;
 
-    public CommonFeelingDto createCommonFeeling(UUID userId, CommonFeelingDto dto) {
-        CommonFeelingEntity entity = mapper.toEntity(dto, userId);
+    public CommonFeelingDto createCommonFeeling(CommonFeelingDto dto) {
+        CommonFeelingEntity entity = mapper.toEntity(dto);
         return mapper.toDto(repository.save(entity));
     }
 
@@ -43,8 +43,8 @@ public class CommonFeelingService {
                 .toList();
     }
 
-    public CommonFeelingDto updateCommonFeeling(UUID userId, UUID feelingId, CommonFeelingDto dto) {
-        CommonFeelingEntity entity = repository.findByUserIdAndFeelingId(userId, feelingId)
+    public CommonFeelingDto updateCommonFeeling(CommonFeelingDto dto) {
+        CommonFeelingEntity entity = repository.findByUserIdAndFeelingId(dto.getUserId(), dto.getFeelingId())
                 .orElseThrow(() -> new RuntimeException("Not found"));
 
         CommonFeelingEntity updated = new CommonFeelingEntity(
