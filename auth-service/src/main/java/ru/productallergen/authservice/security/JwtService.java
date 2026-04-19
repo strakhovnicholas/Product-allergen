@@ -39,12 +39,12 @@ public class JwtService {
 
     @PostConstruct
     public void init() {
-        log.info("Initializing JwtService with secret from properties...");
+        log.info("Инициализация JwtService: создание ключа подписи из конфигурации...");
         SECRET_KEY = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
     public String generateAccessToken(String email, UUID id) {
-        log.debug("Generating Access Token for user: {}", email);
+        log.debug("Генерация Access токена для пользователя: {}", email);
         return Jwts.builder()
                 .setSubject(email)
                 .claim(idClaim, id)
@@ -56,7 +56,7 @@ public class JwtService {
     }
 
     public String generateRefreshToken(String email) {
-        log.debug("Generating Refresh Token for user: {}", email);
+        log.debug("Генерация Refresh токена для пользователя: {}", email);
         return Jwts.builder()
                 .setSubject(email)
                 .claim(typeClaim, "refresh")
@@ -85,18 +85,18 @@ public class JwtService {
             Date expiration = claims.getExpiration();
 
             if (!expectedType.equals(type)) {
-                log.warn("Token validation failed: Expected type {}, but got {}", expectedType, type);
+                log.warn("Валидация токена провалена: ожидался тип {}, но получен {}", expectedType, type);
                 return false;
             }
 
             if (expiration.before(new Date())) {
-                log.warn("Token validation failed: Token expired at {}", expiration);
+                log.warn("Валидация токена провалена: срок действия истек в {}", expiration);
                 return false;
             }
 
             return true;
         } catch (Exception e) {
-            log.warn("Token validation failed: {}", e.getMessage());
+            log.warn("Ошибка валидации токена: {}", e.getMessage());
             return false;
         }
     }
@@ -109,14 +109,14 @@ public class JwtService {
                     .parseClaimsJws(token)
                     .getBody();
         } catch (io.jsonwebtoken.ExpiredJwtException e) {
-            log.debug("JWT token is expired: {}", e.getMessage());
+            log.debug("Срок действия JWT токена истек: {}", e.getMessage());
             throw e;
         } catch (io.jsonwebtoken.MalformedJwtException e) {
-            log.error("Invalid JWT token: {}", e.getMessage());
+            log.error("Некорректная структура JWT токена: {}", e.getMessage());
             throw e;
         } catch (Exception e) {
-            log.error("Could not parse JWT claims: {}", e.getMessage());
-            throw new RuntimeException("Invalid JWT token", e);
+            log.error("Не удалось прочитать данные (claims) из JWT: {}", e.getMessage());
+            throw new RuntimeException("Ошибка разбора JWT токена", e);
         }
     }
 }

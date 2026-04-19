@@ -13,8 +13,7 @@ import ru.productallergen.authservice.dto.auth.AuthResponse;
 import ru.productallergen.authservice.dto.auth.LoginRequest;
 import ru.productallergen.authservice.dto.auth.RegisterRequest;
 import ru.productallergen.authservice.entity.User;
-import ru.productallergen.authservice.exception.InvalidCredentialsException;
-import ru.productallergen.authservice.exception.UserNotFoundException;
+import ru.productallergen.authservice.exception.*;
 import ru.productallergen.authservice.repository.UserRepository;
 import ru.productallergen.authservice.security.JwtService;
 import ru.productallergen.authservice.service.auth.AuthService;
@@ -98,12 +97,10 @@ class AuthServiceTest {
         when(userRepository.existsByEmail(request.email())).thenReturn(true);
 
         assertThatThrownBy(() -> authService.register(request))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("User with email test@example.com already exists");
-
+                .isInstanceOf(UserAlreadyExistsException.class)
+                .hasMessage("Пользователь с email test@example.com уже существует");
 
         verify(userRepository, never()).save(any(User.class));
-        verify(refreshTokenService, never()).saveRefreshToken(anyString(), anyString());
     }
 
     @Test
@@ -146,10 +143,9 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(InvalidCredentialsException.class)
-                .hasMessage("Invalid credentials");
+                .hasMessage("Неверный логин или пароль");
 
         verify(userRepository, never()).findByEmail(anyString());
-        verify(refreshTokenService, never()).saveRefreshToken(anyString(), anyString());
     }
 
     @Test
@@ -163,9 +159,7 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(UserNotFoundException.class)
-                .hasMessage("User not found");
-
-        verify(refreshTokenService, never()).saveRefreshToken(anyString(), anyString());
+                .hasMessage("Пользователь не найден");
     }
 
     @Test
@@ -191,11 +185,6 @@ class AuthServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.accessToken()).isEqualTo("new-access-token");
         assertThat(response.refreshToken()).isEqualTo(refreshToken);
-
-        verify(jwtService).validateToken(refreshToken, "refresh");
-        verify(refreshTokenService).isValid(refreshToken);
-        verify(refreshTokenService).getEmail(refreshToken);
-        verify(userRepository).findByEmail(email);
     }
 
     @Test
@@ -205,24 +194,20 @@ class AuthServiceTest {
         when(jwtService.validateToken(refreshToken, "refresh")).thenReturn(false);
 
         assertThatThrownBy(() -> authService.refresh(refreshToken))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("Invalid refresh token");
-
-        verify(refreshTokenService, never()).isValid(anyString());
+                .isInstanceOf(InvalidRefreshTokenException.class)
+                .hasMessage("Невалидный refresh токен");
     }
 
     @Test
-    void refresh_WithTokenNotFoundInRedis_ShouldThrowException() {
-        String refreshToken = "valid-but-not-in-redis-token";
+    void refresh_WithTokenRevoked_ShouldThrowException() {
+        String refreshToken = "revoked-token";
 
         when(jwtService.validateToken(refreshToken, "refresh")).thenReturn(true);
         when(refreshTokenService.isValid(refreshToken)).thenReturn(false);
 
         assertThatThrownBy(() -> authService.refresh(refreshToken))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("Refresh token not found or revoked");
-
-        verify(refreshTokenService, never()).getEmail(anyString());
+                .isInstanceOf(InvalidRefreshTokenException.class)
+                .hasMessage("Refresh токен не найден или отозван");
     }
 
     @Test

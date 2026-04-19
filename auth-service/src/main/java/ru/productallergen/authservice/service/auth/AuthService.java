@@ -29,11 +29,11 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        log.info("Attempting to register new user with email: {}", request.email());
+        log.info("Попытка регистрации нового пользователя с email: {}", request.email());
 
         if (userRepository.existsByEmail(request.email())) {
-            log.warn("Registration failed: User with email {} already exists", request.email());
-            throw new UserAlreadyExistsException("User with email " + request.email() + " already exists");
+            log.warn("Ошибка регистрации: пользователь с email {} уже существует", request.email());
+            throw new UserAlreadyExistsException("Пользователь с email " + request.email() + " уже существует");
         }
 
         User user = User.builder()
@@ -43,7 +43,7 @@ public class AuthService {
                 .build();
 
         user = userRepository.save(user);
-        log.info("User successfully registered with ID: {}", user.getId());
+        log.info("Пользователь успешно зарегистрирован. ID: {}", user.getId());
 
         String accessToken = jwtService.generateAccessToken(user.getEmail(), user.getId());
         String refreshToken = jwtService.generateRefreshToken(user.getEmail());
@@ -55,21 +55,21 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        log.info("Login attempt for user: {}", request.email());
+        log.info("Попытка входа для пользователя: {}", request.email());
 
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.email(), request.password())
             );
         } catch (Exception e) {
-            log.warn("Login failed for user {}: Invalid credentials", request.email());
-            throw new InvalidCredentialsException("Invalid credentials");
+            log.warn("Ошибка входа для пользователя {}: неверные учетные данные", request.email());
+            throw new InvalidCredentialsException("Неверный логин или пароль");
         }
 
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> {
-                    log.error("Login critical error: User {} authenticated but not found in DB", request.email());
-                    return new UserNotFoundException("User not found");
+                    log.error("Критическая ошибка входа: пользователь {} прошел аутентификацию, но не найден в БД", request.email());
+                    return new UserNotFoundException("Пользователь не найден");
                 });
 
         String accessToken = jwtService.generateAccessToken(user.getEmail(), user.getId());
@@ -78,42 +78,42 @@ public class AuthService {
         refreshTokenService.revokeOldTokensByEmail(user.getEmail());
         refreshTokenService.saveRefreshToken(refreshToken, user.getEmail());
 
-        log.info("User {} successfully logged in. Issued new tokens.", request.email());
+        log.info("Пользователь {} успешно вошел в систему. Выданы новые токены.", request.email());
         return new AuthResponse(accessToken, refreshToken);
     }
 
     public AuthResponse refresh(String refreshToken) {
-        log.info("Attempting to refresh access token using refresh token");
+        log.info("Попытка обновления access токена через refresh токен");
 
         if (!jwtService.validateToken(refreshToken, "refresh")) {
-            log.warn("Refresh failed: Token signature or expiration is invalid");
-            throw new InvalidRefreshTokenException("Invalid refresh token");
+            log.warn("Ошибка обновления: подпись или срок действия токена невалидны");
+            throw new InvalidRefreshTokenException("Невалидный refresh токен");
         }
 
         if (!refreshTokenService.isValid(refreshToken)) {
-            log.warn("Refresh failed: Token is revoked or not found in storage");
-            throw new InvalidRefreshTokenException("Refresh token not found or revoked");
+            log.warn("Ошибка обновления: токен отозван или отсутствует в хранилище");
+            throw new InvalidRefreshTokenException("Refresh токен не найден или отозван");
         }
 
         String email = refreshTokenService.getEmail(refreshToken);
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    log.error("Refresh critical error: User {} not found for valid token", email);
-                    return new UserNotFoundException("User not found");
+                    log.error("Критическая ошибка обновления: пользователь {} не найден для валидного токена", email);
+                    return new UserNotFoundException("Пользователь не найден");
                 });
 
         String newAccessToken = jwtService.generateAccessToken(user.getEmail(), user.getId());
-        log.info("Access token successfully refreshed for user: {}", email);
+        log.info("Access токен успешно обновлен для пользователя: {}", email);
 
         return new AuthResponse(newAccessToken, refreshToken);
     }
 
     public void logout(String refreshToken) {
         if (refreshToken != null && !refreshToken.isBlank()) {
-            log.info("Logging out: Revoking refresh token");
+            log.info("Выход из системы: отзыв refresh токена");
             refreshTokenService.revokeToken(refreshToken);
         } else {
-            log.debug("Logout called with empty token");
+            log.debug("Метод logout вызван с пустым токеном");
         }
     }
 }
