@@ -60,7 +60,7 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
                 return chain.filter(exchange.mutate().request(mutated).build());
             }
 
-            if (!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
+            if (request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION) == null) {
                 log.warn("Аутентификация не удалась для пути {}: Отсутствует заголовок Authorization", path);
                 return Mono.error(new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED, "Заголовок Authorization отсутствует"));
