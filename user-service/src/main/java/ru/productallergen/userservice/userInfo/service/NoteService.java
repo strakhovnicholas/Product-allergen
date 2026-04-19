@@ -6,6 +6,7 @@ import ru.productallergen.userservice.userInfo.dao.NoteRepository;
 import ru.productallergen.userservice.userInfo.dto.NoteDto;
 import ru.productallergen.userservice.userInfo.entity.NoteEntity;
 import ru.productallergen.userservice.userInfo.mapper.NoteMapper;
+import ru.productallergen.userservice.userInfo.web.NoteCreateRequestDto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,8 +20,8 @@ public class NoteService {
     private final NoteRepository repository;
     private final NoteMapper mapper;
 
-    public NoteDto createNode(UUID userId, NoteDto dto) {
-        NoteEntity entity = mapper.toEntity(dto, userId);
+    public NoteDto createNote(UUID userId, NoteCreateRequestDto dto) {
+        NoteEntity entity = mapper.toDto(dto, userId);
         return mapper.toDto(repository.save(entity));
     }
 

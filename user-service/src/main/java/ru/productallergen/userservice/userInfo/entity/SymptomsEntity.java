@@ -18,6 +18,5 @@ public record SymptomsEntity(@Id ObjectId id,
                              String symptomName,
                              Integer severity,
                              LocalDateTime startTime,
-                             LocalDateTime endTime,
-                             String possibleCause) {
+                             LocalDateTime endTime) {
 }

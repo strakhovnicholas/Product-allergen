@@ -15,7 +15,7 @@ import ru.productallergen.userservice.userInfo.controller.SymptomsController;
 import ru.productallergen.userservice.userInfo.dto.SymptomsDto;
 import ru.productallergen.userservice.userInfo.mapper.SymptomsMapper;
 import ru.productallergen.userservice.userInfo.service.SymptomsService;
-import ru.productallergen.userservice.userInfo.web.SymptomsWebDto;
+import ru.productallergen.userservice.userInfo.web.SymptomResponseDto;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -23,10 +23,15 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -50,7 +55,7 @@ class SymptomsControllerTest {
     private static final LocalDateTime START_TIME = LocalDateTime.parse("2024-06-01T08:00:00");
     private static final LocalDateTime END_TIME = LocalDateTime.parse("2024-06-01T10:00:00");
 
-    private SymptomsWebDto sampleWebDto;
+    private SymptomResponseDto sampleWebDto;
     private SymptomsDto sampleDto;
 
     @BeforeEach
@@ -58,14 +63,13 @@ class SymptomsControllerTest {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
 
-        sampleWebDto = SymptomsWebDto.builder()
-                .symptomsId(SYMPTOMS_ID)
-                .symptomName("Headache")
-                .severity(5)
-                .startTime(START_TIME)
-                .endTime(END_TIME)
-                .possibleCause("Stress")
-                .build();
+        sampleWebDto = new SymptomResponseDto(
+                SYMPTOMS_ID,
+                "Headache",
+                5,
+                START_TIME,
+                END_TIME
+        );
 
         sampleDto = SymptomsDto.builder()
                 .symptomsId(SYMPTOMS_ID)
@@ -82,7 +86,7 @@ class SymptomsControllerTest {
     @Test
     @DisplayName("POST /api/feelings/symptoms — успешное создание симптома")
     void createSymptoms_success() throws Exception {
-        when(mapper.toDto(any(SymptomsWebDto.class))).thenReturn(sampleDto);
+//        when(mapper.toDto(any(SymptomCreateRequestDto.class), USER_ID)).thenReturn(sampleDto);
         when(service.createSymptoms(eq(USER_ID), any(SymptomsDto.class))).thenReturn(sampleDto);
         when(mapper.toWebDto(sampleDto)).thenReturn(sampleWebDto);
 
@@ -190,7 +194,6 @@ class SymptomsControllerTest {
     @Test
     @DisplayName("PUT /api/feelings/symptoms — успешное обновление симптома")
     void updateSymptoms_success() throws Exception {
-        when(mapper.toDto(any(SymptomsWebDto.class))).thenReturn(sampleDto);
         when(service.updateSymptoms(eq(USER_ID), any(SymptomsDto.class))).thenReturn(sampleDto);
         when(mapper.toWebDto(sampleDto)).thenReturn(sampleWebDto);
 

@@ -3,6 +3,7 @@ package ru.productallergen.userservice.userInfo.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -19,7 +20,9 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.productallergen.userservice.config.CurrentUserId;
 import ru.productallergen.userservice.userInfo.mapper.NoteMapper;
 import ru.productallergen.userservice.userInfo.service.NoteService;
-import ru.productallergen.userservice.userInfo.web.NoteWebDto;
+import ru.productallergen.userservice.userInfo.web.NoteCreateRequestDto;
+import ru.productallergen.userservice.userInfo.web.NoteEditRequestDto;
+import ru.productallergen.userservice.userInfo.web.NoteResponseDto;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -36,33 +39,21 @@ public class NoteController {
     @Operation(summary = "Создать заметку",
             description = "Добавляет новую заметку пользователя в систему")
     @PostMapping("/feelings/notes")
-    public ResponseEntity<NoteWebDto> createNode(@Parameter(description = "Данные для создания заметки", required = true)
-                                                 @RequestBody NoteWebDto request,
-                                                 @CurrentUserId UUID userId) {
+    public ResponseEntity<NoteResponseDto> createNode(@Parameter(description = "Данные для создания заметки", required = true)
+                                                      @RequestBody @Valid NoteCreateRequestDto request,
+                                                      @CurrentUserId UUID userId) {
 
-        NoteWebDto response = mapper.toWebDto(service.createNode(userId, mapper.toDto(request)));
+        NoteResponseDto response = mapper.toWebDto(service.createNote(userId, request));
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    @Operation(summary = "Получить все заметки",
-            description = "Возвращает полный список заметок текущего пользователя")
-    @GetMapping("/feelings/notes")
-    public ResponseEntity<List<NoteWebDto>> getAllNods(@CurrentUserId UUID userId) {
-        List<NoteWebDto> response = service.getAllNods(userId)
-                .stream()
-                .map(mapper::toWebDto)
-                .toList();
-
-        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "Получить заметки по дате",
             description = "Возвращает список заметок пользователя за указанную дату")
-    @GetMapping("/feelings/notes/date")
-    public ResponseEntity<List<NoteWebDto>> getNodeByDate(@Parameter(description = "Дата в формате ISO (YYYY-MM-DD) для фильтрации заметок", required = true)
+    @GetMapping("/feelings/notes")
+    public ResponseEntity<List<NoteResponseDto>> getNodeByDate(@Parameter(description = "Дата в формате ISO (YYYY-MM-DD) для фильтрации заметок", required = true)
                                                           @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                                                           @CurrentUserId UUID userId) {
-        List<NoteWebDto> response = service.getNodeByDate(userId, date)
+        List<NoteResponseDto> response = service.getNodeByDate(userId, date)
                 .stream()
                 .map(mapper::toWebDto)
                 .toList();
@@ -73,12 +64,12 @@ public class NoteController {
     @Operation(summary = "Обновить заметку",
             description = "Полное обновление заметки по ID. Поля, не указанные в запросе, не обновляются")
     @PutMapping("/feelings/notes/{noteId}")
-    public ResponseEntity<NoteWebDto> updateNode(@Parameter(description = "ID заметки для обновления", required = true)
+    public ResponseEntity<NoteResponseDto> updateNode(@Parameter(description = "ID заметки для обновления", required = true)
                                                  @PathVariable UUID noteId,
                                                  @Parameter(description = "Обновленные данные заметки", required = true)
-                                                 @RequestBody NoteWebDto request,
+                                                 @RequestBody @Valid NoteEditRequestDto request,
                                                  @CurrentUserId UUID userId) {
-        NoteWebDto response = mapper.toWebDto(service.updateNode(userId, noteId, mapper.toDto(request)));
+        NoteResponseDto response = mapper.toWebDto(service.updateNode(userId, noteId, mapper.toDto(request, userId, noteId)));
         return ResponseEntity.ok(response);
     }
 
