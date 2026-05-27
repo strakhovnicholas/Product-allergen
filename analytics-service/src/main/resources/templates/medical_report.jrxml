@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports
+              http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+              name="medical_report" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+
+    <style name="Title" fontName="DejaVu Sans" fontSize="22" isBold="true" forecolor="#0056B3"/>
+    <style name="SubTitle" fontName="DejaVu Sans" fontSize="16" isBold="true" forecolor="#007BFF"/>
+    <style name="ColumnHeader" fontName="DejaVu Sans" fontSize="10" isBold="true" backcolor="#F8F9FA" forecolor="#0056B3"/>
+    <style name="Detail" fontName="DejaVu Sans" fontSize="10"/>
+
+    <subDataset name="WellbeingDataset">
+        <field name="dateTime" class="java.time.LocalDateTime"/>
+        <field name="score" class="java.lang.Integer"/>
+    </subDataset>
+
+    <subDataset name="MedicineDataset">
+        <field name="name" class="java.lang.String"/>
+        <field name="dosage" class="java.lang.String"/>
+        <field name="unit" class="java.lang.String"/>
+        <field name="intakeDate" class="java.time.LocalDateTime"/>
+    </subDataset>
+
+    <field name="user" class="ru.productallergen.analytics.dto.internal.UserInfoDto"/>
+    <field name="wellbeing" class="java.util.List"/>
+    <field name="medicine" class="java.util.List"/>
+    <field name="analysis" class="ru.productallergen.analytics.dto.ai.AnalysisResultDto"/>
+
+    <title>
+        <band height="180"> <staticText>
+            <reportElement x="0" y="0" width="280" height="30" style="Title"/>
+            <textElement verticalAlignment="Middle"/>
+            <text><![CDATA[Медицинский отчет]]></text>
+        </staticText>
+
+            <image scaleImage="FillFrame" hAlign="Center" vAlign="Middle">
+                <reportElement x="1" y="35" width="280" height="80"/>
+                <imageExpression><![CDATA[getClass().getResourceAsStream("/logo.jpg")]]></imageExpression>
+            </image>
+
+            <frame>
+                <reportElement x="300" y="0" width="255" height="165"/> <box><pen lineWidth="0.5" lineColor="#DEE2E6"/></box>
+
+                <textField isBlankWhenNull="true">
+                    <reportElement x="10" y="5" width="235" height="15" style="Detail" forecolor="#004085"/>
+                    <textElement><font isBold="true"/></textElement>
+                    <textFieldExpression><![CDATA["Пациент: " + $F{user}.getFullName()]]></textFieldExpression>
+                </textField>
+
+                <textField>
+                    <reportElement x="10" y="20" width="235" height="15" style="Detail"/>
+                    <textFieldExpression><![CDATA["Возраст: " + $F{user}.getAge() + " | Пол: " + $F{user}.getGender() + " | Вес: " + $F{user}.getWeight() + " кг"]]></textFieldExpression>
+                </textField>
+
+                <textField>
+                    <reportElement x="10" y="35" width="235" height="15" style="Detail" forecolor="#495057"/>
+                    <textFieldExpression><![CDATA["Курение: " + ($F{user}.getSmoker() ? "Да" : "Нет") +
+                    " | Алкоголь: " + ($F{user}.getAlcohol() ? "Да" : "Нет") +
+                    " | Спорт: " + ($F{user}.getSports() ? "Да" : "Нет")]]></textFieldExpression>
+                </textField>
+
+                <line>
+                    <reportElement x="10" y="52" width="235" height="1" forecolor="#DEE2E6"/>
+                </line>
+
+                <textField textAdjust="StretchHeight">
+                    <reportElement x="10" y="55" width="235" height="30" forecolor="#666666" style="Detail"/>
+                    <textElement verticalAlignment="Top">
+                        <font size="9"/>
+                    </textElement>
+                    <textFieldExpression><![CDATA["Хронические: " + ($F{user}.getChronicDiseases() != null && !$F{user}.getChronicDiseases().isEmpty() ? String.join(", ", $F{user}.getChronicDiseases()) : "нет")]]></textFieldExpression>
+                </textField>
+
+                <textField textAdjust="StretchHeight">
+                    <reportElement x="10" y="90" width="235" height="40" forecolor="#D90429" style="Detail"/>
+                    <textElement verticalAlignment="Top">
+                        <font size="9" isBold="true"/>
+                    </textElement>
+                    <textFieldExpression><![CDATA["Аллергии: " + ($F{user}.getAllergies() != null && !$F{user}.getAllergies().isEmpty() ? String.join(", ", $F{user}.getAllergies()) : "не указаны")]]></textFieldExpression>
+                </textField>
+            </frame>
+        </band>
+    </title>
+
+    <detail>
+        <band height="280">
+            <staticText>
+                <reportElement x="0" y="0" width="555" height="25" style="SubTitle"/>
+                <textElement verticalAlignment="Middle"/>
+                <text><![CDATA[Динамика самочувствия]]></text>
+            </staticText>
+
+            <areaChart>
+                <chart evaluationTime="Report">
+                    <reportElement x="0" y="30" width="555" height="230"/>
+                </chart>
+                <categoryDataset>
+                    <dataset>
+                        <datasetRun subDataset="WellbeingDataset">
+                            <dataSourceExpression><![CDATA[new net.sf.jasperreports.engine.data.JRBeanCollectionDataSource($F{wellbeing})]]></dataSourceExpression>
+                        </datasetRun>
+                    </dataset>
+                    <categorySeries>
+                        <seriesExpression><![CDATA["Самочувствие"]]></seriesExpression>
+                        <categoryExpression><![CDATA[$F{dateTime}.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM"))]]></categoryExpression>
+                        <valueExpression><![CDATA[$F{score}]]></valueExpression>
+                    </categorySeries>
+                </categoryDataset>
+                <areaPlot>
+                    <plot foregroundAlpha="0.6">
+                        <seriesColor seriesOrder="0" color="#007BFF"/>
+                    </plot>
+                    <categoryAxisLabelExpression><![CDATA["Дата"]]></categoryAxisLabelExpression>
+                    <categoryAxisFormat>
+                        <axisFormat labelColor="#0056B3">
+                            <labelFont>
+                                <font fontName="DejaVu Sans" size="8" isBold="true"/>
+                            </labelFont>
+                            <tickLabelFont>
+                                <font fontName="DejaVu Sans" size="4"/>
+                            </tickLabelFont>
+                        </axisFormat>
+                    </categoryAxisFormat>
+                    <valueAxisLabelExpression><![CDATA["Оценка"]]></valueAxisLabelExpression>
+                    <valueAxisFormat>
+                        <axisFormat labelColor="#0056B3">
+                            <labelFont><font fontName="DejaVu Sans" size="9" isBold="true"/></labelFont>
+                            <tickLabelFont><font fontName="DejaVu Sans" size="8"/></tickLabelFont>
+                        </axisFormat>
+                    </valueAxisFormat>
+                </areaPlot>
+            </areaChart>
+        </band>
+
+        <band height="110">
+            <staticText>
+                <reportElement positionType="Float" x="0" y="10" width="555" height="25" style="SubTitle"/>
+                <textElement verticalAlignment="Middle"/>
+                <text><![CDATA[Принятые препараты]]></text>
+            </staticText>
+            <componentElement>
+                <reportElement x="0" y="40" width="555" height="50"/>
+                <jr:table xmlns:jr="http://jasperreports.sourceforge.net/jasperreports/components" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports/components http://jasperreports.sourceforge.net/xsd/components.xsd">
+                    <datasetRun subDataset="MedicineDataset">
+                        <dataSourceExpression><![CDATA[new net.sf.jasperreports.engine.data.JRBeanCollectionDataSource($F{medicine})]]></dataSourceExpression>
+                    </datasetRun>
+                    <jr:column width="180">
+                        <jr:columnHeader height="20">
+                            <box><pen lineWidth="0.5" lineColor="#DEE2E6"/></box>
+                            <staticText>
+                                <reportElement x="0" y="0" width="180" height="20" style="ColumnHeader"/>
+                                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                                <text><![CDATA[Препарат]]></text>
+                            </staticText>
+                        </jr:columnHeader>
+                        <jr:detailCell height="20">
+                            <box><pen lineWidth="0.5" lineColor="#DEE2E6"/></box>
+                            <textField>
+                                <reportElement x="5" y="0" width="175" height="20" style="Detail"/>
+                                <textElement verticalAlignment="Middle"/>
+                                <textFieldExpression><![CDATA[$F{name}]]></textFieldExpression>
+                            </textField>
+                        </jr:detailCell>
+                    </jr:column>
+                    <jr:column width="120">
+                        <jr:columnHeader height="20">
+                            <box><pen lineWidth="0.5" lineColor="#DEE2E6"/></box>
+                            <staticText>
+                                <reportElement x="0" y="0" width="120" height="20" style="ColumnHeader"/>
+                                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                                <text><![CDATA[Дозировка]]></text>
+                            </staticText>
+                        </jr:columnHeader>
+                        <jr:detailCell height="20">
+                            <box><pen lineWidth="0.5" lineColor="#DEE2E6"/></box>
+                            <textField>
+                                <reportElement x="5" y="0" width="115" height="20" style="Detail"/>
+                                <textElement verticalAlignment="Middle"/>
+                                <textFieldExpression><![CDATA[$F{dosage} + " " + $F{unit}]]></textFieldExpression>
+                            </textField>
+                        </jr:detailCell>
+                    </jr:column>
+                    <jr:column width="255">
+                        <jr:columnHeader height="20">
+                            <box><pen lineWidth="0.5" lineColor="#DEE2E6"/></box>
+                            <staticText>
+                                <reportElement x="0" y="0" width="255" height="20" style="ColumnHeader"/>
+                                <textElement textAlignment="Center" verticalAlignment="Middle"/>
+                                <text><![CDATA[Дата и время]]></text>
+                            </staticText>
+                        </jr:columnHeader>
+                        <jr:detailCell height="20">
+                            <box><pen lineWidth="0.5" lineColor="#DEE2E6"/></box>
+                            <textField>
+                                <reportElement x="5" y="0" width="250" height="20" style="Detail"/>
+                                <textElement verticalAlignment="Middle"/>
+                                <textFieldExpression><![CDATA[$F{intakeDate}.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))]]></textFieldExpression>
+                            </textField>
+                        </jr:detailCell>
+                    </jr:column>
+                </jr:table>
+            </componentElement>
+        </band>
+
+        <band height="150">
+            <staticText>
+                <reportElement positionType="Float" x="0" y="15" width="555" height="25" style="SubTitle"/>
+                <textElement verticalAlignment="Middle"/>
+                <text><![CDATA[Результаты анализа]]></text>
+            </staticText>
+            <frame>
+                <reportElement x="0" y="45" width="555" height="95"/>
+                <box><pen lineWidth="0.5" lineColor="#DEE2E6"/></box>
+                <staticText>
+                    <reportElement x="15" y="10" width="130" height="20" style="Detail" forecolor="#0056B3"/>
+                    <textElement verticalAlignment="Middle"><font isBold="true"/></textElement>
+                    <text><![CDATA[Симптомы:]]></text>
+                </staticText>
+                <textField isBlankWhenNull="true">
+                    <reportElement x="160" y="10" width="380" height="20" style="Detail"/>
+                    <textElement verticalAlignment="Middle"/>
+                    <textFieldExpression><![CDATA[$F{analysis}.getSymptoms() == null || $F{analysis}.getSymptoms().isEmpty() ? "Отсутствуют" : String.join(", ", $F{analysis}.getSymptoms())]]></textFieldExpression>
+                </textField>
+                <staticText>
+                    <reportElement x="15" y="35" width="130" height="20" style="Detail" forecolor="#D90429"/>
+                    <textElement verticalAlignment="Middle"><font isBold="true"/></textElement>
+                    <text><![CDATA[Потенциальные продукты:]]></text>
+                </staticText>
+                <textField isBlankWhenNull="true">
+                    <reportElement x="160" y="35" width="380" height="20" style="Detail" forecolor="#D90429"/>
+                    <textElement verticalAlignment="Middle"><font isBold="true"/></textElement>
+                    <textFieldExpression><![CDATA[$F{analysis}.getProducts() == null || $F{analysis}.getProducts().isEmpty() ? "Не выявлены" : String.join(", ", $F{analysis}.getProducts())]]></textFieldExpression>
+                </textField>
+                <line>
+                    <reportElement x="15" y="60" width="525" height="1" forecolor="#EEEEEE"/>
+                </line>
+                <staticText>
+                    <reportElement x="15" y="65" width="130" height="20" style="Detail" forecolor="#0056B3"/>
+                    <textElement verticalAlignment="Middle"><font isBold="true"/></textElement>
+                    <text><![CDATA[Белки-аллергены:]]></text>
+                </staticText>
+                <textField isBlankWhenNull="true">
+                    <reportElement x="160" y="65" width="110" height="20" style="Detail"/>
+                    <textElement verticalAlignment="Middle"/>
+                    <textFieldExpression><![CDATA[$F{analysis}.getDangerousProteins() == null || $F{analysis}.getDangerousProteins().isEmpty() ? "—" : String.join(", ", $F{analysis}.getDangerousProteins())]]></textFieldExpression>
+                </textField>
+                <staticText>
+                    <reportElement x="300" y="65" width="130" height="20" style="Detail" forecolor="#0056B3"/>
+                    <textElement verticalAlignment="Middle"><font isBold="true"/></textElement>
+                    <text><![CDATA[Микроэлементы:]]></text>
+                </staticText>
+                <textField isBlankWhenNull="true">
+                    <reportElement x="440" y="65" width="100" height="20" style="Detail"/>
+                    <textElement verticalAlignment="Middle"/>
+                    <textFieldExpression><![CDATA[$F{analysis}.getTraceElements() == null || $F{analysis}.getTraceElements().isEmpty() ? "—" : String.join(", ", $F{analysis}.getTraceElements())]]></textFieldExpression>
+                </textField>
+            </frame>
+        </band>
+
+        <band height="120">
+            <staticText>
+                <reportElement positionType="Float" x="0" y="10" width="555" height="25" style="SubTitle"/>
+                <textElement verticalAlignment="Middle"/>
+                <text><![CDATA[Рекомендации приложения для врача]]></text>
+            </staticText>
+            <frame>
+                <reportElement x="0" y="40" width="555" height="70" mode="Opaque" backcolor="#F0F7FF"/>
+                <box><leftPen lineWidth="3.0" lineColor="#007BFF"/></box>
+                <staticText>
+                    <reportElement x="15" y="10" width="525" height="15" forecolor="#007BFF" style="Detail"/>
+                    <textElement verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+                    <text><![CDATA[Сгенерировано системой анализа ПродуктовыйАллерген:]]></text>
+                </staticText>
+                <textField textAdjust="StretchHeight" isBlankWhenNull="true">
+                    <reportElement x="15" y="30" width="525" height="30" style="Detail"/>
+                    <textElement verticalAlignment="Top" markup="html"/>
+                    <textFieldExpression><![CDATA[$F{analysis}.getDoctorRecommendations() != null ? $F{analysis}.getDoctorRecommendations() : "На основе текущих данных рекомендаций не сформировано."]]></textFieldExpression>
+                </textField>
+            </frame>
+        </band>
+    </detail>
+
+    <pageFooter>
+        <band height="30">
+            <textField pattern="dd.MM.yyyy HH:mm">
+                <reportElement x="0" y="10" width="200" height="20" style="Detail" forecolor="#999999"/>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[new java.util.Date()]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="435" y="10" width="80" height="20" style="Detail" forecolor="#007BFF"/>
+                <textElement textAlignment="Right" verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA["Стр. "+$V{PAGE_NUMBER}+" из"]]></textFieldExpression>
+            </textField>
+            <textField evaluationTime="Report">
+                <reportElement x="515" y="10" width="40" height="20" style="Detail" forecolor="#007BFF"/>
+                <textElement verticalAlignment="Middle"/>
+                <textFieldExpression><![CDATA[" " + $V{PAGE_NUMBER}]]></textFieldExpression>
+            </textField>
+        </band>
+    </pageFooter>
+</jasperReport>

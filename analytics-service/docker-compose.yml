@@ -1,0 +1,18 @@
+version: '3.9'
+services:
+  analytics-service:
+    build: .
+    image: n1vvas1e/analytics-service:v1
+    container_name: analytics-service
+    restart: on-failure
+    environment:
+      - INTERNAL_SECRET=${INTERNAL_SECRET}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres_analytics_db:5433/report_pg
+      - SPRING_DATASOURCE_USERNAME=ANALYTICS-REPORT-POSTGRES-VELOSIPED
+      - SPRING_DATASOURCE_PASSWORD=MW+D0uI2lX2P3q3WHw21sA==
+    networks:
+      - backend-net
+
+networks:
+  backend-net:
+    external: true

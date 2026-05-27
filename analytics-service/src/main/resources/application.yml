@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: analytics-service
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres_analytics_db:5433/report_pg}
+    username: ${SPRING_DATASOURCE_USERNAME:ANALYTICS-REPORT-POSTGRES-VELOSIPED}
+    password: ${SPRING_DATASOURCE_PASSWORD:MW+D0uI2lX2P3q3WHw21sA==}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+
+internal:
+  api:
+    secret: ${INTERNAL_SECRET}
+
+report:
+  template-path: templates/medical_report.jrxml
+  topic: "report-data-requests"
+
+app:
+  security:
+    internal-header: X-Internal-Gateway-Token
+    user-id-header: X-User-Id
+  internal:
+    api:
+      secret: ${INTERNAL_API_SECRET:my-default-secret}
