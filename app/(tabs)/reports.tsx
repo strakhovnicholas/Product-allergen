@@ -1,80 +1,31 @@
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  RefreshControl,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    RefreshControl,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from 'react-native';
 
 import {
-  CommonFeeling,
-  Food,
-  getCommonFeelingsApi,
-  getFoodApi,
-  getSymptomsApi,
-  Symptom,
+    analyzeFoodAndSymptomsApi,
+    CommonFeeling,
+    Food,
+    FoodComponentSymptomsResponse,
+    getCommonFeelingsApi,
+    getFoodApi,
+    getSymptomsApi,
+    Symptom,
 } from '../../src/api/diaryApi';
-import {
-  GeneratedReport,
-  generateReportApi,
-  getGeneratedReportsApi,
-  ReportFormat,
-  ReportType,
-} from '../../src/api/reportApi';
-
-function reportTypeLabel(type: ReportType) {
-  switch (type) {
-    case 'SUMMARY':
-      return 'Краткий отчёт';
-    case 'DETAILED':
-      return 'Подробный отчёт';
-    case 'FOOD_ANALYSIS':
-      return 'Анализ продуктов';
-    case 'SYMPTOM_ANALYSIS':
-      return 'Анализ симптомов';
-    default:
-      return type;
-  }
-}
-
-function statusLabel(status: string) {
-  switch (status) {
-    case 'READY':
-      return 'Готов';
-    case 'PROCESSING':
-      return 'Обрабатывается';
-    case 'FAILED':
-      return 'Ошибка';
-    default:
-      return status;
-  }
-}
-
-function statusColor(status: string) {
-  switch (status) {
-    case 'READY':
-      return '#2DCB70';
-    case 'PROCESSING':
-      return '#D4A017';
-    case 'FAILED':
-      return '#E63946';
-    default:
-      return '#98A2B3';
-  }
-}
-
-function isValidDate(value: string) {
-  const parsed = new Date(value);
-  return !Number.isNaN(parsed.getTime());
-}
+import { generateReportApi } from '../../src/api/reportApi';
 
 function toSafePercent(value: number) {
   return `${Math.round(value * 100)}%`;
@@ -85,11 +36,18 @@ function average(numbers: number[]) {
   return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
 }
 
-function formatDate(date: string) {
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return date;
+function isValidDateValue(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00`);
+  return !Number.isNaN(parsed.getTime());
+}
 
-  return parsed.toLocaleString('ru-RU');
+function toStartOfDayIso(value: string) {
+  return `${value}T00:00:00`;
+}
+
+function toEndOfDayIso(value: string) {
+  return `${value}T23:59:59`;
 }
 
 function getRangeFromData(
@@ -129,42 +87,59 @@ function getRangeFromData(
 }
 
 export default function ReportsScreen() {
-  const [selectedType, setSelectedType] = useState<ReportType>('FOOD_ANALYSIS');
-  const [selectedFormat, setSelectedFormat] = useState<ReportFormat>('PDF');
-
+  const { width } = useWindowDimensions();
+  const isCompact = width < 390;
+  const [dateFrom, setDateFrom] = useState(() => {
+    const now = new Date();
+    const monthAgo = new Date();
+    monthAgo.setDate(now.getDate() - 30);
+    return monthAgo.toISOString().slice(0, 10);
+  });
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [periodTouched, setPeriodTouched] = useState(false);
   const [foods, setFoods] = useState<Food[]>([]);
   const [feelings, setFeelings] = useState<CommonFeeling[]>([]);
   const [symptoms, setSymptoms] = useState<Symptom[]>([]);
-  const [generatedReports, setGeneratedReports] = useState<GeneratedReport[]>([]);
+  const [analyzerData, setAnalyzerData] = useState<FoodComponentSymptomsResponse[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [applyingPeriod, setApplyingPeriod] = useState(false);
+  const [generatingReport, setGeneratingReport] = useState(false);
+
+  const loadAnalyzerForPeriod = useCallback(async () => {
+    if (!isValidDateValue(dateFrom) || !isValidDateValue(dateTo)) {
+      setAnalyzerData([]);
+      return;
+    }
+    if (new Date(toStartOfDayIso(dateFrom)) > new Date(toStartOfDayIso(dateTo))) {
+      setAnalyzerData([]);
+      return;
+    }
+    const analyzer = await analyzeFoodAndSymptomsApi(
+      toStartOfDayIso(dateFrom),
+      toEndOfDayIso(dateTo)
+    ).catch(() => []);
+    setAnalyzerData(analyzer ?? []);
+  }, [dateFrom, dateTo]);
 
   const loadReportsData = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
 
-      const [foodsData, feelingsData, symptomsData, reportsData] =
-        await Promise.all([
+      const [foodsResult, feelingsResult, symptomsResult] =
+        await Promise.allSettled([
           getFoodApi(),
           getCommonFeelingsApi(),
           getSymptomsApi(),
-          getGeneratedReportsApi().catch(() => []),
         ]);
 
-      setFoods(foodsData ?? []);
-      setFeelings(feelingsData ?? []);
-      setSymptoms(symptomsData ?? []);
-      setGeneratedReports(reportsData ?? []);
-    } catch (error) {
-      Alert.alert(
-        'Ошибка',
-        error instanceof Error
-          ? error.message
-          : 'Не удалось загрузить данные отчётов'
-      );
+      setFoods(foodsResult.status === 'fulfilled' ? foodsResult.value ?? [] : []);
+      setFeelings(feelingsResult.status === 'fulfilled' ? feelingsResult.value ?? [] : []);
+      setSymptoms(symptomsResult.status === 'fulfilled' ? symptomsResult.value ?? [] : []);
+    } catch {
+      Alert.alert('Ошибка', 'Не удалось загрузить данные отчётов');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -180,6 +155,64 @@ export default function ReportsScreen() {
   const dateRange = useMemo(() => {
     return getRangeFromData(foods, feelings, symptoms);
   }, [foods, feelings, symptoms]);
+
+  useEffect(() => {
+    if (periodTouched) return;
+    setDateFrom(dateRange.from);
+    setDateTo(dateRange.to);
+  }, [dateRange.from, dateRange.to, periodTouched]);
+
+  useEffect(() => {
+    if (loading) return;
+    void loadAnalyzerForPeriod();
+  }, [loading, loadAnalyzerForPeriod]);
+
+  const periodError = useMemo(() => {
+    if (!isValidDateValue(dateFrom) || !isValidDateValue(dateTo)) {
+      return 'Введите период в формате YYYY-MM-DD.';
+    }
+    if (new Date(toStartOfDayIso(dateFrom)) > new Date(toStartOfDayIso(dateTo))) {
+      return 'Дата начала не может быть позже даты окончания.';
+    }
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (new Date(toEndOfDayIso(dateFrom)) > today || new Date(toEndOfDayIso(dateTo)) > today) {
+      return 'Период не может быть в будущем.';
+    }
+    return '';
+  }, [dateFrom, dateTo]);
+
+  const applyPeriod = useCallback(async () => {
+    setPeriodTouched(true);
+    if (periodError) {
+      Alert.alert('Ошибка периода', periodError);
+      return;
+    }
+    try {
+      setApplyingPeriod(true);
+      await loadAnalyzerForPeriod();
+    } finally {
+      setApplyingPeriod(false);
+    }
+  }, [loadAnalyzerForPeriod, periodError]);
+
+  const handleGenerateReport = useCallback(async () => {
+    setPeriodTouched(true);
+    if (periodError) {
+      Alert.alert('Ошибка периода', periodError);
+      return;
+    }
+
+    try {
+      setGeneratingReport(true);
+      await generateReportApi(toStartOfDayIso(dateFrom), toEndOfDayIso(dateTo));
+      Alert.alert('Готово', 'Генерация отчета запущена.');
+    } catch (e) {
+      Alert.alert('Ошибка', e instanceof Error ? e.message : 'Не удалось запустить генерацию отчета');
+    } finally {
+      setGeneratingReport(false);
+    }
+  }, [dateFrom, dateTo, periodError]);
 
   const dashboardStats = useMemo(() => {
     const totalFoodEntries = foods.length;
@@ -221,7 +254,7 @@ export default function ReportsScreen() {
     const products = Array.from(groupedFood.values());
 
     const riskySorted = [...products]
-      .filter((item) => item.totalIntakes > 0)
+      .filter((item) => item.totalIntakes > 0 && item.reactions > 0)
       .map((item) => ({
         ...item,
         riskScore: item.reactions / item.totalIntakes,
@@ -229,7 +262,7 @@ export default function ReportsScreen() {
       .sort((a, b) => b.riskScore - a.riskScore || b.reactions - a.reactions);
 
     const safeSorted = [...products]
-      .filter((item) => item.totalIntakes > 0)
+      .filter((item) => item.totalIntakes > 0 && item.reactions === 0)
       .map((item) => ({
         ...item,
         safetyScore: 1 - item.reactions / item.totalIntakes,
@@ -248,55 +281,11 @@ export default function ReportsScreen() {
     };
   }, [foods, feelings]);
 
-  const handleGenerateReport = async () => {
-    try {
-      setGenerating(true);
-
-      const payload = {
-        reportType: selectedType,
-        format: selectedFormat,
-        dateFrom: dateRange.from,
-        dateTo: dateRange.to,
-      };
-
-      const createdReport = await generateReportApi(payload);
-
-      Alert.alert(
-        'Успешно',
-        'Отчёт поставлен в очередь на генерацию'
-      );
-
-      setGeneratedReports((prev) => [createdReport, ...prev]);
-    } catch (error) {
-      Alert.alert(
-        'Ошибка',
-        error instanceof Error
-          ? error.message
-          : 'Не удалось запустить генерацию отчёта'
-      );
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleDownload = async (report: GeneratedReport) => {
-    if (!report.downloadUrl) {
-      Alert.alert('Информация', 'Ссылка на скачивание пока недоступна');
-      return;
-    }
-
-    try {
-      await Linking.openURL(report.downloadUrl);
-    } catch (error) {
-      Alert.alert('Ошибка', 'Не удалось открыть ссылку на скачивание');
-    }
-  };
-
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loaderWrap}>
-          <ActivityIndicator size="large" color="#2F6690" />
+          <ActivityIndicator size="large" color="#1D4ED8" />
         </View>
       </SafeAreaView>
     );
@@ -306,7 +295,10 @@ export default function ReportsScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { width: '100%', maxWidth: 860, alignSelf: 'center' },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -317,49 +309,145 @@ export default function ReportsScreen() {
           />
         }
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Отчёты</Text>
-          <Text style={styles.subtitle}>
-            Анализ продуктов, реакций и генерация отчётов
-          </Text>
+        <View style={styles.heroCard}>
+          <View style={styles.heroTop}>
+            <View style={styles.heroIconWrap}>
+              <Ionicons name="bar-chart-outline" size={22} color="#FFFFFF" />
+            </View>
+            <View style={styles.heroTextWrap}>
+              <Text style={styles.heroTitle}>Отчёты и аналитика</Text>
+              <Text style={styles.heroSubtitle}>
+                Сводка по реакциям, продуктам и симптомам за ваш период наблюдений.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.heroPeriodCard}>
+            <Text style={styles.heroPeriodLabel}>Период данных</Text>
+            <View style={styles.periodInputRow}>
+              <View style={styles.periodInputBox}>
+                <Text style={styles.periodInputLabel}>С</Text>
+                <TextInput
+                  style={styles.periodInput}
+                  value={dateFrom}
+                  onChangeText={(value) => {
+                    setPeriodTouched(true);
+                    setDateFrom(value.trim());
+                  }}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#BFD0FF"
+                  autoCapitalize="none"
+                />
+              </View>
+              <View style={styles.periodInputBox}>
+                <Text style={styles.periodInputLabel}>По</Text>
+                <TextInput
+                  style={styles.periodInput}
+                  value={dateTo}
+                  onChangeText={(value) => {
+                    setPeriodTouched(true);
+                    setDateTo(value.trim());
+                  }}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#BFD0FF"
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+            {periodError ? (
+              <Text style={styles.periodErrorText}>{periodError}</Text>
+            ) : (
+              <Text style={styles.heroPeriodValue}>
+                {dateFrom} - {dateTo}
+              </Text>
+            )}
+            <View style={styles.heroActionsRow}>
+              <TouchableOpacity
+                style={[styles.heroActionButton, applyingPeriod && styles.generateButtonDisabled]}
+                disabled={applyingPeriod}
+                onPress={() => {
+                  void applyPeriod();
+                }}
+              >
+                <Text style={styles.heroActionButtonText}>
+                  {applyingPeriod ? 'Применяем...' : 'Применить период'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.heroActionButton,
+                  styles.heroActionButtonPrimary,
+                  generatingReport && styles.generateButtonDisabled,
+                ]}
+                disabled={generatingReport}
+                onPress={() => {
+                  void handleGenerateReport();
+                }}
+              >
+                <Text style={styles.heroActionButtonPrimaryText}>
+                  {generatingReport ? 'Генерируем...' : 'Сгенерировать отчет'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         <View style={styles.cardSection}>
-          <Text style={styles.sectionTitle}>Сводная статистика</Text>
+          <View style={styles.sectionHead}>
+            <Ionicons name="grid-outline" size={18} color="#1D4ED8" />
+            <Text style={styles.sectionTitle}>Сводная статистика</Text>
+          </View>
 
           <View style={styles.statsGrid}>
-            <View style={[styles.statCard, { backgroundColor: '#EAF1F7' }]}>
-              <Text style={[styles.statValue, { color: '#2F6690' }]}>
-                {dashboardStats.totalFoodEntries}
-              </Text>
-              <Text style={styles.statLabel}>Записей еды</Text>
-            </View>
-
-            <View style={[styles.statCard, { backgroundColor: '#FCEBED' }]}>
-              <Text style={[styles.statValue, { color: '#E63946' }]}>
-                {dashboardStats.totalReactions}
-              </Text>
-              <Text style={styles.statLabel}>Реакций</Text>
-            </View>
-
-            <View style={[styles.statCard, { backgroundColor: '#EAF8F0' }]}>
-              <Text style={[styles.statValue, { color: '#2DCB70' }]}>
-                {dashboardStats.avgWellbeing.toFixed(1)}
-              </Text>
-              <Text style={styles.statLabel}>Среднее самочувствие</Text>
-            </View>
-
-            <View style={[styles.statCard, { backgroundColor: '#FCF8E8' }]}>
-              <Text style={[styles.statValue, { color: '#D4A017' }]}>
-                {dashboardStats.avgMood.toFixed(1)}
-              </Text>
-              <Text style={styles.statLabel}>Среднее настроение</Text>
-            </View>
+            {[
+              {
+                key: 'food',
+                icon: 'restaurant-outline' as const,
+                value: String(dashboardStats.totalFoodEntries),
+                label: 'Записей еды',
+                hint: 'за период',
+                color: '#1D4ED8',
+              },
+              {
+                key: 'react',
+                icon: 'warning-outline' as const,
+                value: String(dashboardStats.totalReactions),
+                label: 'Реакций',
+                hint: 'за период',
+                color: '#E11D48',
+              },
+              {
+                key: 'wellbeing',
+                icon: 'heart-outline' as const,
+                value: dashboardStats.avgWellbeing.toFixed(1),
+                label: 'Среднее самочувствие',
+                hint: 'по шкале 1-5',
+                color: '#16A34A',
+              },
+              {
+                key: 'mood',
+                icon: 'sunny-outline' as const,
+                value: dashboardStats.avgMood.toFixed(1),
+                label: 'Среднее настроение',
+                hint: 'по шкале 1-5',
+                color: '#F59E0B',
+              },
+            ].map((item) => (
+              <View key={item.key} style={[styles.statCard, isCompact && styles.statCardCompact]}>
+                <View style={styles.statTopRow}>
+                  <View style={[styles.statIconWrap, { backgroundColor: `${item.color}18` }]}>
+                    <Ionicons name={item.icon} size={16} color={item.color} />
+                  </View>
+                  <Text style={[styles.statValue, { color: item.color }]}>{item.value}</Text>
+                </View>
+                <Text style={styles.statLabel}>{item.label}</Text>
+                <Text style={styles.statHint}>{item.hint}</Text>
+              </View>
+            ))}
           </View>
 
           <View style={styles.highlightList}>
             <View style={styles.highlightRow}>
-              <Ionicons name="warning-outline" size={20} color="#E63946" />
+              <Ionicons name="warning-outline" size={20} color="#E11D48" />
               <Text style={styles.highlightText}>
                 Самый рискованный продукт:{' '}
                 <Text style={styles.highlightStrong}>
@@ -372,7 +460,7 @@ export default function ReportsScreen() {
               <Ionicons
                 name="shield-checkmark-outline"
                 size={20}
-                color="#2DCB70"
+                color="#22C55E"
               />
               <Text style={styles.highlightText}>
                 Самый безопасный продукт:{' '}
@@ -385,7 +473,10 @@ export default function ReportsScreen() {
         </View>
 
         <View style={styles.cardSection}>
-          <Text style={styles.sectionTitle}>Безопасные продукты</Text>
+          <View style={styles.sectionHead}>
+            <Ionicons name="shield-checkmark-outline" size={18} color="#22C55E" />
+            <Text style={styles.sectionTitle}>Безопасные продукты</Text>
+          </View>
 
           <View style={styles.list}>
             {dashboardStats.safeFoods.length === 0 ? (
@@ -394,7 +485,7 @@ export default function ReportsScreen() {
               </Text>
             ) : (
               dashboardStats.safeFoods.map((item) => (
-                <View key={item.foodName} style={styles.listCard}>
+                <View key={item.foodName} style={[styles.listCard, styles.safeListCard]}>
                   <View style={styles.listHeader}>
                     <Text style={styles.listTitle}>{item.foodName}</Text>
                     <View
@@ -403,7 +494,7 @@ export default function ReportsScreen() {
                         { backgroundColor: '#EAF8F0' },
                       ]}
                     >
-                      <Text style={[styles.scoreText, { color: '#2DCB70' }]}>
+                      <Text style={[styles.scoreText, { color: '#22C55E' }]}>
                         {toSafePercent(item.safetyScore)}
                       </Text>
                     </View>
@@ -422,7 +513,10 @@ export default function ReportsScreen() {
         </View>
 
         <View style={styles.cardSection}>
-          <Text style={styles.sectionTitle}>Опасные продукты</Text>
+          <View style={styles.sectionHead}>
+            <Ionicons name="warning-outline" size={18} color="#E11D48" />
+            <Text style={styles.sectionTitle}>Опасные продукты</Text>
+          </View>
 
           <View style={styles.list}>
             {dashboardStats.dangerFoods.length === 0 ? (
@@ -431,7 +525,7 @@ export default function ReportsScreen() {
               </Text>
             ) : (
               dashboardStats.dangerFoods.map((item) => (
-                <View key={item.foodName} style={styles.listCard}>
+                <View key={item.foodName} style={[styles.listCard, styles.dangerListCard]}>
                   <View style={styles.listHeader}>
                     <Text style={styles.listTitle}>{item.foodName}</Text>
                     <View
@@ -440,7 +534,7 @@ export default function ReportsScreen() {
                         { backgroundColor: '#FCEBED' },
                       ]}
                     >
-                      <Text style={[styles.scoreText, { color: '#E63946' }]}>
+                      <Text style={[styles.scoreText, { color: '#E11D48' }]}>
                         {toSafePercent(item.riskScore)}
                       </Text>
                     </View>
@@ -459,63 +553,10 @@ export default function ReportsScreen() {
         </View>
 
         <View style={styles.cardSection}>
-          <Text style={styles.sectionTitle}>Сгенерировать отчёт</Text>
-
-          <Text style={styles.smallLabel}>Тип отчёта</Text>
-          <View style={styles.chipsRow}>
-            {(
-              ['SUMMARY', 'DETAILED', 'FOOD_ANALYSIS', 'SYMPTOM_ANALYSIS'] as ReportType[]
-            ).map((type) => {
-              const isActive = selectedType === type;
-
-              return (
-                <TouchableOpacity
-                  key={type}
-                  style={[styles.chip, isActive && styles.chipActive]}
-                  activeOpacity={0.85}
-                  onPress={() => setSelectedType(type)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      isActive && styles.chipTextActive,
-                    ]}
-                  >
-                    {reportTypeLabel(type)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+          <View style={styles.sectionHead}>
+            <Ionicons name="analytics-outline" size={18} color="#7C3AED" />
+            <Text style={styles.sectionTitle}>Анализ компонентов и симптомов</Text>
           </View>
-
-          <Text style={styles.smallLabel}>Формат</Text>
-          <View style={styles.formatRow}>
-            {(['PDF', 'DOCX'] as ReportFormat[]).map((format) => {
-              const isActive = selectedFormat === format;
-
-              return (
-                <TouchableOpacity
-                  key={format}
-                  style={[
-                    styles.formatButton,
-                    isActive && styles.formatButtonActive,
-                  ]}
-                  activeOpacity={0.85}
-                  onPress={() => setSelectedFormat(format)}
-                >
-                  <Text
-                    style={[
-                      styles.formatButtonText,
-                      isActive && styles.formatButtonTextActive,
-                    ]}
-                  >
-                    {format}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
           <View style={styles.dateBox}>
             <View style={styles.dateItem}>
               <Text style={styles.dateLabel}>Начало периода</Text>
@@ -527,99 +568,21 @@ export default function ReportsScreen() {
               <Text style={styles.dateValue}>{dateRange.to}</Text>
             </View>
           </View>
-
-          <TouchableOpacity
-            style={[
-              styles.generateButton,
-              generating && styles.generateButtonDisabled,
-            ]}
-            activeOpacity={0.85}
-            onPress={handleGenerateReport}
-            disabled={generating}
-          >
-            {generating ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <MaterialCommunityIcons
-                  name="file-chart-outline"
-                  size={20}
-                  color="#FFFFFF"
-                />
-                <Text style={styles.generateButtonText}>
-                  Сгенерировать отчёт
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.cardSection}>
-          <Text style={styles.sectionTitle}>Последние отчёты</Text>
-
           <View style={styles.list}>
-            {generatedReports.length === 0 ? (
+            {analyzerData.length === 0 ? (
               <Text style={styles.emptyText}>
-                Отчётов пока нет. Сгенерируйте первый отчёт.
+                Недостаточно данных для анализа за выбранный период.
               </Text>
             ) : (
-              generatedReports.map((item) => (
-                <View key={item.id} style={styles.reportCard}>
-                  <View style={styles.reportTop}>
-                    <View style={styles.reportInfo}>
-                      <Text style={styles.reportTitle}>
-                        {reportTypeLabel(item.reportType)}
-                      </Text>
-                      <Text style={styles.reportDate}>
-                        {formatDate(item.createdAt)}
-                      </Text>
-                    </View>
-
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor: `${statusColor(item.status)}18`,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statusText,
-                          { color: statusColor(item.status) },
-                        ]}
-                      >
-                        {statusLabel(item.status)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.reportBottom}>
-                    <Text style={styles.reportFormat}>{item.format}</Text>
-
-                    {item.status === 'READY' ? (
-                      <TouchableOpacity
-                        style={styles.downloadButton}
-                        activeOpacity={0.85}
-                        onPress={() => {
-                          void handleDownload(item);
-                        }}
-                      >
-                        <Ionicons
-                          name="download-outline"
-                          size={18}
-                          color="#2F6690"
-                        />
-                        <Text style={styles.downloadButtonText}>Скачать</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <View style={styles.processingBox}>
-                        <Text style={styles.processingText}>
-                          Ожидайте завершения
-                        </Text>
-                      </View>
-                    )}
-                  </View>
+              analyzerData.map((item) => (
+                <View key={item.foodComponentName} style={styles.reportCard}>
+                  <Text style={styles.reportTitle}>{item.foodComponentName}</Text>
+                  <Text style={styles.metaText}>
+                    Связанные симптомы:{' '}
+                    {item.symptomsName.length > 0
+                      ? item.symptomsName.join(', ')
+                      : 'не обнаружены'}
+                  </Text>
                 </View>
               ))
             )}
@@ -633,14 +596,15 @@ export default function ReportsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#EEF4FF',
   },
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#EEF4FF',
   },
   contentContainer: {
-    padding: 16,
+    paddingHorizontal: 12,
+    paddingTop: 12,
     paddingBottom: 120,
   },
   loaderWrap: {
@@ -648,36 +612,144 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
-    marginBottom: 12,
+  heroCard: {
+    backgroundColor: '#1D4ED8',
+    borderRadius: 28,
+    padding: 18,
+    marginBottom: 4,
+    shadowColor: '#1D4ED8',
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
   },
-  title: {
-    fontSize: 28,
+  heroTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  heroIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF2B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  heroTextWrap: {
+    flex: 1,
+  },
+  heroTitle: {
+    fontSize: 24,
     fontWeight: '700',
-    color: '#233142',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  heroSubtitle: {
+    fontSize: 14,
+    color: '#DDEAF8',
+    lineHeight: 20,
+  },
+  heroPeriodCard: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  heroPeriodLabel: {
+    color: '#DDEAF8',
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  heroPeriodValue: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  periodInputRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  periodInputBox: {
+    flex: 1,
+  },
+  periodInputLabel: {
+    color: '#DDEAF8',
+    fontSize: 12,
     marginBottom: 6,
   },
-  subtitle: {
+  periodInput: {
+    backgroundColor: '#FFFFFF26',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFFFFF3D',
+    color: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     fontSize: 14,
-    color: '#667085',
-    lineHeight: 20,
+    fontWeight: '600',
+  },
+  periodErrorText: {
+    marginTop: 8,
+    color: '#FEE2E2',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  heroActionsRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  heroActionButton: {
+    flex: 1,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF1F',
+    borderWidth: 1,
+    borderColor: '#FFFFFF45',
+    minHeight: 42,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+  },
+  heroActionButtonPrimary: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+  heroActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  heroActionButtonPrimaryText: {
+    color: '#1D4ED8',
+    fontSize: 13,
+    fontWeight: '700',
   },
   cardSection: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    padding: 20,
+    padding: 18,
     marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#E5EAF3',
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 14,
+  },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '700',
     color: '#233142',
-    marginBottom: 18,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -687,19 +759,43 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: '48%',
-    borderRadius: 18,
-    paddingVertical: 18,
+    borderRadius: 16,
+    paddingVertical: 14,
     paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    minHeight: 104,
+  },
+  statCardCompact: {
+    width: '100%',
+  },
+  statTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  statIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statValue: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
-    marginBottom: 8,
   },
   statLabel: {
     fontSize: 14,
-    color: '#344054',
-    fontWeight: '500',
+    color: '#1F2937',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  statHint: {
+    fontSize: 12,
+    color: '#94A3B8',
   },
   highlightList: {
     marginTop: 18,
@@ -723,11 +819,19 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   listCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F8FBFF',
     borderRadius: 18,
     padding: 14,
     borderWidth: 1,
     borderColor: '#EEF2F6',
+    borderLeftWidth: 4,
+    borderLeftColor: '#D7E3F4',
+  },
+  safeListCard: {
+    borderLeftColor: '#22C55E',
+  },
+  dangerListCard: {
+    borderLeftColor: '#E11D48',
   },
   listHeader: {
     flexDirection: 'row',
@@ -769,18 +873,18 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   chip: {
-    backgroundColor: '#EAF1F7',
+    backgroundColor: '#DBEAFE',
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   chipActive: {
-    backgroundColor: '#2F6690',
+    backgroundColor: '#1D4ED8',
   },
   chipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#2F6690',
+    color: '#1D4ED8',
   },
   chipTextActive: {
     color: '#FFFFFF',
@@ -792,19 +896,19 @@ const styles = StyleSheet.create({
   },
   formatButton: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F8FBFF',
     borderRadius: 16,
     paddingVertical: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E4E7EC',
+    borderColor: '#D7E3F4',
   },
   formatButtonActive: {
-    backgroundColor: '#2F6690',
-    borderColor: '#2F6690',
+    backgroundColor: '#1D4ED8',
+    borderColor: '#1D4ED8',
   },
   formatButtonText: {
-    color: '#2F6690',
+    color: '#1D4ED8',
     fontSize: 15,
     fontWeight: '700',
   },
@@ -812,7 +916,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   dateBox: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F8FBFF',
     borderRadius: 18,
     padding: 14,
     marginBottom: 18,
@@ -832,7 +936,7 @@ const styles = StyleSheet.create({
   generateButton: {
     height: 54,
     borderRadius: 16,
-    backgroundColor: '#2F6690',
+    backgroundColor: '#1D4ED8',
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
@@ -847,7 +951,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   reportCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F8FBFF',
     borderRadius: 18,
     padding: 14,
     borderWidth: 1,
@@ -890,7 +994,7 @@ const styles = StyleSheet.create({
   reportFormat: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#2F6690',
+    color: '#1D4ED8',
   },
   downloadButton: {
     flexDirection: 'row',
@@ -898,7 +1002,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   downloadButtonText: {
-    color: '#2F6690',
+    color: '#1D4ED8',
     fontSize: 14,
     fontWeight: '700',
   },
@@ -909,7 +1013,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   processingText: {
-    color: '#D4A017',
+    color: '#D97706',
     fontSize: 12,
     fontWeight: '700',
   },

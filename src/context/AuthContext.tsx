@@ -1,12 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useState } from 'react';
-import { setAccessToken } from '../api/client';
+import { logoutApi } from '../api/authApi';
+import {
+  clearAuthTokens,
+  setAccessToken,
+  setRefreshToken,
+} from '../api/client';
 
 type AuthContextType = {
   isAuthenticated: boolean;
   isLoading: boolean;
   token: string | null;
-  login: (token: string) => Promise<void>;
+  login: (token: string, refreshToken?: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -26,9 +31,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const init = async () => {
     try {
       const savedToken = await AsyncStorage.getItem('accessToken');
+      const savedRefreshToken = await AsyncStorage.getItem('refreshToken');
 
       if (savedToken) {
-        setAccessToken(savedToken); // 🔥 ВАЖНО
+        setAccessToken(savedToken);
+        setRefreshToken(savedRefreshToken);
         setToken(savedToken);
         setIsAuthenticated(true);
       }
@@ -39,11 +46,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const login = async (newToken: string) => {
+  const login = async (newToken: string, newRefreshToken?: string) => {
     try {
-      setAccessToken(newToken); // 🔥 ВАЖНО
+      setAccessToken(newToken);
+      setRefreshToken(newRefreshToken ?? null);
 
-      await AsyncStorage.setItem('accessToken', newToken);
+      const entries: [string, string][] = [['accessToken', newToken]];
+      if (newRefreshToken) {
+        entries.push(['refreshToken', newRefreshToken]);
+      }
+      await AsyncStorage.multiSet(entries);
 
       setToken(newToken);
       setIsAuthenticated(true);
@@ -54,14 +66,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      setAccessToken(null); // 🔥 ВАЖНО
-
-      await AsyncStorage.removeItem('accessToken');
-
+      const refreshToken = await AsyncStorage.getItem('refreshToken');
+      if (refreshToken) {
+        await logoutApi(refreshToken).catch(() => undefined);
+      }
+      await clearAuthTokens();
+    } finally {
       setToken(null);
       setIsAuthenticated(false);
-    } catch (e) {
-      console.log('Logout error', e);
+      setAccessToken(null);
+      setRefreshToken(null);
     }
   };
 

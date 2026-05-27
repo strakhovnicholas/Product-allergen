@@ -1,202 +1,222 @@
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  RefreshControl,
   SafeAreaView,
   ScrollView,
+  StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import {
-  deleteNoteApi,
-  getNotesByDateApi,
+  createNoteApi,
+  updateNoteApi,
 } from '../src/api/diaryApi';
-
-const formatDate = (date: Date) =>
-  date.toISOString().split('T')[0];
+import { formStyles as styles } from '../src/styles/formStyles';
 
 export default function NotesScreen() {
-  const [notes, setNotes] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const params = useLocalSearchParams<{
+    noteId?: string;
+    content?: string;
+    date?: string;
+  }>();
+  const isEdit = useMemo(() => Boolean(params.noteId), [params.noteId]);
 
-  const [selectedDate, setSelectedDate] = useState(
-    formatDate(new Date())
-  );
+  const [content, setContent] = useState(params.content ?? '');
+  const [saving, setSaving] = useState(false);
+  const templates = [
+    'После обеда появилась реакция',
+    'Симптомы усилились к вечеру',
+    'После лекарства стало лучше',
+    'Подозрение на продукт-триггер',
+  ];
+  const tags = ['Триггер', 'Лекарство', 'Симптом', 'Питание'];
 
-  // ===== LOAD =====
-  const load = async () => {
+  const handleSave = async () => {
+    const trimmed = content.trim();
+    if (!trimmed) {
+      Alert.alert('Ошибка', 'Введите текст заметки');
+      return;
+    }
+
+    setSaving(true);
     try {
-      console.log('LOAD NOTES FOR DATE:', selectedDate);
+      const baseDate = params.date ? new Date(params.date) : new Date();
+      const payload = {
+        content: trimmed,
+        date: Number.isNaN(baseDate.getTime())
+          ? new Date().toISOString()
+          : baseDate.toISOString(),
+      };
 
-      setLoading(true);
-
-      const data = await getNotesByDateApi(selectedDate);
-
-      console.log('NOTES RESULT:', data);
-
-      setNotes(Array.isArray(data) ? data : []);
-    } catch (e: any) {
-      console.log('NOTES ERROR FULL:', e);
-
-      if (e.message?.includes('401')) {
-        Alert.alert(
-          'Авторизация',
-          'Ты не авторизован. Перезайди в приложение'
-        );
+      if (isEdit && params.noteId) {
+        await updateNoteApi(params.noteId, payload);
       } else {
-        Alert.alert('Ошибка загрузки заметок');
+        await createNoteApi(payload);
       }
+
+      router.back();
+    } catch (error) {
+      Alert.alert(
+        'Ошибка',
+        error instanceof Error ? error.message : 'Не удалось сохранить заметку'
+      );
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  useEffect(() => {
-    load();
-  }, [selectedDate]);
-
-  // ===== REFRESH =====
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  };
-
-  // ===== DELETE =====
-  const handleDelete = (id: string) => {
-    Alert.alert('Удаление', 'Удалить заметку?', [
-      { text: 'Отмена', style: 'cancel' },
-      {
-        text: 'Удалить',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteNoteApi(id);
-            load();
-          } catch (e) {
-            console.log('DELETE ERROR:', e);
-            Alert.alert('Ошибка удаления');
-          }
-        },
-      },
-    ]);
-  };
-
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F7FB' }}>
-      <ScrollView
-        contentContainerStyle={{ padding: 16 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-          />
-        }
-      >
-        {/* ===== TITLE ===== */}
-        <Text style={{ fontSize: 26, fontWeight: '700' }}>
-          Заметки
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.title}>
+          {isEdit ? 'Редактировать заметку' : 'Заметка'}
         </Text>
 
-        {/* ===== DATE ===== */}
-        <View
-          style={{
-            marginTop: 12,
-            backgroundColor: '#fff',
-            padding: 14,
-            borderRadius: 16,
-          }}
-        >
-          <Text style={{ color: '#667085' }}>Дата</Text>
+        <View style={styles.card}>
+          <View style={localStyles.heroNote}>
+            <Ionicons name="sparkles-outline" size={18} color="#1D4ED8" />
+            <Text style={localStyles.heroNoteText}>
+              Добавьте краткую заметку, чтобы лучше видеть связи между едой, симптомами и лечением.
+            </Text>
+          </View>
 
-          <Text style={{ fontWeight: '600', marginTop: 6 }}>
-            {selectedDate}
-          </Text>
-        </View>
-
-        {/* ===== ADD ===== */}
-        <TouchableOpacity
-          onPress={() => router.push('/add-note')}
-          style={{
-            marginTop: 12,
-            backgroundColor: '#2F6690',
-            padding: 14,
-            borderRadius: 16,
-          }}
-        >
-          <Text style={{ color: '#fff', textAlign: 'center' }}>
-            + Добавить заметку
-          </Text>
-        </TouchableOpacity>
-
-        {/* ===== CONTENT ===== */}
-        {loading ? (
-          <ActivityIndicator style={{ marginTop: 30 }} />
-        ) : notes.length === 0 ? (
-          <Text style={{ marginTop: 20 }}>
-            Нет заметок за этот день
-          </Text>
-        ) : (
-          notes.map((item) => (
-            <View
-              key={item.noteId}
-              style={{
-                backgroundColor: '#fff',
-                padding: 16,
-                borderRadius: 18,
-                marginTop: 12,
-              }}
-            >
-              <Text style={{ marginBottom: 8 }}>
-                {item.content}
-              </Text>
-
-              <Text style={{ fontSize: 12, color: '#98A2B3' }}>
-                {new Date(item.date).toLocaleString('ru-RU')}
-              </Text>
-
-              {/* ACTIONS */}
-              <View
-                style={{
-                  flexDirection: 'row',
-                  marginTop: 10,
-                }}
+          <View style={localStyles.topRow}>
+            <Ionicons name="document-text-outline" size={18} color="#1D4ED8" />
+            <Text style={localStyles.topRowText}>Быстрые шаблоны</Text>
+          </View>
+          <View style={localStyles.templatesWrap}>
+            {templates.map((item) => (
+              <TouchableOpacity
+                key={item}
+                style={localStyles.templateChip}
+                onPress={() => setContent(item)}
+                activeOpacity={0.85}
               >
-                <TouchableOpacity
-                  onPress={() =>
-                    router.push({
-                      pathname: '/add-note',
-                      params: {
-                        noteId: item.noteId,
-                        content: item.content,
-                        date: item.date,
-                      },
-                    })
-                  }
-                  style={{ marginRight: 16 }}
-                >
-                  <Text style={{ color: '#2F6690' }}>
-                    Редактировать
-                  </Text>
-                </TouchableOpacity>
+                <Text style={localStyles.templateChipText}>{item}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={localStyles.tagsWrap}>
+            {tags.map((tag) => (
+              <TouchableOpacity
+                key={tag}
+                style={localStyles.tagChip}
+                onPress={() => setContent((prev) => (prev ? `${prev}\n#${tag}` : `#${tag}`))}
+                activeOpacity={0.85}
+              >
+                <Text style={localStyles.tagChipText}>#{tag}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-                <TouchableOpacity
-                  onPress={() => handleDelete(item.noteId)}
-                >
-                  <Text style={{ color: '#E63946' }}>
-                    Удалить
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
-        )}
+          <Text style={styles.label}>Текст заметки</Text>
+          <TextInput
+            style={[styles.input, styles.multiline, localStyles.noteInput]}
+            value={content}
+            onChangeText={setContent}
+            placeholder="Запишите наблюдение, симптом или важную деталь..."
+            multiline
+          />
+          <Text style={localStyles.counter}>{content.trim().length} символов</Text>
+
+          <TouchableOpacity
+            style={[styles.button, saving && { opacity: 0.7 }]}
+            onPress={handleSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.buttonText}>
+                {isEdit ? 'Обновить' : 'Сохранить'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+const localStyles = StyleSheet.create({
+  heroNote: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#EEF4FF',
+    borderWidth: 1,
+    borderColor: '#D6E4FF',
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 10,
+  },
+  heroNoteText: {
+    flex: 1,
+    color: '#1E3A8A',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  topRowText: {
+    color: '#1D4ED8',
+    fontWeight: '700',
+  },
+  templatesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 6,
+  },
+  tagsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  tagChip: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  tagChipText: {
+    color: '#B45309',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  templateChip: {
+    backgroundColor: '#EAF2FF',
+    borderWidth: 1,
+    borderColor: '#D6E4FF',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  templateChipText: {
+    color: '#1D4ED8',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  noteInput: {
+    minHeight: 160,
+    textAlignVertical: 'top',
+  },
+  counter: {
+    marginTop: 8,
+    color: '#64748B',
+    fontSize: 12,
+    textAlign: 'right',
+  },
+});

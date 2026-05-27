@@ -93,7 +93,7 @@ export default function ProfileSetup() {
       await updateUserProfileApi(payload); // ✅ используем PUT
 
       Alert.alert('Успешно', 'Профиль сохранён');
-      router.replace('/(tabs)' as any);
+      router.replace('/(tabs)/diary' as any);
     } catch (error) {
       console.log('PROFILE ERROR:', error);
       Alert.alert(
@@ -177,7 +177,7 @@ export default function ProfileSetup() {
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           {isLogoutSubmitting ? (
-            <ActivityIndicator color="#E63946" />
+            <ActivityIndicator color="#E11D48" />
           ) : (
             <Text style={styles.logoutText}>Выйти</Text>
           )}
@@ -188,7 +188,7 @@ export default function ProfileSetup() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F5F7FB' },
+  safeArea: { flex: 1, backgroundColor: '#EEF4FF' },
   contentContainer: { padding: 20 },
 
   backButton: { marginBottom: 10 },
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
 
   button: {
     marginTop: 20,
-    backgroundColor: '#2F6690',
+    backgroundColor: '#1D4ED8',
     padding: 14,
     borderRadius: 12,
   },
@@ -225,5 +225,5 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
 
-  logoutText: { color: '#E63946', textAlign: 'center', fontWeight: '700' },
+  logoutText: { color: '#E11D48', textAlign: 'center', fontWeight: '700' },
 });

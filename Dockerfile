@@ -1,24 +1,24 @@
-FROM node:20 AS build
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install
+ENV CI=1
+
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
 COPY . .
 
-# production web export
-RUN npx expo export -p web
+# Build static web bundle for Expo Router app
+RUN npx expo export --platform web --output-dir dist
 
 
-FROM nginx:alpine
+FROM nginx:1.27-alpine AS runtime
 
-# Expo обычно кладёт web билд сюда
+# Serve static web build
 COPY --from=build /app/dist /usr/share/nginx/html
-
-# nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/usr/sbin/nginx", "-g", "daemon off;"]

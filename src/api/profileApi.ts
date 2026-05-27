@@ -1,6 +1,7 @@
-import { apiRequest } from './client';
+import { apiRequest, ApiRequestError } from './client';
 
 export type Profile = {
+  userId?: string;
   fullName: string;
 
   age?: number;
@@ -8,6 +9,10 @@ export type Profile = {
   height?: number; // ✅ ДОБАВИЛИ
 
   gender?: string;
+  country?: string;
+  predisposition?: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
+  doctorNotes?: string;
+  medicationsRegular?: string[];
 
   smoker?: boolean;
   alcohol?: boolean;
@@ -18,17 +23,31 @@ export type Profile = {
 };
 
 export async function getUserProfileApi(): Promise<Profile> {
-  return apiRequest<Profile>('/api/user/info', {
-    method: 'GET',
-    auth: true,
-  });
+  try {
+    return await apiRequest<Profile>('/api/user/info', {
+      method: 'GET',
+      auth: true,
+      silentErrors: true,
+    });
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 500) {
+      return {
+        fullName: '',
+      };
+    }
+    throw error;
+  }
 }
 
 export async function updateUserProfileApi(
-  payload: Profile
+  payload: Profile,
+  userId?: string
 ): Promise<void> {
-  return apiRequest<void>('/api/user/info', {
-    method: 'POST',
+  const path = userId
+    ? `/api/user/info?userId=${encodeURIComponent(userId)}`
+    : '/api/user/info';
+  return apiRequest<void>(path, {
+    method: 'PUT',
     body: payload,
     auth: true,
   });
@@ -37,9 +56,21 @@ export async function updateUserProfileApi(
 export async function saveProfileApi(
   payload: Profile
 ): Promise<void> {
+  const normalizedPayload: Profile = {
+    country: 'Не указан',
+    predisposition: 'NONE',
+    ...payload,
+    gender:
+      payload.gender?.toUpperCase() === 'MALE'
+        ? 'MALE'
+        : payload.gender?.toUpperCase() === 'FEMALE'
+          ? 'FEMALE'
+          : payload.gender,
+  };
+
   return apiRequest<void>('/api/user/info', {
     method: 'POST',
-    body: payload,
+    body: normalizedPayload,
     auth: true,
   });
 }

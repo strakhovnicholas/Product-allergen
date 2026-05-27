@@ -1,37 +1,158 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  RefreshControl,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    RefreshControl,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from 'react-native';
 
 import {
-  CommonFeeling,
-  deleteCommonFeelingApi,
-  deleteFoodApi,
-  deleteMedicineApi,
-  deleteNoteApi,
-  deleteSymptomApi,
-  Food,
-  getCommonFeelingsApi,
-  getFoodApi,
-  getMedicinesApi,
-  getNotesApi,
-  getSymptomsApi,
-  Medicine,
-  Note,
-  Symptom,
+    CommonFeeling,
+    createFoodApi,
+    createMedicineApi,
+    createNoteApi,
+    createSymptomApi,
+    deleteCommonFeelingApi,
+    deleteFoodApi,
+    deleteMedicineApi,
+    deleteNoteApi,
+    deleteSymptomApi,
+    EntityId,
+    Food,
+    getCommonFeelingsByDateApi,
+    getFoodByDateApi,
+    getMedicinesByDateApi,
+    getMedicinesCatalogApi,
+    getNotesByDateApi,
+    getSymptomsByDateApi,
+    getSymptomsCatalogApi,
+    Medicine,
+    Note,
+    searchFoodCatalogApi,
+    Symptom,
+    updateCommonFeelingApi,
+    updateFoodApi,
+    updateMedicineApi,
+    updateNoteApi,
+    updateSymptomApi,
+    upsertCommonFeelingApi
 } from '../../src/api/diaryApi';
+import { TOP_FOOD_CATALOG } from '../../src/constants/foodCatalog';
+import { getUserProfileApi, UserProfile } from '../../src/api/profileApi';
 
-type FilterType = 'all' | 'today' | 'week' | 'month';
+type EditorType = 'common' | 'symptom' | 'medicine' | 'food' | 'note';
+const NativeDateTimePicker =
+  Platform.OS === 'web' ? null : require('@react-native-community/datetimepicker').default;
+
+const DEFAULT_SYMPTOMS = [
+  'Насморк',
+  'Заложенность носа',
+  'Чихание',
+  'Кашель',
+  'Одышка',
+  'Боль в горле',
+  'Покраснение глаз',
+  'Слезотечение',
+  'Зуд кожи',
+  'Сыпь',
+  'Крапивница',
+  'Отек губ',
+  'Отек век',
+  'Отек горла',
+  'Тошнота',
+  'Боль в животе',
+  'Изжога',
+  'Диарея',
+  'Головная боль',
+  'Головокружение',
+  'Слабость',
+  'Повышенная температура',
+  'Озноб',
+  'Сонливость',
+  'Раздражительность',
+  'Учащенное сердцебиение',
+];
+
+const DEFAULT_MEDICINES = [
+  'Цетиризин',
+  'Лоратадин',
+  'Дезлоратадин',
+  'Фексофенадин',
+  'Супрастин',
+  'Тавегил',
+  'Эриус',
+  'Зиртек',
+  'Кларитин',
+  'Фенистил',
+  'Полисорб',
+  'Энтеросгель',
+  'Смекта',
+  'Активированный уголь',
+  'Парацетамол',
+  'Ибупрофен',
+  'Но-шпа',
+  'Мезим',
+  'Креон',
+  'Омепразол',
+  'Називин',
+  'Аквамарис',
+  'Сальбутамол',
+  'Беродуал',
+  'Преднизолон',
+];
+
+const MEDICINE_UNIT_LABELS: Record<string, string> = {
+  MG: 'мг',
+  ML: 'мл',
+  TABLET: 'таб',
+  DROP: 'кап',
+};
+
+const FOOD_UNIT_LABELS: Record<string, string> = {
+  GRAM: 'г',
+  PORTION: 'порц',
+  PIECE: 'шт',
+  MILLILITER: 'мл',
+};
+
+const FOOD_CATEGORY_LABELS: Record<string, string> = {
+  FRUIT: 'Фрукты',
+  VEGETABLE: 'Овощи',
+  MEAT: 'Мясо',
+  FISH: 'Рыба',
+  DAIRY: 'Молочные продукты',
+  GRAINS: 'Крупы и злаки',
+  NUTS: 'Орехи',
+  LEGUMES: 'Бобовые',
+  FAST_FOOD: 'Фастфуд',
+  BEVERAGES: 'Напитки',
+  SWEETS: 'Сладости',
+  GARNISH: 'Гарниры',
+  SOUP: 'Супы',
+  OTHER: 'Другое',
+};
+
+function toSeverityLabel(value: number) {
+  if (value >= 7) return 'Сильно';
+  if (value >= 4) return 'Умеренно';
+  return 'Слабо';
+}
+
+function toFiveScale(value: number) {
+  if (!Number.isFinite(value)) return 3;
+  const normalized = value > 5 ? Math.round(value / 2) : Math.round(value);
+  return Math.max(1, Math.min(5, normalized));
+}
 
 function formatDate(date: string) {
   if (!date) return '-';
@@ -48,70 +169,78 @@ function formatDate(date: string) {
   });
 }
 
-function isInFilter(date: string, filter: FilterType) {
+function toLocalDateTimeInputValue(date: string) {
+  const parsedDate = new Date(date);
+  if (Number.isNaN(parsedDate.getTime())) return '';
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${parsedDate.getFullYear()}-${pad(parsedDate.getMonth() + 1)}-${pad(parsedDate.getDate())}T${pad(parsedDate.getHours())}:${pad(parsedDate.getMinutes())}`;
+}
+
+function toDayKey(value: Date | string) {
+  const parsedDate = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsedDate.getTime())) return '';
+  const pad = (num: number) => String(num).padStart(2, '0');
+  return `${parsedDate.getFullYear()}-${pad(parsedDate.getMonth() + 1)}-${pad(parsedDate.getDate())}`;
+}
+
+function formatDayLabel(value: Date) {
+  return value.toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+function isInSelectedDate(date: string, selectedDateKey: string) {
   if (!date) return false;
-  if (filter === 'all') return true;
+  return toDayKey(date) === selectedDateKey;
+}
 
-  const itemDate = new Date(date);
-  if (Number.isNaN(itemDate.getTime())) return false;
-
-  const now = new Date();
-
-  if (filter === 'today') {
-    return (
-      itemDate.getFullYear() === now.getFullYear() &&
-      itemDate.getMonth() === now.getMonth() &&
-      itemDate.getDate() === now.getDate()
-    );
-  }
-
-  const diff = now.getTime() - itemDate.getTime();
-
-  if (filter === 'week') {
-    return diff <= 7 * 24 * 60 * 60 * 1000;
-  }
-
-  if (filter === 'month') {
-    return diff <= 30 * 24 * 60 * 60 * 1000;
-  }
-
-  return true;
+function getUserDisplayName(profile: UserProfile | null) {
+  const fullName = profile?.fullName?.trim();
+  if (!fullName) return 'Здравствуйте';
+  const name = fullName.split(' ')[0];
+  return `Здравствуйте, ${name}`;
 }
 
 function SectionBlock({
   title,
   count,
   icon,
-  onPress,
+  accentColor,
+  onAddPress,
   children,
 }: {
   title: string;
   count: number;
   icon: keyof typeof Ionicons.glyphMap;
-  onPress: () => void;
+  accentColor: string;
+  onAddPress: () => void;
   children: React.ReactNode;
 }) {
   return (
     <View style={styles.sectionWrap}>
-      <TouchableOpacity
-        style={styles.sectionHeader}
-        activeOpacity={0.85}
-        onPress={onPress}
-      >
+      <View style={styles.sectionHeader}>
         <View style={styles.sectionTitleRow}>
-          <View style={styles.sectionIconWrap}>
-            <Ionicons name={icon} size={18} color="#2F6690" />
+          <View style={[styles.sectionIconWrap, { backgroundColor: `${accentColor}22` }]}>
+            <Ionicons name={icon} size={18} color={accentColor} />
           </View>
           <Text style={styles.sectionTitle}>{title}</Text>
         </View>
 
         <View style={styles.sectionRight}>
-          <View style={styles.countBadge}>
-            <Text style={styles.countBadgeText}>{count}</Text>
+          <View style={[styles.countBadge, { backgroundColor: `${accentColor}1F` }]}>
+            <Text style={[styles.countBadgeText, { color: accentColor }]}>{count}</Text>
           </View>
-          <Ionicons name="add-circle-outline" size={22} color="#2F6690" />
-        </View>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={onAddPress}
+            style={[styles.addButton, { backgroundColor: `${accentColor}1F` }]}
+          >
+            <Ionicons name="add" size={18} color={accentColor} />
       </TouchableOpacity>
+        </View>
+      </View>
 
       {children}
     </View>
@@ -129,6 +258,7 @@ function EmptySection({ text }: { text: string }) {
 function EntryCard({
   title,
   subtitle,
+  accentColor,
   children,
   onEdit,
   onDelete,
@@ -136,13 +266,14 @@ function EntryCard({
 }: {
   title: string;
   subtitle?: string;
+  accentColor: string;
   children?: React.ReactNode;
   onEdit: () => void;
   onDelete: () => void;
   deleting?: boolean;
 }) {
   return (
-    <View style={styles.entryCard}>
+    <View style={[styles.entryCard, { borderLeftColor: accentColor }]}>
       <View style={styles.entryTop}>
         <View style={styles.entryTextBlock}>
           <Text style={styles.entryTitle}>{title}</Text>
@@ -156,7 +287,7 @@ function EntryCard({
             activeOpacity={0.85}
             disabled={deleting}
           >
-            <Ionicons name="create-outline" size={16} color="#2F6690" />
+            <Ionicons name="create-outline" size={16} color="#1D4ED8" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -166,9 +297,9 @@ function EntryCard({
             disabled={deleting}
           >
             {deleting ? (
-              <ActivityIndicator size="small" color="#E63946" />
+              <ActivityIndicator size="small" color="#1D4ED8" />
             ) : (
-              <Ionicons name="trash-outline" size={16} color="#E63946" />
+              <Ionicons name="trash-outline" size={16} color="#1D4ED8" />
             )}
           </TouchableOpacity>
         </View>
@@ -195,46 +326,127 @@ function MetaRow({
 }
 
 export default function DiaryScreen() {
+  const { width } = useWindowDimensions();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterType>('all');
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  });
 
   const [commonFeelings, setCommonFeelings] = useState<CommonFeeling[]>([]);
   const [symptoms, setSymptoms] = useState<Symptom[]>([]);
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [foods, setFoods] = useState<Food[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [editorType, setEditorType] = useState<EditorType | null>(null);
+  const [editorId, setEditorId] = useState<EntityId | null>(null);
+  const [editorSaving, setEditorSaving] = useState(false);
+  const [fName, setFName] = useState('');
+  const [fNumber, setFNumber] = useState('');
+  const [fUnit, setFUnit] = useState('');
+  const [fText, setFText] = useState('');
+  const [fText2, setFText2] = useState('');
+  const [fDateTime, setFDateTime] = useState('');
+  const [fDateTimeEnd, setFDateTimeEnd] = useState('');
+  const [fToggle, setFToggle] = useState(false);
+  const [showSymptomStartPicker, setShowSymptomStartPicker] = useState(false);
+  const [showSymptomEndPicker, setShowSymptomEndPicker] = useState(false);
+  const [showEntryDatePicker, setShowEntryDatePicker] = useState(false);
+  const [symptomCatalog, setSymptomCatalog] = useState<string[]>([]);
+  const [medicineCatalog, setMedicineCatalog] = useState<string[]>([]);
+  const [foodSearch, setFoodSearch] = useState('');
+  const [foodSuggestions, setFoodSuggestions] = useState<
+    { foodName: string; category?: string; components?: string[] }[]
+  >([]);
+  const [foodSuggestionsOpen, setFoodSuggestionsOpen] = useState(false);
+  const [foodSuggestionsLoading, setFoodSuggestionsLoading] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<
+    { foodName: string; category?: string; components?: string[] }[]
+  >([]);
+  const [foodComponents, setFoodComponents] = useState<string[]>([]);
+  const [componentInput, setComponentInput] = useState('');
+  const [commonComments, setCommonComments] = useState<Record<string, string>>({});
+
+  const todayDateKey = useMemo(() => toDayKey(new Date()), []);
+  const selectedDateKey = useMemo(() => toDayKey(selectedDate), [selectedDate]);
+  const canGoNextDate = selectedDateKey < todayDateKey;
+  const defaultSelectedDateTime = useMemo(
+    () => `${selectedDateKey}T12:00:00`,
+    [selectedDateKey]
+  );
+
+  const shiftDay = useCallback((delta: number) => {
+    setSelectedDate((prev) => {
+      const next = new Date(prev);
+      next.setDate(next.getDate() + delta);
+      next.setHours(0, 0, 0, 0);
+      if (delta > 0 && toDayKey(next) > toDayKey(new Date())) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
 
   const loadDiary = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
 
-      const [commonData, symptomData, medicineData, foodData, noteData] =
-        await Promise.all([
-          getCommonFeelingsApi(),
-          getSymptomsApi(),
-          getMedicinesApi(),
-          getFoodApi(),
-          getNotesApi(),
+      const results = await Promise.allSettled([
+          getUserProfileApi(),
+          getCommonFeelingsByDateApi(selectedDateKey),
+          getSymptomsByDateApi(selectedDateKey),
+          getMedicinesByDateApi(selectedDateKey),
+          getFoodByDateApi(selectedDateKey),
+          getNotesByDateApi(selectedDateKey),
         ]);
 
-      setCommonFeelings(commonData ?? []);
-      setSymptoms(symptomData ?? []);
-      setMedicines(medicineData ?? []);
-      setFoods(foodData ?? []);
-      setNotes(noteData ?? []);
-    } catch (error) {
-      Alert.alert(
-        'Ошибка',
-        error instanceof Error ? error.message : 'Не удалось загрузить дневник'
+      const [profileResult, commonResult, symptomResult, medicineResult, foodResult, noteResult] =
+        results;
+
+      setProfile(profileResult.status === 'fulfilled' ? profileResult.value ?? null : null);
+
+      setCommonFeelings(
+        commonResult.status === 'fulfilled'
+          ? commonResult.value
+            ? [commonResult.value]
+            : []
+          : []
       );
+      setSymptoms(symptomResult.status === 'fulfilled' ? symptomResult.value ?? [] : []);
+      setMedicines(medicineResult.status === 'fulfilled' ? medicineResult.value ?? [] : []);
+      setFoods(foodResult.status === 'fulfilled' ? foodResult.value ?? [] : []);
+      setNotes(noteResult.status === 'fulfilled' ? noteResult.value ?? [] : []);
+
+      if (commonResult.status === 'fulfilled') {
+        setCommonComments((prev) => {
+          const next = { ...prev };
+          const commonItems = commonResult.value ? [commonResult.value] : [];
+          commonItems.forEach((item) => {
+            const key = String(item.feelingId);
+            if (item.comment && item.comment.trim()) {
+              next[key] = item.comment;
+            }
+          });
+          return next;
+        });
+      }
+
+      const failed = results.filter((item) => item.status === 'rejected').length;
+      if (failed > 0) {
+        Alert.alert('Внимание', 'Часть записей не загрузилась, показываем доступные данные.');
+      }
+    } catch {
+      Alert.alert('Ошибка', 'Не удалось загрузить дневник');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [selectedDateKey]);
 
   useFocusEffect(
     useCallback(() => {
@@ -242,29 +454,100 @@ export default function DiaryScreen() {
     }, [loadDiary])
   );
 
+  useEffect(() => {
+    void getSymptomsCatalogApi()
+      .then((list) =>
+        setSymptomCatalog(
+          Array.from(
+            new Set([
+              ...DEFAULT_SYMPTOMS,
+              ...(list ?? []).map((item) => item.symptomName).filter(Boolean),
+            ])
+          )
+        )
+      )
+      .catch(() => setSymptomCatalog(DEFAULT_SYMPTOMS));
+
+    void getMedicinesCatalogApi()
+      .then((list) =>
+        setMedicineCatalog(
+          Array.from(
+            new Set([
+              ...DEFAULT_MEDICINES,
+              ...(list ?? []).map((item: any) => item.medicineName).filter(Boolean),
+            ])
+          )
+        )
+      )
+      .catch(() => setMedicineCatalog(DEFAULT_MEDICINES));
+  }, []);
+
+  useEffect(() => {
+    if (editorType !== 'food') return;
+    const query = foodSearch.trim();
+    if (!query) {
+      setFoodSuggestions(TOP_FOOD_CATALOG.slice(0, 60));
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setFoodSuggestionsLoading(true);
+      try {
+        const [apiItems, localItems] = await Promise.all([
+          searchFoodCatalogApi(query).catch(() => []),
+          Promise.resolve(
+            TOP_FOOD_CATALOG.filter((item) =>
+              item.foodName.toLowerCase().includes(query.toLowerCase())
+            )
+          ),
+        ]);
+
+        const merged = [...apiItems, ...localItems];
+        const deduped = Array.from(
+          new Map(merged.map((item) => [item.foodName.toLowerCase(), item])).values()
+        ).slice(0, 60);
+        if (!cancelled) setFoodSuggestions(deduped);
+      } finally {
+        if (!cancelled) setFoodSuggestionsLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [editorType, foodSearch]);
+
   const filteredCommonFeelings = useMemo(
-    () => commonFeelings.filter((item) => isInFilter(item.dateTime, filter)),
-    [commonFeelings, filter]
+    () => commonFeelings.filter((item) => isInSelectedDate(item.dateTime, selectedDateKey)),
+    [commonFeelings, selectedDateKey]
   );
 
   const filteredSymptoms = useMemo(
-    () => symptoms.filter((item) => isInFilter(item.startTime, filter)),
-    [symptoms, filter]
+    () =>
+      symptoms.filter((item) =>
+        isInSelectedDate(item.startTime || item.createdAt || '', selectedDateKey)
+      ),
+    [symptoms, selectedDateKey]
   );
 
   const filteredMedicines = useMemo(
-    () => medicines.filter((item) => isInFilter(item.intakeTime, filter)),
-    [medicines, filter]
+    () =>
+      medicines.filter((item) =>
+        isInSelectedDate(item.intakeTime || item.intakeDate || '', selectedDateKey)
+      ),
+    [medicines, selectedDateKey]
   );
 
   const filteredFoods = useMemo(
-    () => foods.filter((item) => isInFilter(item.intakeTime, filter)),
-    [foods, filter]
+    () => foods.filter((item) => isInSelectedDate(item.intakeTime, selectedDateKey)),
+    [foods, selectedDateKey]
   );
 
   const filteredNotes = useMemo(
-    () => notes.filter((item) => isInFilter(item.date, filter)),
-    [notes, filter]
+    () => notes.filter((item) => isInSelectedDate(item.date, selectedDateKey)),
+    [notes, selectedDateKey]
   );
 
 const totalCount =
@@ -274,14 +557,8 @@ const totalCount =
   foods.length +
   notes.length;
 
-  const confirmDelete = useCallback(
-    (id: string, title: string, onDelete: () => Promise<void>) => {
-      Alert.alert('Удаление', `Удалить запись "${title}"?`, [
-        { text: 'Отмена', style: 'cancel' },
-        {
-          text: 'Удалить',
-          style: 'destructive',
-          onPress: async () => {
+  const executeDelete = useCallback(
+    async (id: string, onDelete: () => Promise<void>) => {
             try {
               setDeletingId(id);
               await onDelete();
@@ -294,18 +571,744 @@ const totalCount =
             } finally {
               setDeletingId(null);
             }
+    },
+    [loadDiary]
+  );
+
+  const confirmDelete = useCallback(
+    (id: string, title: string, onDelete: () => Promise<void>) => {
+      if (Platform.OS === 'web' && typeof globalThis.confirm === 'function') {
+        const ok = globalThis.confirm(`Удалить запись "${title}"?`);
+        if (ok) {
+          void executeDelete(id, onDelete);
+        }
+        return;
+      }
+
+      Alert.alert('Удаление', `Удалить запись "${title}"?`, [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: () => {
+            void executeDelete(id, onDelete);
           },
         },
       ]);
     },
-    [loadDiary]
+    [executeDelete]
+  );
+
+  const normalizeCategory = useCallback((value?: string) => {
+    const normalized = (value ?? '').toUpperCase();
+    const allowed = new Set([
+      'FRUIT',
+      'VEGETABLE',
+      'MEAT',
+      'FISH',
+      'DAIRY',
+      'GRAINS',
+      'NUTS',
+      'LEGUMES',
+      'FAST_FOOD',
+      'BEVERAGES',
+      'SWEETS',
+      'GARNISH',
+      'SOUP',
+      'OTHER',
+    ]);
+    return allowed.has(normalized) ? normalized : 'OTHER';
+  }, []);
+
+  const mergeUnique = useCallback((items: string[]) => {
+    return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
+  }, []);
+
+  const closeEditor = useCallback(() => {
+    setEditorType(null);
+    setEditorId(null);
+    setFName('');
+    setFNumber('');
+    setFUnit('');
+    setFText('');
+    setFText2('');
+    setFDateTime('');
+    setFDateTimeEnd('');
+    setFToggle(false);
+    setShowSymptomStartPicker(false);
+    setShowSymptomEndPicker(false);
+    setShowEntryDatePicker(false);
+    setFoodSearch('');
+    setFoodSuggestionsOpen(false);
+    setSelectedProducts([]);
+    setFoodComponents([]);
+    setComponentInput('');
+  }, []);
+
+  const openCreateEditor = useCallback((type: EditorType) => {
+    setEditorType(type);
+    setEditorId(null);
+    setFName('');
+    setFNumber(type === 'common' ? '3' : '');
+    setFUnit(type === 'medicine' ? 'MG' : type === 'food' ? 'GRAM' : '');
+    setFText('');
+    setFText2(type === 'food' ? 'OTHER' : '');
+    setFDateTime(defaultSelectedDateTime);
+    setFDateTimeEnd('');
+    setFToggle(false);
+    setShowSymptomStartPicker(false);
+    setShowSymptomEndPicker(false);
+    setShowEntryDatePicker(false);
+    setFoodSearch('');
+    setFoodSuggestionsOpen(type === 'food');
+    setSelectedProducts([]);
+    setFoodComponents([]);
+    setComponentInput('');
+  }, [defaultSelectedDateTime]);
+
+  const openEditEditor = useCallback(
+    (type: EditorType, item: any) => {
+      setEditorType(type);
+      if (type === 'common') {
+        setEditorId(item.feelingId);
+        setFNumber(String(toFiveScale(Number(item.wellbeingScore ?? 3))));
+        setFDateTime(item.dateTime ?? new Date().toISOString());
+        return;
+      }
+      if (type === 'symptom') {
+        setEditorId(item.id);
+        setFName(item.symptomName ?? '');
+        const severity = Number(item.severity ?? 5);
+        const snapped = severity >= 7 ? 8 : severity >= 4 ? 5 : 2;
+        setFNumber(String(snapped));
+        setFDateTime(item.startTime || item.createdAt || new Date().toISOString());
+        setFDateTimeEnd(item.endTime || '');
+        return;
+      }
+      if (type === 'medicine') {
+        setEditorId(item.id);
+        setFName(item.medicineName ?? '');
+        setFNumber(String(item.dosage ?? ''));
+        setFUnit(item.unit ?? 'MG');
+        setFDateTime(item.intakeTime || item.intakeDate || new Date().toISOString());
+        return;
+      }
+      if (type === 'food') {
+        setEditorId(item.foodIntakeId);
+        setFName(item.foodName ?? '');
+        setFNumber(String(item.amount ?? ''));
+        setFUnit(item.unit ?? 'GRAM');
+        setFText2(item.category ?? 'OTHER');
+        setFDateTime(item.intakeTime || new Date().toISOString());
+        setFToggle(Boolean(item.reactionOccurred));
+        setFText(item.reactionDescription ?? '');
+        setFoodSearch('');
+        setFoodSuggestionsOpen(false);
+        setSelectedProducts([]);
+        setFoodComponents(item.components ?? []);
+        setComponentInput('');
+        return;
+      }
+      setEditorId(item.noteId);
+      setFText(item.content ?? '');
+      setFDateTime(item.date || new Date().toISOString());
+    },
+    [commonComments]
+  );
+
+  const submitEditor = useCallback(async () => {
+    if (!editorType) return;
+    try {
+      setEditorSaving(true);
+      if (editorType === 'common') {
+        const score = Math.max(1, Math.min(5, Number(fNumber || '3')));
+        if (editorId != null) {
+          await updateCommonFeelingApi(editorId, {
+            dateTime: fDateTime || new Date().toISOString(),
+            wellbeingScore: score,
+          });
+        } else {
+          await upsertCommonFeelingApi({
+            dateTime: fDateTime || new Date().toISOString(),
+            wellbeingScore: score,
+          });
+        }
+      } else if (editorType === 'symptom') {
+        if (!fName.trim()) throw new Error('Введите название симптома');
+        const fallbackStart = new Date().toISOString();
+        const parsedStart = Date.parse(fDateTime);
+        const startTime = Number.isNaN(parsedStart) ? fallbackStart : new Date(parsedStart).toISOString();
+
+        const parsedEnd = fDateTimeEnd ? Date.parse(fDateTimeEnd) : Number.NaN;
+        const safeEndTime =
+          Number.isNaN(parsedEnd)
+            ? undefined
+            : new Date(Math.max(parsedEnd, Date.parse(startTime))).toISOString();
+
+        const payload = {
+          symptomName: fName.trim(),
+          severity: Math.max(1, Math.min(10, Number(fNumber || '5'))),
+          startTime,
+          endTime: safeEndTime,
+        };
+        if (editorId != null) await updateSymptomApi(editorId, payload);
+        else await createSymptomApi(payload);
+      } else if (editorType === 'medicine') {
+        if (!fName.trim()) throw new Error('Введите название лекарства');
+        const payload = {
+          medicineName: fName.trim(),
+          dosage: Number(fNumber || '0'),
+          unit: (fUnit || 'MG') as 'MG' | 'ML' | 'TABLET' | 'DROP',
+          intakeDate: fDateTime || new Date().toISOString(),
+        };
+        if (editorId != null) await updateMedicineApi(editorId, payload);
+        else await createMedicineApi(payload);
+      } else if (editorType === 'food') {
+        const nameFromProducts = selectedProducts.map((item) => item.foodName).join(' + ');
+        const name = fName.trim() || nameFromProducts;
+        if (!name) throw new Error('Введите название продукта');
+        const payload = {
+          foodName: name,
+          category: normalizeCategory(fText2),
+          amount: Number(fNumber || '0'),
+          unit: (fUnit || 'GRAM') as 'GRAM' | 'PORTION' | 'PIECE' | 'MILLILITER',
+          intakeTime: fDateTime || new Date().toISOString(),
+          reactionOccurred: fToggle,
+          reactionDescription: '',
+          components: mergeUnique(foodComponents),
+        };
+        if (editorId != null) await updateFoodApi(editorId, payload);
+        else await createFoodApi(payload);
+      } else if (editorType === 'note') {
+        if (!fText.trim()) throw new Error('Введите текст заметки');
+        const payload = { content: fText.trim(), date: fDateTime || new Date().toISOString() };
+        if (editorId != null) await updateNoteApi(editorId, payload);
+        else await createNoteApi(payload);
+      }
+      closeEditor();
+      await loadDiary(true);
+    } catch (error) {
+      Alert.alert('Ошибка', error instanceof Error ? error.message : 'Не удалось сохранить запись');
+    } finally {
+      setEditorSaving(false);
+    }
+  }, [
+    closeEditor,
+    editorId,
+    editorType,
+    fDateTime,
+    fDateTimeEnd,
+    fName,
+    fNumber,
+    fText,
+    fText2,
+    fToggle,
+    fUnit,
+    foodComponents,
+    loadDiary,
+    mergeUnique,
+    normalizeCategory,
+    selectedProducts,
+  ]);
+
+  const renderInlineEditor = useCallback(
+    (type: EditorType) => {
+      if (editorType !== type) return null;
+      const symptomFiltered = symptomCatalog
+        .filter((item) => item.toLowerCase().includes(fName.toLowerCase()))
+        .slice(0, 12);
+      const medicineFiltered = medicineCatalog
+        .filter((item) => item.toLowerCase().includes(fName.toLowerCase()))
+        .slice(0, 12);
+      const commonOptions = [
+        { score: 1, label: 'Плохо', color: '#2563EB' },
+        { score: 2, label: 'Ниже среднего', color: '#1D4ED8' },
+        { score: 3, label: 'Нормально', color: '#0EA5E9' },
+        { score: 4, label: 'Хорошо', color: '#38BDF8' },
+        { score: 5, label: 'Отлично', color: '#7DD3FC' },
+      ];
+      const renderEntryDateTimeControl = (label: string) => {
+        if (Platform.OS === 'web') {
+          return (
+            <>
+              <Text style={styles.inlineHint}>{label}</Text>
+              <input
+                style={styles.webDateInput as any}
+                type="datetime-local"
+                value={toLocalDateTimeInputValue(fDateTime || defaultSelectedDateTime)}
+                onChange={(event) => {
+                  const nextDate = new Date(event.target.value);
+                  if (!Number.isNaN(nextDate.getTime())) {
+                    setFDateTime(nextDate.toISOString());
+                  }
+                }}
+              />
+            </>
+          );
+        }
+
+        return (
+          <>
+            <TouchableOpacity
+              style={styles.datePickerButton}
+              activeOpacity={0.85}
+              onPress={() => setShowEntryDatePicker(true)}
+            >
+              <Text style={styles.datePickerLabel}>{label}</Text>
+              <Text style={styles.datePickerValue}>
+                {formatDate(fDateTime || defaultSelectedDateTime)}
+              </Text>
+            </TouchableOpacity>
+            {NativeDateTimePicker && showEntryDatePicker && (
+              <NativeDateTimePicker
+                value={new Date(fDateTime || defaultSelectedDateTime)}
+                mode="datetime"
+                onChange={(_event: any, selectedDate?: Date) => {
+                  setShowEntryDatePicker(false);
+                  if (selectedDate) setFDateTime(selectedDate.toISOString());
+                }}
+              />
+            )}
+          </>
+        );
+      };
+      return (
+        <View style={styles.inlineEditorCard}>
+          <View style={styles.inlineEditorHeader}>
+            <Ionicons
+              name={
+                type === 'common'
+                  ? 'heart-circle-outline'
+                  : type === 'symptom'
+                    ? 'pulse-outline'
+                    : type === 'medicine'
+                      ? 'medkit-outline'
+                      : type === 'food'
+                        ? 'restaurant-outline'
+                        : 'document-text-outline'
+              }
+              size={18}
+              color="#1D4ED8"
+            />
+            <Text style={styles.editorTitle}>
+              {editorId != null ? 'Редактирование записи' : 'Новая запись'}
+            </Text>
+          </View>
+
+          {type === 'common' && (
+            <>
+              <View style={styles.feelingsRow}>
+                {commonOptions.map((item) => {
+                  const active = Number(fNumber || '3') === item.score;
+                  return (
+                    <TouchableOpacity
+                      key={item.score}
+                      style={[styles.feelingDotWrap, active && styles.feelingDotWrapActive]}
+                      onPress={() => setFNumber(String(item.score))}
+                    >
+                      <View style={[styles.feelingDot, { backgroundColor: item.color }]} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={styles.inlineHint}>
+                Выбрано: {commonOptions.find((item) => item.score === Number(fNumber || '3'))?.label ?? 'Нормально'}
+              </Text>
+            </>
+          )}
+
+          {type === 'symptom' && (
+            <>
+              <TextInput
+                style={styles.editorInput}
+                value={fName}
+                onChangeText={setFName}
+                placeholder="Название симптома"
+              />
+              {!!fName.trim() && symptomFiltered.length > 0 && (
+                <View style={styles.suggestBox}>
+                  {symptomFiltered.map((item) => (
+                    <TouchableOpacity key={item} style={styles.suggestItem} onPress={() => setFName(item)}>
+                      <Text style={styles.suggestText}>{item}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              <View style={styles.chipsRow}>
+                {[{ title: 'Сильно', value: 8, color: '#1E40AF' }, { title: 'Умеренно', value: 5, color: '#2563EB' }, { title: 'Слабо', value: 2, color: '#0EA5E9' }].map((item) => {
+                  const active = Number(fNumber || '5') === item.value;
+                  return (
+                    <TouchableOpacity
+                      key={item.title}
+                      style={[styles.levelChip, { borderColor: `${item.color}66` }, active && { backgroundColor: item.color, borderColor: item.color }]}
+                      onPress={() => setFNumber(String(item.value))}
+                    >
+                      <Text style={[styles.levelChipText, active && styles.levelChipTextActive]}>{item.title}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {Platform.OS === 'web' ? (
+                <>
+                  <Text style={styles.inlineHint}>Начало симптома</Text>
+                  <input
+                    style={styles.webDateInput as any}
+                    type="datetime-local"
+                    value={toLocalDateTimeInputValue(fDateTime || new Date().toISOString())}
+                    onChange={(event) => {
+                      const nextDate = new Date(event.target.value);
+                      if (!Number.isNaN(nextDate.getTime())) {
+                        setFDateTime(nextDate.toISOString());
+                      }
+                    }}
+                  />
+                  <Text style={styles.inlineHint}>Окончание симптома (необязательно)</Text>
+                  <input
+                    style={styles.webDateInput as any}
+                    type="datetime-local"
+                    value={toLocalDateTimeInputValue(fDateTimeEnd)}
+                    min={toLocalDateTimeInputValue(fDateTime || new Date().toISOString())}
+                    onChange={(event) => {
+                      if (!event.target.value) {
+                        setFDateTimeEnd('');
+                        return;
+                      }
+                      const nextDate = new Date(event.target.value);
+                      if (!Number.isNaN(nextDate.getTime())) {
+                        setFDateTimeEnd(nextDate.toISOString());
+                      }
+                    }}
+                  />
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={styles.datePickerButton}
+                    activeOpacity={0.85}
+                    onPress={() => setShowSymptomStartPicker(true)}
+                  >
+                    <Text style={styles.datePickerLabel}>Начало симптома</Text>
+                    <Text style={styles.datePickerValue}>
+                      {formatDate(fDateTime || new Date().toISOString())}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.datePickerButton}
+                    activeOpacity={0.85}
+                    onPress={() => setShowSymptomEndPicker(true)}
+                  >
+                    <Text style={styles.datePickerLabel}>Окончание симптома</Text>
+                    <Text style={styles.datePickerValue}>
+                      {fDateTimeEnd ? formatDate(fDateTimeEnd) : 'Не указано'}
+                    </Text>
+                  </TouchableOpacity>
+                  {NativeDateTimePicker && showSymptomStartPicker && (
+                    <NativeDateTimePicker
+                      value={new Date(fDateTime || new Date().toISOString())}
+                      mode="datetime"
+                      onChange={(_event: any, selectedDate?: Date) => {
+                        setShowSymptomStartPicker(false);
+                        if (selectedDate) setFDateTime(selectedDate.toISOString());
+                      }}
+                    />
+                  )}
+                  {NativeDateTimePicker && showSymptomEndPicker && (
+                    <NativeDateTimePicker
+                      value={new Date(fDateTimeEnd || fDateTime || new Date().toISOString())}
+                      mode="datetime"
+                      onChange={(_event: any, selectedDate?: Date) => {
+                        setShowSymptomEndPicker(false);
+                        if (selectedDate) setFDateTimeEnd(selectedDate.toISOString());
+                      }}
+                    />
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {type === 'medicine' && (
+            <>
+              <TextInput
+                style={styles.editorInput}
+                value={fName}
+                onChangeText={setFName}
+                placeholder="Название лекарства"
+              />
+              {!!fName.trim() && medicineFiltered.length > 0 && (
+                <View style={styles.suggestBox}>
+                  {medicineFiltered.map((item) => (
+                    <TouchableOpacity key={item} style={styles.suggestItem} onPress={() => setFName(item)}>
+                      <Text style={styles.suggestText}>{item}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              <TextInput
+                style={styles.editorInput}
+                value={fNumber}
+                onChangeText={setFNumber}
+                keyboardType="numeric"
+                placeholder="Дозировка"
+              />
+              <View style={styles.chipsRow}>
+                {['MG', 'ML', 'TABLET', 'DROP'].map((item) => {
+                  const active = (fUnit || 'MG') === item;
+                  return (
+                    <TouchableOpacity key={item} style={[styles.unitChip, active && styles.unitChipActive]} onPress={() => setFUnit(item)}>
+                      <Text style={[styles.unitChipText, active && styles.unitChipTextActive]}>
+                        {MEDICINE_UNIT_LABELS[item] ?? item}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {renderEntryDateTimeControl('Время приема лекарства')}
+            </>
+          )}
+
+          {type === 'food' && (
+            <>
+              <TextInput
+                style={styles.editorInput}
+                value={fName}
+                onChangeText={setFName}
+                placeholder="Название блюда (например, салат)"
+              />
+              <TextInput
+                style={styles.editorInput}
+                value={foodSearch}
+                onChangeText={(text) => {
+                  setFoodSearch(text);
+                  setFoodSuggestionsOpen(true);
+                }}
+                onFocus={() => setFoodSuggestionsOpen(true)}
+                placeholder="Добавить продукт в блюдо"
+              />
+              {foodSuggestionsOpen && (
+                <View style={styles.suggestBox}>
+                  <ScrollView style={{ maxHeight: 160 }}>
+                    {foodSuggestions.map((item) => (
+                      <TouchableOpacity
+                        key={item.foodName}
+                        style={styles.suggestItem}
+                        onPress={() => {
+                          setSelectedProducts((prev) =>
+                            prev.some((p) => p.foodName.toLowerCase() === item.foodName.toLowerCase())
+                              ? prev
+                              : [...prev, item]
+                          );
+                          setFoodComponents((prev) =>
+                            mergeUnique([...prev, ...(item.components ?? [])])
+                          );
+                          setFText2(item.category ?? 'OTHER');
+                          setFoodSearch('');
+                          setFoodSuggestionsOpen(false);
+                        }}
+                      >
+                        <Text style={styles.suggestText}>{item.foodName}</Text>
+                        {!!item.components?.length && (
+                          <Text style={styles.suggestSubText} numberOfLines={1}>
+                            {item.components.join(', ')}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                    {foodSuggestionsLoading && <ActivityIndicator style={{ marginVertical: 8 }} />}
+                  </ScrollView>
+                </View>
+              )}
+              {!!selectedProducts.length && (
+                <View style={styles.tagsWrap}>
+                  {selectedProducts.map((item) => (
+                    <View key={item.foodName} style={styles.tag}>
+                      <Text style={styles.tagText}>{item.foodName}</Text>
+                      <TouchableOpacity
+                        onPress={() =>
+                          setSelectedProducts((prev) => prev.filter((p) => p.foodName !== item.foodName))
+                        }
+                      >
+                        <Text style={styles.tagRemove}>x</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+              <TextInput
+                style={styles.editorInput}
+                value={fNumber}
+                onChangeText={setFNumber}
+                keyboardType="numeric"
+                placeholder="Количество"
+              />
+              <View style={styles.chipsRow}>
+                {['GRAM', 'PORTION', 'PIECE', 'MILLILITER'].map((item) => {
+                  const active = (fUnit || 'GRAM') === item;
+                  return (
+                    <TouchableOpacity key={item} style={[styles.unitChip, active && styles.unitChipActive]} onPress={() => setFUnit(item)}>
+                      <Text style={[styles.unitChipText, active && styles.unitChipTextActive]}>
+                        {FOOD_UNIT_LABELS[item] ?? item}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <View style={styles.chipsRow}>
+                {(['OTHER', 'FRUIT', 'VEGETABLE', 'MEAT', 'DAIRY', 'BEVERAGES'] as const).map((item) => {
+                  const active = (fText2 || 'OTHER') === item;
+                  return (
+                    <TouchableOpacity key={item} style={[styles.categoryChip, active && styles.categoryChipActive]} onPress={() => setFText2(item)}>
+                      <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>
+                        {FOOD_CATEGORY_LABELS[item] ?? item}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <View style={styles.addRow}>
+                <TextInput
+                  style={[styles.editorInput, styles.addRowInput]}
+                  value={componentInput}
+                  onChangeText={setComponentInput}
+                  placeholder="Ингредиент"
+                />
+                <TouchableOpacity
+                  style={styles.addRowButton}
+                  onPress={() => {
+                    if (!componentInput.trim()) return;
+                    setFoodComponents((prev) => mergeUnique([...prev, componentInput]));
+                    setComponentInput('');
+                  }}
+                >
+                  <Ionicons name="add" size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+              {!!foodComponents.length && (
+                <View style={styles.tagsWrap}>
+                  {foodComponents.map((item) => (
+                    <View key={item} style={styles.tag}>
+                      <Text style={styles.tagText}>{item}</Text>
+                      <TouchableOpacity
+                        onPress={() =>
+                          setFoodComponents((prev) => prev.filter((component) => component !== item))
+                        }
+                      >
+                        <Text style={styles.tagRemove}>x</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+              <View style={styles.chipsRow}>
+                <TouchableOpacity
+                  style={[styles.reactionChip, fToggle && styles.reactionChipActive]}
+                  onPress={() => setFToggle(true)}
+                >
+                  <Text style={[styles.reactionChipText, fToggle && styles.reactionChipTextActive]}>Реакция: Да</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.reactionChip, !fToggle && styles.reactionChipActive]}
+                  onPress={() => setFToggle(false)}
+                >
+                  <Text style={[styles.reactionChipText, !fToggle && styles.reactionChipTextActive]}>Реакция: Нет</Text>
+                </TouchableOpacity>
+              </View>
+              {renderEntryDateTimeControl('Время приема еды')}
+            </>
+          )}
+
+          {type === 'note' && (
+            <>
+              <View style={styles.noteTemplateWrap}>
+                {[
+                  'После обеда появилась реакция',
+                  'Симптомы усилились к вечеру',
+                  'После лекарства стало лучше',
+                  'Подозрение на продукт-триггер',
+                ].map((item) => (
+                  <TouchableOpacity key={item} style={styles.noteTemplateChip} onPress={() => setFText(item)}>
+                    <Text style={styles.noteTemplateText}>{item}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={styles.noteTemplateWrap}>
+                {['Триггер', 'Лекарство', 'Симптом', 'Питание'].map((tag) => (
+                  <TouchableOpacity
+                    key={tag}
+                    style={styles.noteTagChip}
+                    onPress={() => setFText((prev) => (prev ? `${prev}\n#${tag}` : `#${tag}`))}
+                  >
+                    <Text style={styles.noteTagText}>#{tag}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={[styles.editorInput, styles.editorInputMultiline]}
+                value={fText}
+                onChangeText={setFText}
+                placeholder="Текст заметки"
+                multiline
+              />
+              {renderEntryDateTimeControl('Дата и время заметки')}
+              <Text style={styles.noteCounter}>{fText.trim().length} символов</Text>
+            </>
+          )}
+
+          <View style={styles.editorActions}>
+            <TouchableOpacity
+              style={styles.editorCancelButton}
+              onPress={closeEditor}
+              disabled={editorSaving}
+            >
+              <Text style={styles.editorCancelText}>Отмена</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.editorSaveButton}
+              onPress={() => void submitEditor()}
+              disabled={editorSaving}
+            >
+              {editorSaving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.editorSaveText}>Сохранить</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    },
+    [
+      closeEditor,
+      defaultSelectedDateTime,
+      editorId,
+      editorSaving,
+      editorType,
+      fName,
+      foodComponents,
+      foodSearch,
+      foodSuggestions,
+      foodSuggestionsLoading,
+      foodSuggestionsOpen,
+      fNumber,
+      fText,
+      fText2,
+      fToggle,
+      fUnit,
+      fDateTimeEnd,
+      medicineCatalog,
+      mergeUnique,
+      selectedProducts,
+      showEntryDatePicker,
+      symptomCatalog,
+      submitEditor,
+    ]
   );
 
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loaderWrap}>
-          <ActivityIndicator size="large" color="#2F6690" />
+          <ActivityIndicator size="large" color="#1D4ED8" />
         </View>
       </SafeAreaView>
     );
@@ -315,8 +1318,9 @@ const totalCount =
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[styles.contentContainer, { maxWidth: 860, width: Math.min(width - 20, 860), alignSelf: 'center' }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -327,91 +1331,101 @@ const totalCount =
         }
       >
         <View style={styles.heroCard}>
-          <Text style={styles.heroTitle}>Дневник</Text>
-          <Text style={styles.heroSubtitle}>
-            Все записи на одной странице: самочувствие, симптомы, лекарства,
-            питание и заметки.
-          </Text>
+          <View style={styles.heroHeaderRow}>
+            <View style={styles.heroAvatar}>
+              <Ionicons name="person" size={22} color="#FFFFFF" />
+            </View>
+            <View style={styles.heroTitleWrap}>
+              <Text style={styles.heroTitle}>{getUserDisplayName(profile)}</Text>
+              <Text style={styles.heroSubtitle}>Все записи и изменения за день</Text>
+            </View>
+          </View>
 
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{totalCount}</Text>
-              <Text style={styles.summaryLabel}>Всего записей</Text>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{filteredFoods.length}</Text>
-              <Text style={styles.summaryLabel}>Питание</Text>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{filteredSymptoms.length}</Text>
-              <Text style={styles.summaryLabel}>Симптомы</Text>
+          <View style={styles.heroInnerCard}>
+            <Text style={styles.heroInnerTitle}>Сегодня</Text>
+            <Text style={styles.heroInnerText}>
+              Добавляйте самочувствие, симптомы, лекарства, питание и заметки.
+            </Text>
+
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryValue}>{totalCount}</Text>
+                <Text style={styles.summaryLabel}>Записей</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryValue}>{filteredFoods.length}</Text>
+                <Text style={styles.summaryLabel}>Питание</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryValue}>{filteredSymptoms.length}</Text>
+                <Text style={styles.summaryLabel}>Симптомы</Text>
+              </View>
             </View>
           </View>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersRow}
-        >
-          {[
-            { key: 'all', label: 'Все' },
-            { key: 'today', label: 'Сегодня' },
-            { key: 'week', label: '7 дней' },
-            { key: 'month', label: '30 дней' },
-          ].map((item) => {
-            const active = filter === item.key;
-            return (
-              <TouchableOpacity
-                key={item.key}
-                style={[styles.filterChip, active && styles.filterChipActive]}
-                activeOpacity={0.85}
-                onPress={() => setFilter(item.key as FilterType)}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    active && styles.filterChipTextActive,
-                  ]}
-                >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <View style={styles.dayNavWrap}>
+          <TouchableOpacity
+            style={styles.dayNavButton}
+            activeOpacity={0.85}
+            onPress={() => shiftDay(-1)}
+          >
+            <Ionicons name="chevron-back" size={16} color="#1D4ED8" />
+            <Text style={styles.dayNavButtonText}>Назад</Text>
+          </TouchableOpacity>
+
+          <View style={styles.dayNavCenter}>
+            <Text style={styles.dayNavDate}>{formatDayLabel(selectedDate)}</Text>
+            <Text style={styles.dayNavHint}>
+              {selectedDateKey === todayDateKey ? 'Сегодня' : 'Выбранный день'}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.dayNavButton, !canGoNextDate && styles.dayNavButtonDisabled]}
+            activeOpacity={0.85}
+            onPress={() => {
+              if (canGoNextDate) shiftDay(1);
+            }}
+            disabled={!canGoNextDate}
+          >
+            <Text
+              style={[
+                styles.dayNavButtonText,
+                !canGoNextDate && styles.dayNavButtonTextDisabled,
+              ]}
+            >
+              Вперед
+            </Text>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={canGoNextDate ? '#1D4ED8' : '#98A2B3'}
+            />
+          </TouchableOpacity>
+        </View>
 
         <SectionBlock
           title="Самочувствие"
           count={filteredCommonFeelings.length}
-          icon="pulse-outline"
-          onPress={() => router.push('/add-common' as any)}
+          icon="heart-circle-outline"
+          accentColor="#1D4ED8"
+          onAddPress={() => openCreateEditor('common')}
         >
+          {renderInlineEditor('common')}
           {filteredCommonFeelings.length === 0 ? (
             <EmptySection text="Записей самочувствия пока нет" />
           ) : (
             filteredCommonFeelings.map((item) => (
               <EntryCard
                 key={`common-${item.feelingId}`}
-                title={`Самочувствие ${item.wellbeingScore}/10`}
+                title={`Самочувствие ${toFiveScale(item.wellbeingScore)}/5`}
                 subtitle={formatDate(item.dateTime)}
+                accentColor="#1D4ED8"
                 deleting={deletingId === `common-${item.feelingId}`}
-                onEdit={() =>
-                  router.push({
-                    pathname: '/add-common',
-                    params: {
-                      feelingId: String(item.feelingId),
-                      dateTime: item.dateTime,
-                      wellbeingScore: String(item.wellbeingScore),
-                      mood: item.mood != null ? String(item.mood) : '',
-                      energyLevel:
-                        item.energyLevel != null ? String(item.energyLevel) : '',
-                      comment: item.comment ?? '',
-                    },
-                  } as any)
-                }
+                onEdit={() => openEditEditor('common', item)}
                 onDelete={() =>
                   confirmDelete(
                     `common-${item.feelingId}`,
@@ -422,17 +1436,6 @@ const totalCount =
                   )
                 }
               >
-                <MetaRow
-                  label="Настроение"
-                  value={item.mood != null ? `${item.mood}/10` : '-'}
-                />
-                <MetaRow
-                  label="Энергия"
-                  value={
-                    item.energyLevel != null ? `${item.energyLevel}/10` : '-'
-                  }
-                />
-                <MetaRow label="Комментарий" value={item.comment || '-'} />
               </EntryCard>
             ))
           )}
@@ -441,48 +1444,41 @@ const totalCount =
         <SectionBlock
           title="Симптомы"
           count={filteredSymptoms.length}
-          icon="warning-outline"
-          onPress={() => router.push('/add-symptom' as any)}
+          icon="pulse-outline"
+          accentColor="#1D4ED8"
+          onAddPress={() => openCreateEditor('symptom')}
         >
+          {renderInlineEditor('symptom')}
           {filteredSymptoms.length === 0 ? (
             <EmptySection text="Симптомов пока нет" />
           ) : (
             filteredSymptoms.map((item) => (
               <EntryCard
-                key={`symptom-${item.symptomsId}`}
+                key={`symptom-${item.id}`}
                 title={item.symptomName}
-                subtitle={formatDate(item.startTime)}
-                deleting={deletingId === `symptom-${item.symptomsId}`}
-                onEdit={() =>
-                  router.push({
-                    pathname: '/add-symptom',
-                    params: {
-                      symptomsId: String(item.symptomsId),
-                      symptomName: item.symptomName,
-                      severity: String(item.severity),
-                      startTime: item.startTime,
-                      endTime: item.endTime ?? '',
-                      possibleCause: item.possibleCause ?? '',
-                    },
-                  } as any)
-                }
+                subtitle={formatDate(item.startTime || item.createdAt || '')}
+                accentColor="#1D4ED8"
+                deleting={deletingId === `symptom-${item.id}`}
+                onEdit={() => openEditEditor('symptom', item)}
                 onDelete={() =>
                   confirmDelete(
-                    `symptom-${item.symptomsId}`,
+                    `symptom-${item.id}`,
                     item.symptomName,
                     async () => {
-                      await deleteSymptomApi(item.symptomsId);
+                      await deleteSymptomApi(item.id);
                     }
                   )
                 }
               >
-                <MetaRow label="Сила" value={`${item.severity}/10`} />
-                <MetaRow label="Начало" value={formatDate(item.startTime)} />
+                <MetaRow label="Сила" value={`${toSeverityLabel(item.severity)} (${item.severity}/10)`} />
                 <MetaRow
-                  label="Конец"
-                  value={item.endTime ? formatDate(item.endTime) : '-'}
+                  label="Начало"
+                  value={formatDate(item.startTime || item.createdAt || '')}
                 />
-                <MetaRow label="Причина" value={item.possibleCause || '-'} />
+                <MetaRow
+                  label="Окончание"
+                  value={item.endTime ? formatDate(item.endTime) : 'Не указано'}
+                />
               </EntryCard>
             ))
           )}
@@ -491,9 +1487,11 @@ const totalCount =
         <SectionBlock
           title="Лекарства"
           count={filteredMedicines.length}
-          icon="medical-outline"
-          onPress={() => router.push('/add-medicine' as any)}
+          icon="medkit-outline"
+          accentColor="#0EA5E9"
+          onAddPress={() => openCreateEditor('medicine')}
         >
+          {renderInlineEditor('medicine')}
           {filteredMedicines.length === 0 ? (
             <EmptySection text="Лекарств пока нет" />
           ) : (
@@ -501,25 +1499,10 @@ const totalCount =
               <EntryCard
                 key={`medicine-${item.id}`}
                 title={item.medicineName}
-                subtitle={formatDate(item.intakeTime)}
+                subtitle={formatDate(item.intakeTime || item.intakeDate || '')}
+                accentColor="#0EA5E9"
                 deleting={deletingId === `medicine-${item.id}`}
-                onEdit={() =>
-                  router.push({
-                    pathname: '/add-medicine',
-                    params: {
-                      id: String(item.id),
-                      medicineName: item.medicineName,
-                      dosage: item.dosage != null ? String(item.dosage) : '',
-                      unit: item.unit ?? '',
-                      intakeTime: item.intakeTime,
-                      medicationType:
-                        item.medicationType != null
-                          ? String(item.medicationType)
-                          : '',
-                      reason: item.reason ?? '',
-                    },
-                  } as any)
-                }
+                onEdit={() => openEditEditor('medicine', item)}
                 onDelete={() =>
                   confirmDelete(
                     `medicine-${item.id}`,
@@ -534,12 +1517,14 @@ const totalCount =
                   label="Дозировка"
                   value={
                     item.dosage != null
-                      ? `${item.dosage} ${item.unit ?? ''}`.trim()
+                      ? `${item.dosage} ${MEDICINE_UNIT_LABELS[item.unit ?? ''] ?? item.unit ?? ''}`.trim()
                       : '-'
                   }
                 />
-                <MetaRow label="Время" value={formatDate(item.intakeTime)} />
-                <MetaRow label="Причина" value={item.reason || '-'} />
+                <MetaRow
+                  label="Время"
+                  value={formatDate(item.intakeTime || item.intakeDate || '')}
+                />
               </EntryCard>
             ))
           )}
@@ -549,8 +1534,10 @@ const totalCount =
           title="Питание"
           count={filteredFoods.length}
           icon="restaurant-outline"
-          onPress={() => router.push('/add-food' as any)}
+          accentColor="#1D4ED8"
+          onAddPress={() => openCreateEditor('food')}
         >
+          {renderInlineEditor('food')}
           {filteredFoods.length === 0 ? (
             <EmptySection text="Записей о питании пока нет" />
           ) : (
@@ -559,22 +1546,9 @@ const totalCount =
                 key={`food-${item.foodIntakeId}`}
                 title={item.foodName}
                 subtitle={formatDate(item.intakeTime)}
+                accentColor="#1D4ED8"
                 deleting={deletingId === `food-${item.foodIntakeId}`}
-                onEdit={() =>
-                  router.push({
-                    pathname: '/add-food',
-                    params: {
-                      foodIntakeId: String(item.foodIntakeId),
-                      foodName: item.foodName,
-                      category: item.category ?? '',
-                      amount: item.amount != null ? String(item.amount) : '',
-                      unit: item.unit ?? '',
-                      intakeTime: item.intakeTime,
-                      reactionOccurred: String(item.reactionOccurred),
-                      reactionDescription: item.reactionDescription ?? '',
-                    },
-                  } as any)
-                }
+                onEdit={() => openEditEditor('food', item)}
                 onDelete={() =>
                   confirmDelete(
                     `food-${item.foodIntakeId}`,
@@ -585,12 +1559,17 @@ const totalCount =
                   )
                 }
               >
-                <MetaRow label="Категория" value={item.category || '-'} />
+                <MetaRow
+                  label="Категория"
+                  value={
+                    (FOOD_CATEGORY_LABELS[item.category ?? ''] ?? item.category) || '-'
+                  }
+                />
                 <MetaRow
                   label="Количество"
                   value={
                     item.amount != null
-                      ? `${item.amount} ${item.unit ?? ''}`.trim()
+                      ? `${item.amount} ${FOOD_UNIT_LABELS[item.unit ?? ''] ?? item.unit ?? ''}`.trim()
                       : '-'
                   }
                 />
@@ -599,8 +1578,8 @@ const totalCount =
                   value={item.reactionOccurred ? 'Да' : 'Нет'}
                 />
                 <MetaRow
-                  label="Описание"
-                  value={item.reactionDescription || '-'}
+                  label="Ингредиенты"
+                  value={item.components?.length ? item.components.join(', ') : '-'}
                 />
               </EntryCard>
             ))
@@ -611,8 +1590,10 @@ const totalCount =
           title="Заметки"
           count={filteredNotes.length}
           icon="document-text-outline"
-          onPress={() => router.push('/add-note' as any)}
+          accentColor="#1D4ED8"
+          onAddPress={() => openCreateEditor('note')}
         >
+          {renderInlineEditor('note')}
           {filteredNotes.length === 0 ? (
             <EmptySection text="Заметок пока нет" />
           ) : (
@@ -621,17 +1602,9 @@ const totalCount =
                 key={`note-${item.noteId}`}
                 title={formatDate(item.date)}
                 subtitle="Заметка"
+                accentColor="#1D4ED8"
                 deleting={deletingId === `note-${item.noteId}`}
-                onEdit={() =>
-                  router.push({
-                    pathname: '/add-note',
-                    params: {
-                      noteId: String(item.noteId),
-                      content: item.content,
-                      date: item.date,
-                    },
-                  } as any)
-                }
+                onEdit={() => openEditEditor('note', item)}
                 onDelete={() =>
                   confirmDelete(
                     `note-${item.noteId}`,
@@ -647,6 +1620,7 @@ const totalCount =
             ))
           )}
         </SectionBlock>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -655,14 +1629,15 @@ const totalCount =
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F5F7FB',
+    backgroundColor: '#EEF4FF',
   },
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FB',
+    backgroundColor: '#EEF4FF',
   },
   contentContainer: {
-    padding: 16,
+    paddingHorizontal: 12,
+    paddingTop: 12,
     paddingBottom: 120,
   },
   loaderWrap: {
@@ -672,27 +1647,68 @@ const styles = StyleSheet.create({
   },
 
   heroCard: {
-    backgroundColor: '#2F6690',
-    borderRadius: 28,
-    padding: 20,
+    backgroundColor: '#1D4ED8',
+    borderRadius: 30,
+    padding: 22,
     marginBottom: 16,
+    shadowColor: '#1D4ED8',
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  heroHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  heroAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#7AA4E7',
+    borderWidth: 2,
+    borderColor: '#FFFFFF66',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  heroTitleWrap: {
+    flex: 1,
   },
   heroTitle: {
     color: '#FFFFFF',
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
-    marginBottom: 8,
+    marginBottom: 2,
   },
   heroSubtitle: {
     color: '#D8E7F3',
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  heroInnerCard: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 24,
+    padding: 18,
+  },
+  heroInnerTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  heroInnerText: {
+    color: '#EAF2FF',
+    fontSize: 15,
     lineHeight: 20,
+    marginBottom: 12,
   },
   summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 18,
-    backgroundColor: '#4D7FA8',
+    marginTop: 2,
+    backgroundColor: '#5B98F8',
     borderRadius: 20,
     paddingVertical: 14,
     paddingHorizontal: 12,
@@ -718,34 +1734,68 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF33',
   },
 
-  filtersRow: {
-    paddingBottom: 6,
-    paddingRight: 8,
+  dayNavWrap: {
     marginBottom: 8,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
   },
-  filterChip: {
+  dayNavCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  dayNavDate: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#233142',
+  },
+  dayNavHint: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#667085',
+  },
+  dayNavButton: {
+    minWidth: 92,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#EAF1F7',
-    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#D7E3F4',
+    backgroundColor: '#F8FBFF',
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    marginRight: 10,
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
   },
-  filterChipActive: {
-    backgroundColor: '#2F6690',
+  dayNavButtonDisabled: {
+    borderColor: '#E4E7EC',
+    backgroundColor: '#F9FAFB',
   },
-  filterChipText: {
-    color: '#2F6690',
+  dayNavButtonText: {
+    color: '#1D4ED8',
     fontSize: 13,
     fontWeight: '700',
   },
-  filterChipTextActive: {
-    color: '#FFFFFF',
+  dayNavButtonTextDisabled: {
+    color: '#98A2B3',
   },
 
   sectionWrap: {
     marginTop: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 14,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   sectionHeader: {
     marginBottom: 10,
@@ -758,16 +1808,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sectionIconWrap: {
-    width: 30,
+    width: 34,
     height: 30,
-    borderRadius: 15,
-    backgroundColor: '#EAF1F7',
+    borderRadius: 10,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     color: '#233142',
   },
@@ -776,23 +1826,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  addButton: {
+    width: 34,
+    height: 30,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   countBadge: {
-    minWidth: 32,
+    minWidth: 36,
     paddingHorizontal: 10,
     height: 30,
-    borderRadius: 15,
-    backgroundColor: '#EAF1F7',
+    borderRadius: 10,
+    backgroundColor: '#DBEAFE',
     justifyContent: 'center',
     alignItems: 'center',
   },
   countBadgeText: {
-    color: '#2F6690',
+    color: '#1D4ED8',
     fontSize: 13,
     fontWeight: '700',
   },
 
   emptyCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FBFF',
     borderRadius: 18,
     padding: 16,
     borderWidth: 1,
@@ -809,6 +1866,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
+    borderLeftWidth: 5,
+    borderLeftColor: '#CBD5E1',
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 10,
@@ -838,18 +1897,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   editButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#EAF1F7',
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: '#E0F2FE',
     justifyContent: 'center',
     alignItems: 'center',
   },
   deleteButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#FCEBED',
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: '#DBEAFE',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -877,5 +1936,322 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#344054',
     lineHeight: 21,
+  },
+  inlineEditorCard: {
+    backgroundColor: '#F8FBFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D7E3F4',
+    padding: 16,
+    gap: 10,
+    marginBottom: 12,
+  },
+  inlineEditorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editorTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#233142',
+    marginBottom: 4,
+  },
+  inlineHint: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  feelingsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  feelingDotWrap: {
+    padding: 4,
+    borderRadius: 20,
+  },
+  feelingDotWrapActive: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  feelingDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  editorInput: {
+    borderWidth: 1,
+    borderColor: '#D7E3F4',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#233142',
+    backgroundColor: '#F8FBFF',
+  },
+  webDateInput: {
+    borderWidth: 1,
+    borderColor: '#D7E3F4',
+    borderRadius: 12,
+    padding: 10,
+    fontSize: 14,
+    color: '#233142',
+    backgroundColor: '#F8FBFF',
+    outlineStyle: 'none',
+  },
+  datePickerButton: {
+    borderWidth: 1,
+    borderColor: '#D7E3F4',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#F8FBFF',
+  },
+  datePickerLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  datePickerValue: {
+    fontSize: 14,
+    color: '#233142',
+    fontWeight: '600',
+  },
+  suggestBox: {
+    borderWidth: 1,
+    borderColor: '#D7E3F4',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  suggestItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2F7',
+  },
+  suggestText: {
+    color: '#233142',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  suggestSubText: {
+    marginTop: 3,
+    color: '#667085',
+    fontSize: 12,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  levelChip: {
+    flex: 1,
+    minWidth: 88,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  levelChipText: {
+    color: '#475467',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  levelChipTextActive: {
+    color: '#FFFFFF',
+  },
+  unitChip: {
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 10,
+    justifyContent: 'center',
+  },
+  unitChipActive: {
+    backgroundColor: '#1D4ED8',
+  },
+  unitChipText: {
+    color: '#1D4ED8',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  unitChipTextActive: {
+    color: '#FFFFFF',
+  },
+  categoryChip: {
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    justifyContent: 'center',
+  },
+  categoryChipActive: {
+    backgroundColor: '#1D4ED8',
+  },
+  categoryChipText: {
+    color: '#1D4ED8',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  categoryChipTextActive: {
+    color: '#FFFFFF',
+  },
+  tagsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EAF2FF',
+    borderWidth: 1,
+    borderColor: '#D6E4FF',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  tagText: {
+    color: '#1D4ED8',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  tagRemove: {
+    color: '#1D4ED8',
+    marginLeft: 6,
+    fontWeight: '700',
+  },
+  addRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  addRowInput: {
+    flex: 1,
+  },
+  addRowButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1D4ED8',
+  },
+  reactionChip: {
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: '#D6E4FF',
+    backgroundColor: '#EAF2FF',
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
+  reactionChipActive: {
+    backgroundColor: '#1D4ED8',
+    borderColor: '#1D4ED8',
+  },
+  reactionChipText: {
+    color: '#1D4ED8',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  reactionChipTextActive: {
+    color: '#FFFFFF',
+  },
+  noteTemplateWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  noteTemplateChip: {
+    backgroundColor: '#EAF2FF',
+    borderWidth: 1,
+    borderColor: '#D6E4FF',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  noteTemplateText: {
+    color: '#1D4ED8',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  noteTagChip: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  noteTagText: {
+    color: '#B45309',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  noteCounter: {
+    color: '#64748B',
+    fontSize: 12,
+    textAlign: 'right',
+  },
+  editorInputMultiline: {
+    minHeight: 88,
+    textAlignVertical: 'top',
+  },
+  toggleRow: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D7E3F4',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: '#F8FBFF',
+  },
+  toggleRowActive: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#1D4ED8',
+  },
+  toggleText: {
+    fontSize: 14,
+    color: '#344054',
+    fontWeight: '600',
+  },
+  toggleTextActive: {
+    color: '#1D4ED8',
+  },
+  editorActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  editorCancelButton: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D7E3F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  editorCancelText: {
+    color: '#344054',
+    fontWeight: '700',
+  },
+  editorSaveButton: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1D4ED8',
+  },
+  editorSaveText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });

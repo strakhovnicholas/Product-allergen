@@ -11,9 +11,8 @@ export type LoginRequest = {
 };
 
 export type AuthResponse = {
-  accessToken?: string;
-  refreshToken?: string;
-  token?: string;
+  accessToken: string;
+  refreshToken: string;
 };
 
 export async function registerApi(
@@ -31,5 +30,21 @@ export async function loginApi(
   return apiRequest<AuthResponse>('/auth/login', {
     method: 'POST',
     body: payload,
+  });
+}
+
+export async function refreshApi(refreshToken: string): Promise<AuthResponse> {
+  return apiRequest<AuthResponse>('/auth/refresh', {
+    method: 'POST',
+    body: { refreshToken },
+    skipAuthRefresh: true,
+  });
+}
+
+export async function logoutApi(refreshToken: string): Promise<void> {
+  await apiRequest<void>('/auth/logout', {
+    method: 'POST',
+    body: { refreshToken },
+    skipAuthRefresh: true,
   });
 }

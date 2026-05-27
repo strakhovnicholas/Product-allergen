@@ -19,8 +19,6 @@ function RootNavigation() {
       currentSegment === 'profile-step-1' ||
       currentSegment === 'profile-step-2';
 
-    const inTabs = currentSegment === '(tabs)';
-
     if (!isAuthenticated && !inAuth) {
       setTimeout(() => {
         router.replace('/register');
@@ -30,7 +28,7 @@ function RootNavigation() {
 
     if (isAuthenticated && inAuth) {
       setTimeout(() => {
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/diary');
       }, 0);
       return;
     }
@@ -44,10 +42,10 @@ function RootNavigation() {
           flex: 1,
           justifyContent: 'center',
           alignItems: 'center',
-          backgroundColor: '#F5F7FB',
+          backgroundColor: '#EEF4FF',
         }}
       >
-        <ActivityIndicator size="large" color="#2F6690" />
+        <ActivityIndicator size="large" color="#1D4ED8" />
       </View>
     );
   }
@@ -59,7 +57,14 @@ function RootNavigation() {
       <Stack.Screen name="profile-step-1" />
       <Stack.Screen name="profile-step-2" />
       <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="edit-profile" />
+      <Stack.Screen
+        name="edit-profile"
+        options={{
+          presentation: 'transparentModal',
+          animation: 'fade',
+          contentStyle: { backgroundColor: 'transparent' },
+        }}
+      />
       <Stack.Screen name="add-common" />
       <Stack.Screen name="add-symptom" />
       <Stack.Screen name="add-medicine" />

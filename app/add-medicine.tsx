@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +15,7 @@ import {
 
 import {
   createMedicineApi,
-  getMedicinesApi,
+  getMedicinesCatalogApi,
   updateMedicineApi,
 } from '../src/api/diaryApi';
 
@@ -40,10 +41,11 @@ export default function AddMedicineScreen() {
     medicineName?: string;
     dosage?: string;
     unit?: string;
+    intakeDate?: string;
   }>();
 
   const isEdit = useMemo(
-    () => Boolean(params.id && params.id.length > 10),
+    () => Boolean(params.id),
     [params.id]
   );
 
@@ -63,9 +65,7 @@ export default function AddMedicineScreen() {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await getMedicinesApi();
-
-        console.log('📦 API MEDICINES:', data);
+        const data = await getMedicinesCatalogApi();
 
         const unique = [
           ...new Set(
@@ -75,7 +75,7 @@ export default function AddMedicineScreen() {
 
         setMedicineList(unique);
       } catch (e) {
-        console.log('❌ LOAD ERROR:', e);
+        console.log(e);
       }
     };
 
@@ -95,19 +95,15 @@ export default function AddMedicineScreen() {
   const handleSave = async () => {
     const name = selectedMedicine || search.trim();
 
-    console.log('🧠 NAME:', name);
-    console.log('🧠 DOSAGE:', dosage);
-    console.log('🧠 UNIT:', unit);
-
     if (!name) {
       Alert.alert('Ошибка', 'Введите название лекарства');
       return;
     }
 
-    const parsedDosage = Number(dosage);
+    const parsedDosage = Number((dosage || '1').trim());
 
-    if (!dosage || Number.isNaN(parsedDosage)) {
-      Alert.alert('Ошибка', 'Введите корректную дозировку');
+    if (Number.isNaN(parsedDosage) || parsedDosage <= 0) {
+      Alert.alert('Ошибка', 'Введите корректную дозировку (больше 0)');
       return;
     }
 
@@ -115,12 +111,8 @@ export default function AddMedicineScreen() {
       medicineName: name,
       dosage: parsedDosage,
       unit: mapUnit(unit), // 🔥 ФИКС
-      intakeTime: new Date().toISOString(),
-      medicationType: 1,
-      reason: '',
+      intakeDate: params.intakeDate ?? new Date().toISOString(),
     };
-
-    console.log('🚀 PAYLOAD:', JSON.stringify(payload, null, 2));
 
     setIsSubmitting(true);
 
@@ -131,10 +123,8 @@ export default function AddMedicineScreen() {
         await createMedicineApi(payload);
       }
 
-      console.log('✅ SUCCESS');
       router.back();
-    } catch (e: any) {
-      console.log('❌ ERROR FULL:', e);
+    } catch {
       Alert.alert('Ошибка сохранения');
     } finally {
       setIsSubmitting(false);
@@ -149,18 +139,24 @@ export default function AddMedicineScreen() {
         </Text>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Название</Text>
+          <View style={ui.sectionCard}>
+            <View style={ui.sectionHead}>
+              <Ionicons name="medkit-outline" size={18} color="#1D4ED8" />
+              <Text style={ui.sectionHeadText}>Препарат</Text>
+            </View>
+            <Text style={styles.label}>Название</Text>
 
-          <TextInput
-            style={styles.input}
-            value={search}
-            onChangeText={(t) => {
-              setSearch(t);
-              setShowDropdown(true);
-            }}
-            onFocus={() => setShowDropdown(true)}
-            placeholder="Введите лекарство..."
-          />
+            <TextInput
+              style={styles.input}
+              value={search}
+              onChangeText={(t) => {
+                setSearch(t);
+                setShowDropdown(true);
+              }}
+              onFocus={() => setShowDropdown(true)}
+              placeholder="Введите лекарство..."
+            />
+          </View>
 
           {showDropdown && (
             <View style={searchStyles.dropdown}>
@@ -171,13 +167,12 @@ export default function AddMedicineScreen() {
                       key={item}
                       style={searchStyles.item}
                       onPress={() => {
-                        console.log('👆 SELECT:', item);
                         setSelectedMedicine(item);
                         setSearch(item);
-                        setShowDropdown(false); // 🔥 фикс
+                        setShowDropdown(false);
                       }}
                     >
-                      <Text>{item}</Text>
+                      <Text style={searchStyles.itemTitle}>{item}</Text>
                     </TouchableOpacity>
                   ))
                 ) : (
@@ -189,32 +184,37 @@ export default function AddMedicineScreen() {
             </View>
           )}
 
-          <Text style={styles.label}>Дозировка</Text>
+          <View style={ui.sectionCard}>
+            <View style={ui.sectionHead}>
+              <Ionicons name="speedometer-outline" size={18} color="#1D4ED8" />
+              <Text style={ui.sectionHeadText}>Дозировка</Text>
+            </View>
 
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              keyboardType="numeric"
-              value={dosage}
-              onChangeText={setDosage}
-              placeholder="Например: 500"
-            />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                keyboardType="numeric"
+                value={dosage}
+                onChangeText={setDosage}
+                placeholder="Например: 500"
+              />
 
-            <View style={unitStyles.container}>
-              {['мг', 'мл', 'таб'].map((u) => (
-                <TouchableOpacity
-                  key={u}
-                  style={[
-                    unitStyles.item,
-                    unit === u && unitStyles.active,
-                  ]}
-                  onPress={() => setUnit(u)}
-                >
-                  <Text style={unit === u && { color: '#fff' }}>
-                    {u}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              <View style={unitStyles.container}>
+                {['мг', 'мл', 'таб'].map((u) => (
+                  <TouchableOpacity
+                    key={u}
+                    style={[
+                      unitStyles.item,
+                      unit === u && unitStyles.active,
+                    ]}
+                    onPress={() => setUnit(u)}
+                  >
+                    <Text style={[unitStyles.itemText, unit === u && unitStyles.itemTextActive]}>
+                      {u}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           </View>
 
@@ -248,7 +248,10 @@ const searchStyles = StyleSheet.create({
   },
   item: {
     padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2F7',
   },
+  itemTitle: { fontSize: 14, color: '#0F172A', fontWeight: '600' },
   empty: {
     padding: 12,
     color: '#999',
@@ -258,14 +261,49 @@ const searchStyles = StyleSheet.create({
 const unitStyles = StyleSheet.create({
   container: {
     flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF4FF',
+    borderRadius: 14,
+    padding: 4,
   },
   item: {
-    padding: 10,
-    backgroundColor: '#EAF1F7',
-    marginRight: 6,
+    paddingHorizontal: 12,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderRadius: 10,
+    marginRight: 4,
   },
   active: {
-    backgroundColor: '#2F6690',
+    backgroundColor: '#1D4ED8',
+  },
+  itemText: {
+    color: '#1D4ED8',
+    fontWeight: '700',
+  },
+  itemTextActive: {
+    color: '#fff',
+  },
+});
+
+const ui = StyleSheet.create({
+  sectionCard: {
+    backgroundColor: '#F8FBFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D7E3F4',
+    padding: 10,
+    marginBottom: 12,
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  sectionHeadText: {
+    color: '#1D4ED8',
+    fontWeight: '700',
+    fontSize: 14,
   },
 });

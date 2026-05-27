@@ -1,0 +1,14 @@
+node_modules
+.expo
+dist
+.git
+.gitignore
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage
+*.local
+.DS_Store
+.idea
+android
+ios

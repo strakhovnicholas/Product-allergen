@@ -4,9 +4,10 @@ import { Tabs } from 'expo-router';
 export default function TabLayout() {
   return (
     <Tabs
+      initialRouteName="diary"
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#2F6690',
+        tabBarActiveTintColor: '#1D4ED8',
         tabBarInactiveTintColor: '#98A2B3',
         tabBarStyle: {
           height: 68,
@@ -19,16 +20,6 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Главная',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
         name="diary"
         options={{
           title: 'Дневник',
@@ -39,11 +30,11 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="add"
+        name="scan"
         options={{
-          title: 'Добавить',
+          title: 'Камера',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="add-circle" size={size} color={color} />
+            <Ionicons name="camera" size={size} color={color} />
           ),
         }}
       />
@@ -53,7 +44,7 @@ export default function TabLayout() {
         options={{
           title: 'Отчёты',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="stats-chart" size={size} color={color} />
+            <Ionicons name="bar-chart-outline" size={size} color={color} />
           ),
         }}
       />
