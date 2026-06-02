@@ -1,0 +1,141 @@
+@startuml user-service-class
+' Классический UML + отступы против наложений
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 80
+skinparam ranksep 80
+skinparam padding 14
+skinparam wrapWidth 160
+skinparam minClassWidth 100
+
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam usecase {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam rectangle {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #FEFECE
+  BorderColor black
+  ArrowColor black
+}
+skinparam interface {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+}
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+  ParticipantBorderColor black
+  ParticipantBackgroundColor #FEFECE
+  ActorBackgroundColor white
+  ActorBorderColor black
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 28
+skinparam BoxPadding 14
+skinparam sequenceMessageAlign center
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+skinparam nodesep 50
+skinparam ranksep 45
+
+title Диаграмма классов — user-service (основные классы)
+
+package "controller" {
+  class UserInfoController
+  class FoodIntakeController
+  class SymptomsController
+  class CommonFeelingController
+  class FoodAnalyzerController
+  class FoodController
+  class MedicineController
+  class IntakeMedicineController
+  class NoteController
+}
+
+package "service" {
+  class UserInfoService
+  class FoodIntakeService
+  class SymptomsService
+  class FoodAnalyzerServiceFacade
+  class FoodComponentAnalyzerServiceImpl
+  class FoodServiceImpl
+  class MedicineService
+}
+
+package "config" {
+  class InternalGatewayFilter
+  class UserIdArgumentResolver
+  class WebConfig
+  class CurrentUserId <<annotation>>
+}
+
+package "persistence" {
+  interface UserInfoRepository
+  interface FoodIntakeRepository
+  interface SymptomsRepository
+  class UserInfoEntity
+  class FoodIntakeEntity
+  class SymptomsEntity
+  class FoodEntity
+}
+
+FoodAnalyzerController --> FoodAnalyzerServiceFacade
+FoodAnalyzerServiceFacade --> FoodComponentAnalyzerServiceImpl
+FoodAnalyzerServiceFacade --> FoodIntakeService
+FoodAnalyzerServiceFacade --> SymptomsService
+
+FoodIntakeController --> FoodIntakeService
+SymptomsController --> SymptomsService
+UserInfoController --> UserInfoService
+
+FoodIntakeService --> FoodIntakeRepository
+SymptomsService --> SymptomsRepository
+UserInfoService --> UserInfoRepository
+
+UserIdArgumentResolver ..> CurrentUserId
+WebConfig --> UserIdArgumentResolver
+
+@enduml

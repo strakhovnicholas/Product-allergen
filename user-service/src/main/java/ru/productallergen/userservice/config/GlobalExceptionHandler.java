@@ -3,6 +3,7 @@ package ru.productallergen.userservice.config;
 import io.swagger.v3.oas.annotations.Hidden;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -80,10 +81,27 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<String> handleIllegalArgument(IllegalArgumentException ex) {
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(ex.getMessage());
+    public ResponseEntity<ApiErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
+        ApiErrorResponse error = ApiErrorResponse.builder()
+                .code(HttpStatus.BAD_REQUEST.value())
+                .errorType(HttpStatus.BAD_REQUEST.name())
+                .message(ex.getMessage())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnreadableMessage(HttpMessageNotReadableException ex) {
+        String details = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage();
+        ApiErrorResponse error = ApiErrorResponse.builder()
+                .code(HttpStatus.BAD_REQUEST.value())
+                .errorType(HttpStatus.BAD_REQUEST.name())
+                .message("Некорректный JSON запроса")
+                .details(List.of(Map.of("field", "body", "message", details)))
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
     private List<Map<String, Object>> createNotFoundIdDetails(Object id) {

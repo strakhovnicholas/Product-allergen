@@ -6,6 +6,7 @@ import ru.productallergen.userservice.userInfo.entity.SymptomsEntity;
 import ru.productallergen.userservice.userInfo.web.SymptomCreateRequestDto;
 import ru.productallergen.userservice.userInfo.web.SymptomEditRequestDto;
 import ru.productallergen.userservice.userInfo.web.SymptomResponseDto;
+import ru.productallergen.userservice.util.DateTimeParseUtils;
 
 import java.util.UUID;
 
@@ -30,8 +31,8 @@ public class SymptomsMapper {
                 .userId(userId)
                 .symptomName(requestDto.symptomName())
                 .severity(requestDto.severity())
-                .startTime(requestDto.startTime())
-                .endTime(requestDto.endTime())
+                .startTime(DateTimeParseUtils.parseRequired(requestDto.startTime(), "startTime"))
+                .endTime(DateTimeParseUtils.parseOptional(requestDto.endTime(), "endTime"))
                 .build();
     }
 
@@ -41,8 +42,8 @@ public class SymptomsMapper {
                 .userId(userId)
                 .symptomName(requestDto.symptomName())
                 .severity(requestDto.severity())
-                .startTime(requestDto.startTime())
-                .endTime(requestDto.endTime())
+                .startTime(DateTimeParseUtils.parseRequired(requestDto.startTime(), "startTime"))
+                .endTime(DateTimeParseUtils.parseOptional(requestDto.endTime(), "endTime"))
                 .build();
     }
 

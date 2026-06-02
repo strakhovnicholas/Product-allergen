@@ -1,0 +1,127 @@
+@startuml user-service-sequence-food-intake
+' Классический UML + отступы против наложений
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 80
+skinparam ranksep 80
+skinparam padding 14
+skinparam wrapWidth 160
+skinparam minClassWidth 100
+
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam usecase {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam rectangle {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #FEFECE
+  BorderColor black
+  ArrowColor black
+}
+skinparam interface {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+}
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+  ParticipantBorderColor black
+  ParticipantBackgroundColor #FEFECE
+  ActorBackgroundColor white
+  ActorBorderColor black
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 28
+skinparam BoxPadding 14
+skinparam sequenceMessageAlign center
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Диаграмма последовательности — UC-02 Создание приёма пищи (POST /api/feelings/food)
+
+skinparam ParticipantPadding 32
+
+actor "Клиент" as Client
+participant "API Gateway" as GW
+
+box "user-service" #F5F5F5
+  participant "InternalGatewayFilter" as IGF
+  participant "FoodIntakeController" as C
+  participant "UserIdArgumentResolver" as R
+  participant "FoodIntakeService" as S
+  participant "FoodIntakeRepository" as Repo
+end box
+
+database "PostgreSQL" as PG
+
+Client -> GW : POST /api/feelings/food\nBearer + body
+GW -> C : + X-User-Id, X-Internal-Gateway-Token
+activate C
+
+C -> IGF : doFilter
+activate IGF
+IGF --> C : OK
+deactivate IGF
+
+C -> R : resolveArgument(@CurrentUserId)
+activate R
+R --> C : UUID userId
+deactivate R
+
+C -> S : createFoodIntake(dto)
+activate S
+S -> Repo : save(entity)
+activate Repo
+Repo -> PG : INSERT
+PG --> Repo : entity
+Repo --> S : FoodIntakeDto
+deactivate Repo
+S --> C : FoodIntakeDto
+deactivate S
+
+C --> GW : HTTP 201
+deactivate C
+GW --> Client : HTTP 201
+
+@enduml

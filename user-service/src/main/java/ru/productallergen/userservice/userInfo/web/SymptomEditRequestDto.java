@@ -1,22 +1,23 @@
 package ru.productallergen.userservice.userInfo.web;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
-import java.time.LocalDateTime;
-
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record SymptomEditRequestDto(
         @NotBlank
+        @Size(min = 1, max = 300)
         String symptomName,
+        @NotNull
         @Min(1)
         @Max(10)
         Integer severity,
-        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-        LocalDateTime startTime,
-        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-        LocalDateTime endTime
+        @NotBlank
+        String startTime,
+        String endTime
 ) {
 }

@@ -1,0 +1,129 @@
+@startuml user-service-deployment
+' Классический UML + отступы против наложений
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 80
+skinparam ranksep 80
+skinparam padding 14
+skinparam wrapWidth 160
+skinparam minClassWidth 100
+
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam usecase {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam rectangle {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #FEFECE
+  BorderColor black
+  ArrowColor black
+}
+skinparam interface {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+}
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+  ParticipantBorderColor black
+  ParticipantBackgroundColor #FEFECE
+  ActorBackgroundColor white
+  ActorBorderColor black
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 28
+skinparam BoxPadding 14
+skinparam sequenceMessageAlign center
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Диаграмма развёртывания — user-service
+
+skinparam nodesep 70
+skinparam ranksep 60
+left to right direction
+
+node "<<device>>\nКлиент" as N_Client {
+  artifact "Mobile / Web App" as AppClient
+}
+
+node "<<device>>\nDocker Host" as N_Host {
+
+  node "<<container>>\nAPI Gateway\n:8080" as N_GW {
+    artifact "gateway-service.jar" as JarGW
+  }
+
+  node "<<container>>\nuser-service\n:8080" as N_App {
+    artifact "user-service.jar\nSpring Boot 4 / Java 17" as Jar
+  }
+
+  node "<<device>>\nPostgreSQL" as N_Pg {
+    database "user_pg" as DB_Pg
+  }
+
+  node "<<device>>\nMongoDB\n:27017" as N_Mongo {
+    database "health_tracker" as DB_Mg
+  }
+
+  N_GW -[hidden]right- N_App
+  N_App -[hidden]right- N_Pg
+  N_Pg -[hidden]right- N_Mongo
+}
+
+N_Client -[hidden]right- N_Host
+
+AppClient --> JarGW : HTTPS /api/**
+JarGW --> Jar : + X-User-Id,\nX-Internal-Gateway-Token
+Jar --> DB_Pg : JDBC/JPA
+Jar --> DB_Mg : MongoDB driver
+
+note bottom of N_App
+  Docker image: n1vvas1e/user-service:v1
+  Network: backend-net
+  Env: SPRING_DATASOURCE_*,
+  SPRING_DATA_MONGODB_URI,
+  INTERNAL_SECRET
+end note
+
+@enduml

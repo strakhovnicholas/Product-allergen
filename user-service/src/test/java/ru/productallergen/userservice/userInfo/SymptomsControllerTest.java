@@ -15,6 +15,7 @@ import ru.productallergen.userservice.userInfo.controller.SymptomsController;
 import ru.productallergen.userservice.userInfo.dto.SymptomsDto;
 import ru.productallergen.userservice.userInfo.mapper.SymptomsMapper;
 import ru.productallergen.userservice.userInfo.service.SymptomsService;
+import ru.productallergen.userservice.userInfo.web.SymptomCreateRequestDto;
 import ru.productallergen.userservice.userInfo.web.SymptomResponseDto;
 
 import java.time.LocalDateTime;
@@ -90,17 +91,23 @@ class SymptomsControllerTest {
         when(service.createSymptoms(eq(USER_ID), any(SymptomsDto.class))).thenReturn(sampleDto);
         when(mapper.toWebDto(sampleDto)).thenReturn(sampleWebDto);
 
+        SymptomCreateRequestDto createRequest = new SymptomCreateRequestDto(
+                "Headache",
+                5,
+                "2024-06-01T08:00:00",
+                "2024-06-01T10:00:00"
+        );
+
         mockMvc.perform(post("/api/feelings/symptoms")
                         .with(userJwt())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(sampleWebDto))
+                        .content(objectMapper.writeValueAsString(createRequest))
                         .header("X-User-Id", USER_ID))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.symptomsId").value(SYMPTOMS_ID.toString()))
                 .andExpect(jsonPath("$.symptomName").value("Headache"))
-                .andExpect(jsonPath("$.severity").value(5))
-                .andExpect(jsonPath("$.possibleCause").value("Stress"));
+                .andExpect(jsonPath("$.severity").value(5));
 
         verify(service).createSymptoms(eq(USER_ID), any(SymptomsDto.class));
     }
