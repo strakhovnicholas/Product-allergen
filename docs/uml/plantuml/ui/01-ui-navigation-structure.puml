@@ -1,0 +1,66 @@
+@startuml ui-navigation-structure
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam rectangle {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Структура навигации клиентского приложения Product-allergen
+
+rectangle "Неавторизованная зона" as AUTH_ZONE #EEEEEE {
+  rectangle "Экран входа" as LOGIN
+  rectangle "Экран регистрации" as REG
+  LOGIN -[hidden]right- REG
+}
+
+rectangle "Основное приложение (TabBar)" as MAIN #F5F5F5 {
+
+  rectangle "Главная\n(дашборд)" as HOME
+
+  rectangle "Дневник" as DIARY {
+    rectangle "Приёмы пищи" as FOOD
+    rectangle "Симптомы" as SYM
+    rectangle "Самочувствие" as FEEL
+    rectangle "Лекарства" as MED
+    rectangle "Заметки" as NOTE
+  }
+
+  rectangle "Анализ" as ANAL {
+    rectangle "Триггеры\n(еда—симптом)" as TRIG
+    rectangle "Медотчёт PDF" as PDF
+  }
+
+  rectangle "Сканер" as SCAN {
+    rectangle "Камера /\nзагрузка фото" as CAM
+    rectangle "Результат\nsafe/caution/unsafe" as RES
+  }
+
+  rectangle "Профиль" as PROF {
+    rectangle "Мед. данные" as PROF_MAIN
+    rectangle "Аллергены" as ALLERG
+  }
+}
+
+AUTH_ZONE -down-> MAIN : успешный login
+
+HOME -[hidden]right- DIARY
+DIARY -[hidden]right- ANAL
+ANAL -[hidden]right- SCAN
+SCAN -[hidden]right- PROF
+
+CAM -down-> RES
+
+note bottom of MAIN
+  Все запросы: HTTPS -> gateway :8080
+  Bearer access + refresh в secure storage
+end note
+
+@enduml

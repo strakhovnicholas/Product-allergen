@@ -1,0 +1,119 @@
+@startuml database-physical-user-mongodb
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 9
+skinparam linetype ortho
+
+skinparam classAttributeIconSize 0
+skinparam entity {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Физическая модель — user-service, MongoDB (база health_tracker)
+
+hide circle
+hide methods
+
+' ---- Внешний stub: users из auth-service (другая БД) ----
+entity "users (auth-service)\n<<external>>" as users_ext #DDDDDD {
+  * **id** : UUID <<PK>>
+}
+
+entity "user_info" as ui {
+  * **_id** : ObjectId <<PK>>
+  --
+  * user_id : UUID <<UK>>
+  full_name : String
+  age : Int
+  weight : Double
+  height : Int
+  gender : String
+  country : String
+  smoker : Boolean
+  alcohol : Boolean
+  sports : Boolean
+  chronic_diseases : Array<String>
+  allergies : Array<String>
+  predisposition : String
+  medications_regular : Array<String>
+  doctor_notes : String
+  registered_at : DateTime
+  updated_at : DateTime
+}
+
+entity "food_intakes" as fi {
+  * **_id** : ObjectId <<PK>>
+  --
+  food_intake_id : UUID <<UK>>
+  user_id : UUID
+  food_name : String
+  category : String
+  amount : Double
+  unit : String
+  intake_time : DateTime
+  created_at : DateTime
+  components : Array<String>
+}
+
+entity "symptoms" as sy {
+  * **_id** : ObjectId <<PK>>
+  --
+  symptoms_id : UUID <<UK>>
+  user_id : UUID
+  symptom_name : String
+  severity : Int
+  start_time : DateTime
+  end_time : DateTime
+}
+
+entity "common_feelings" as cf {
+  * **_id** : ObjectId <<PK>>
+  --
+  feeling_id : UUID
+  user_id : UUID
+  date_time : DateTime
+  wellbeing_score : Int
+}
+
+entity "notes" as no {
+  * **_id** : ObjectId <<PK>>
+  --
+  note_id : UUID
+  user_id : UUID
+  content : String
+  date : DateTime
+}
+
+' ---- Меж-БД логические связи (между документами через user_id) ----
+users_ext ||..|| ui  : "user_id  (1 : 1)"
+users_ext ||..o{ fi  : "user_id  (1 : *)"
+users_ext ||..o{ sy  : "user_id  (1 : *)"
+users_ext ||..o{ cf  : "user_id  (1 : *)"
+users_ext ||..o{ no  : "user_id  (1 : *)"
+
+note right of users_ext
+  Сущность из auth-service (allergen_pg).
+  В health_tracker отсутствует — связь UUID
+  поддерживается прикладным кодом
+  (UserInfoController, FoodIntakeController …).
+end note
+
+note bottom of ui
+  Один документ user_info на пользователя.
+  Рекомендуемый индекс: { user_id : 1 } unique.
+end note
+
+note bottom of fi
+  Дневник питания. Используется
+  FoodAnalyzerServiceFacade и
+  analytics-service для отчётов.
+end note
+
+@enduml

@@ -1,0 +1,130 @@
+@startuml database-conceptual-model
+' Концептуальная модель данных (уровень предметной области, без СУБД)
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam linetype ortho
+
+skinparam class {
+  BackgroundColor #FEFECE
+  BorderColor black
+  ArrowColor black
+}
+skinparam classAttributeIconSize 0
+
+title Концептуальная модель данных программного комплекса Product-allergen
+
+hide methods
+hide circle
+
+class "Учётная запись" as Account <<concept>> {
+  идентификатор
+  email
+  учётные данные
+}
+
+class "Сессия" as Session <<concept>> {
+  access-токен
+  refresh-токен
+}
+
+class "Медицинский профиль" as Profile <<concept>> {
+  аллергены
+  заболевания
+  антропометрия
+}
+
+class "Продукт питания" as FoodProduct <<concept>> {
+  наименование
+  компоненты
+  категория
+}
+
+class "Приём пищи" as Meal <<concept>> {
+  время
+  количество
+}
+
+class "Симптом" as Symptom <<concept>> {
+  наименование
+  тяжесть
+  период проявления
+}
+
+class "Самочувствие" as Wellbeing <<concept>> {
+  дата
+  оценка
+}
+
+class "Лекарство" as Medicine <<concept>> {
+  наименование
+  дозировка
+}
+
+class "Приём лекарства" as MedicineIntake <<concept>> {
+  дата приёма
+}
+
+class "Заметка" as Note <<concept>> {
+  текст
+  дата
+}
+
+class "Корреляция\nеда—симптом" as Correlation <<concept>> {
+  компонент
+  потенциальные симптомы
+}
+
+class "Медицинский отчёт" as Report <<concept>> {
+  период
+  PDF
+  заключение
+}
+
+class "Продукт (внешний)" as ExternalProduct <<concept>> {
+  штрихкод
+  состав
+}
+
+class "Оценка риска" as Risk <<concept>> {
+  вердикт
+  обоснование
+}
+
+' --- Связи (концептуальные) ---
+Account "1" -- "0..1" Profile : ведёт
+Account "1" -- "*" Session : имеет
+
+Account "1" -- "*" Meal : фиксирует
+Meal "*" -- "1" FoodProduct : включает
+
+Account "1" -- "*" Symptom : испытывает
+Account "1" -- "*" Wellbeing : оценивает
+Account "1" -- "*" Medicine : использует
+Medicine "1" -- "*" MedicineIntake : приём
+Account "1" -- "*" Note : создаёт
+
+Meal ..> Correlation : участвует в
+Symptom ..> Correlation : участвует в
+
+Account "1" -- "*" Report : заказывает
+Report ..> Profile : использует
+Report ..> Correlation : агрегирует
+
+Account "1" -- "*" Risk : получает
+ExternalProduct "1" -- "*" Risk : основа для
+Profile ..> Risk : персонализация
+
+note bottom of Correlation
+  Вычисляемая сущность (анализатор),
+  не хранится постоянно как документ
+end note
+
+note right of ExternalProduct
+  scan-service:
+  Open Food Facts / кэш
+end note
+
+@enduml

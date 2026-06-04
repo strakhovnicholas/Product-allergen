@@ -1,0 +1,61 @@
+@startuml scan-service-sequence-feign
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam handwritten false
+skinparam sequence {
+  ArrowColor black
+  ParticipantBackgroundColor #FEFECE
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 32
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Sequence — UC-S-03 Загрузка профиля через Feign (gateway-service)
+
+box "scan-service" #F5F5F5
+  participant "ScanService" as Svc
+  participant "IngredientSafetyService" as Safe
+  participant "UserProfileClient" as Feign
+  participant "FeignConfig" as FC
+end box
+participant "gateway-service :8080" as GW
+participant "user-service" as US
+
+Svc -> Feign : getUserInfo()
+activate Feign
+Feign -> FC : apply interceptor
+activate FC
+FC -> FC : X-User-Id\nX-Internal-Gateway-Token
+FC --> Feign
+deactivate FC
+
+Feign -> GW : GET /api/user/info
+activate GW
+GW -> US : forward
+activate US
+US --> GW : UserInfoDto
+deactivate US
+GW --> Feign : 200 OK
+deactivate GW
+
+Feign --> Svc : allergies, predisposition,\nchronicDiseases
+deactivate Feign
+
+Svc -> Safe : classify(ingredients, profile)
+activate Safe
+Safe --> Svc : safe / caution / unsafe
+deactivate Safe
+
+note right of Feign
+  Профиль нужен для сопоставления
+  ингредиентов с аллергенами
+end note
+
+@enduml

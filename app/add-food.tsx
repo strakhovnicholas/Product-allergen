@@ -1,10 +1,11 @@
+import { ScreenSafeArea } from '../components/ScreenSafeArea';
+import { nowAppDateTimeString } from '../src/utils/datetime';
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   Alert,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -229,7 +230,7 @@ export default function AddFoodScreen() {
       category: normalizeCategory(category),
       amount: parsedAmount,
       unit: mapUnit(unit),
-      intakeTime: new Date().toISOString(),
+      intakeTime: nowAppDateTimeString(),
       reactionOccurred: reaction,
       reactionDescription: reaction ? reactionText : '',
       components: components,
@@ -258,7 +259,7 @@ export default function AddFoodScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>
           {isEdit ? 'Редактировать питание' : 'Питание'}
@@ -464,7 +465,7 @@ export default function AddFoodScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

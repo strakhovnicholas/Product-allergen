@@ -1,9 +1,10 @@
+import { ScreenSafeArea } from '../components/ScreenSafeArea';
+import { nowAppDateTimeString } from '../src/utils/datetime';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -103,7 +104,7 @@ export default function AddSymptomScreen() {
       const payload = {
         symptomName: name,
         severity,
-        startTime: new Date().toISOString(),
+        startTime: nowAppDateTimeString(),
         possibleCause: possibleCause.trim() || undefined,
       };
 
@@ -138,7 +139,7 @@ export default function AddSymptomScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>
           {isEdit ? 'Редактировать симптом' : 'Симптом'}
@@ -233,7 +234,7 @@ export default function AddSymptomScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

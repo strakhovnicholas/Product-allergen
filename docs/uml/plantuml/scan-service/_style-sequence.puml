@@ -1,0 +1,25 @@
+' Стили только для sequence-диаграмм (PlantUML 1.2026)
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam handwritten false
+skinparam actorStyle stickman
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+  ParticipantBorderColor black
+  ParticipantBackgroundColor #FEFECE
+  ActorBackgroundColor white
+  ActorBorderColor black
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 32
+skinparam BoxPadding 14
+skinparam sequenceMessageAlign center
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}

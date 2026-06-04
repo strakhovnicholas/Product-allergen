@@ -1,0 +1,149 @@
+@startuml product-allergen-general-architecture
+' Рисунок 2.2 — Общая архитектура программного комплекса (§2.2.2)
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 9
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 45
+skinparam ranksep 40
+skinparam padding 12
+
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+  FontSize 9
+}
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+  FontSize 9
+}
+
+skinparam database {
+  BackgroundColor white
+  BorderColor black
+  FontSize 9
+}
+
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+  FontSize 9
+}
+
+skinparam cloud {
+  BackgroundColor white
+  BorderColor black
+  FontSize 9
+}
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+  FontSize 8
+}
+
+title Рисунок 2.2 — Общая архитектура программного комплекса
+
+top to bottom direction
+
+actor "Пользователь" as User
+
+package "Клиентский уровень" as L_CLIENT {
+  component "Android-приложение" as App
+}
+
+package "API Gateway" as L_GW {
+  component "gateway-service\nмаршрутизация, JWT, CORS" as GW
+}
+
+package "Микросервисы" as L_MS {
+
+  together {
+    component "auth-service\nрегистрация, JWT" as AUTH
+    component "user-service\nдневник, симптомы, ЛП" as USER
+  }
+
+  together {
+    component "analytics-service\nотчёты, анализ данных" as AN
+    component "scan-service\nанализ состава продуктов" as SCAN
+  }
+
+  AUTH -[hidden]right- USER
+  AN -[hidden]right- SCAN
+  AUTH -[hidden]down- AN
+  USER -[hidden]down- SCAN
+}
+
+package "Хранилища (Database per Service)" as L_DB {
+
+  together {
+    package "auth-service" as DB_AUTH {
+      database "PostgreSQL" as PG_AUTH
+      database "Redis" as REDIS
+      PG_AUTH -[hidden]down- REDIS
+    }
+    package "user-service" as DB_USER {
+      database "PostgreSQL" as PG_USER
+      database "MongoDB" as MONGO
+      PG_USER -[hidden]down- MONGO
+    }
+  }
+
+  package "analytics-service" as DB_AN {
+    database "PostgreSQL" as PG_AN
+  }
+
+  DB_AUTH -[hidden]right- DB_USER
+  DB_AUTH -[hidden]down- DB_AN
+}
+
+package "Инфраструктура" as L_INFRA {
+  node "Apache Kafka" as KAFKA
+  cloud "Внешние API\n(GigaChat и др.)" as EXT
+  KAFKA -[hidden]right- EXT
+}
+
+' --- связи ---
+User -down-> App : использует
+App -down-> GW : HTTPS\nединственная точка входа
+
+GW -down-> AUTH : /auth/**
+GW -down-> USER : /api/**
+GW -down-> AN : /reports/**
+GW -down-> SCAN : /scan/**
+
+AUTH -down-> PG_AUTH
+AUTH -down-> REDIS
+USER -down-> PG_USER
+USER -down-> MONGO
+AN -down-> PG_AN
+
+AN -down-> KAFKA : асинхронные задачи
+SCAN -down-> KAFKA
+AN -down-> EXT
+SCAN -down-> EXT
+
+L_MS -[hidden]down- L_DB
+L_DB -[hidden]down- L_INFRA
+
+note right of GW
+  Клиент обращается только
+  к API Gateway. Каждый сервис
+  управляет своим хранилищем
+  (Database per Service).
+end note
+
+@enduml

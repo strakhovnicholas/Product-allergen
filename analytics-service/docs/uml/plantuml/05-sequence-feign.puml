@@ -1,0 +1,130 @@
+@startuml analytics-service-sequence-feign
+' Классический UML + отступы против наложений
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 80
+skinparam ranksep 80
+skinparam padding 14
+skinparam wrapWidth 160
+skinparam minClassWidth 100
+
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam usecase {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam rectangle {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #FEFECE
+  BorderColor black
+  ArrowColor black
+}
+skinparam interface {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+}
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+  ParticipantBorderColor black
+  ParticipantBackgroundColor #FEFECE
+  ActorBackgroundColor white
+  ActorBorderColor black
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 28
+skinparam BoxPadding 14
+skinparam sequenceMessageAlign center
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Диаграмма последовательности — Загрузка данных через Feign (gateway-service)
+
+skinparam ParticipantPadding 32
+
+box "analytics-service" #F5F5F5
+  participant "ReportService" as S
+  participant "UserServiceClient" as Feign
+  participant "FeignConfig\nRequestInterceptor" as FC
+end box
+
+participant "gateway-service\n:8080" as GS
+
+S -> Feign : getUserInfo()
+activate Feign
+Feign -> FC : apply headers
+activate FC
+FC -> FC : X-Internal-Gateway-Token\nAuthorization\nX-User-Id
+deactivate FC
+Feign -> GS : GET /api/user/info
+GS --> Feign : UserInfoDto
+Feign --> S : UserInfoDto
+deactivate Feign
+
+S -> Feign : getMedicines(from, to)
+activate Feign
+Feign -> GS : GET /api/feelings/medicines
+GS --> Feign : List<MedicineDto>
+Feign --> S : filtered by date range
+deactivate Feign
+
+S -> Feign : getWellbeing(from, to)
+activate Feign
+Feign -> GS : GET /api/feelings/common
+GS --> Feign : List<CommonFeelingRequest>
+Feign --> S : wellbeing history
+deactivate Feign
+
+S -> Feign : analyzeFood(from, to)
+activate Feign
+Feign -> GS : GET /api/food-analyzer/analyze
+GS --> Feign : List<FoodComponentSymptomsResponse>
+Feign --> S : food symptoms
+deactivate Feign
+
+note over Feign, GS
+  @FeignClient(name = "gateway-service",
+  url = http://gateway-service:8080)
+end note
+
+@enduml

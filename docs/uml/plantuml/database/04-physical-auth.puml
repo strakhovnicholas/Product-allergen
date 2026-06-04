@@ -1,0 +1,76 @@
+@startuml database-physical-auth
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam linetype ortho
+
+skinparam classAttributeIconSize 0
+skinparam entity {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Физическая модель — auth-service (PostgreSQL allergen_pg + Redis)
+
+hide circle
+hide methods
+
+' ---- PostgreSQL ----
+entity "users" as users {
+  * **id** : UUID <<PK>>
+  --
+  * email : VARCHAR(255) <<UNIQUE, NOT NULL>>
+  * password : VARCHAR(60) <<BCrypt, NOT NULL>>
+  is_active : BOOLEAN
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+  ..
+  UNIQUE (email)
+}
+
+' ---- Redis (один логический "ключ" = одна сущность) ----
+entity "Redis: refresh tokens" as redis {
+  * **key** : refresh_token <<PK>>
+  --
+  value : email
+  TTL : 604800000 ms (7 дней)
+}
+
+entity "Redis: user_tokens:<email>" as redis_set {
+  * **key** : user_tokens:<email>
+  --
+  value : SET<refresh_token>
+  TTL : 604800000 ms (7 дней)
+}
+
+' ---- Связи (логические, между PostgreSQL и Redis) ----
+users ||..o{ redis : "1 .. *\nemail → token"
+users ||..o{ redis_set : "1 .. 1\nemail"
+redis_set ||..o{ redis : содержит
+
+note right of users
+  Таблица **users**, схема public.
+  Hibernate: ddl-auto=update.
+  Индекс UNIQUE (email).
+end note
+
+note right of redis
+  Запись делается через
+  RefreshTokenService.saveRefreshToken().
+  Удаление при logout / повторном login.
+end note
+
+note bottom of redis_set
+  Set всех активных refresh-токенов
+  одного пользователя — нужен для
+  revokeOldTokensByEmail() (logout
+  со всех устройств при новом входе).
+end note
+
+@enduml

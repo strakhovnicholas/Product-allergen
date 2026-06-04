@@ -1,0 +1,145 @@
+@startuml scan-service-class
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam handwritten false
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #FEFECE
+  BorderColor black
+  ArrowColor black
+}
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+skinparam linetype ortho
+
+title Диаграмма классов — scan-service (Kafka + GigaChat Vision)
+
+package "controller" {
+  class ScanController {
+    + analyze(image : MultipartFile, userId : UUID) : ComponentAnalysisResponse
+  }
+}
+
+package "service" {
+  class ScanService {
+    - userProfileClient : UserProfileClient
+    - scanKafkaProducer : ScanKafkaProducer
+    - resultRegistry : ScanResultRegistry
+    - ingredientSafetyService : IngredientSafetyService
+    --
+    + analyze(image, userId) : ComponentAnalysisResponse
+    - awaitResult(requestId) : ComponentAnalysisResponse
+    - mapToClientView(dto) : ComponentAnalysisResponse
+  }
+  class ScanKafkaProducer {
+    + send(message : ScanImageMessage) : void
+  }
+  class ScanKafkaConsumer {
+    - gigaChatVisionService : GigaChatVisionService
+    - ingredientSafetyService : IngredientSafetyService
+    - resultRegistry : ScanResultRegistry
+    --
+    + onMessage(message : ScanImageMessage) : void
+  }
+  class ScanResultRegistry {
+    + registerFuture(requestId) : CompletableFuture
+    + complete(requestId, result) : void
+  }
+  class GigaChatVisionService {
+    - gigaChatClient : GigaChatClient
+    - promptBuilder : PromptBuilder
+    --
+    + analyzeImage(imageBytes) : List<IngredientDto>
+    + parseIngredients(json) : List<IngredientDto>
+  }
+  class IngredientSafetyService {
+    + classify(ingredients, profile) : ComponentAnalysisResponse
+    - matchAllergen(name, allergies) : SafetyLevel
+  }
+  class PromptBuilder {
+    + buildVisionPrompt() : String
+  }
+}
+
+package "messaging" {
+  class ScanImageMessage <<DTO>> {
+    + requestId : UUID
+    + userId : UUID
+    + imageBase64 : String
+  }
+  class ScanResultMessage <<DTO>> {
+    + requestId : UUID
+    + response : ComponentAnalysisResponse
+  }
+}
+
+package "client" {
+  interface UserProfileClient <<Feign>> {
+    + getUserInfo() : UserInfoDto
+  }
+  class GigaChatClient {
+    + getAccessToken() : String
+    + visionCompletion(prompt, image) : String
+  }
+}
+
+package "dto" {
+  class IngredientDto <<DTO>> {
+    + name : String
+    + rawText : String
+  }
+  class ComponentAnalysisResponse <<DTO>> {
+    + safe : List<IngredientViewDto>
+    + caution : List<IngredientViewDto>
+    + unsafe : List<IngredientViewDto>
+    + summary : String
+  }
+  class IngredientViewDto <<DTO>> {
+    + name : String
+    + level : SafetyLevel
+    + reason : String
+  }
+  enum SafetyLevel {
+    SAFE
+    CAUTION
+    UNSAFE
+  }
+  class UserInfoDto <<DTO>> {
+    + allergies : List<String>
+    + predisposition : Predisposition
+  }
+}
+
+package "config" {
+  class KafkaConfig
+  class InternalGatewayFilter
+  class FeignConfig
+  class GigaChatConfig
+  class ScanServiceApplication
+}
+
+ScanController --> ScanService
+ScanService --> UserProfileClient
+ScanService --> ScanKafkaProducer
+ScanService --> ScanResultRegistry
+ScanService --> IngredientSafetyService
+ScanKafkaProducer ..> ScanImageMessage
+ScanKafkaConsumer --> GigaChatVisionService
+ScanKafkaConsumer --> IngredientSafetyService
+ScanKafkaConsumer --> ScanResultRegistry
+ScanKafkaConsumer ..> ScanImageMessage
+GigaChatVisionService --> PromptBuilder
+GigaChatVisionService --> GigaChatClient
+IngredientSafetyService ..> ComponentAnalysisResponse
+
+@enduml

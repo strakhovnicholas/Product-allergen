@@ -1,0 +1,81 @@
+@startuml scan-service-sequence-kafka
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam handwritten false
+skinparam sequence {
+  ArrowColor black
+  ParticipantBackgroundColor #FEFECE
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 32
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Диаграмма последовательности — UC-S-02 Асинхронная очередь Kafka (scan-image-requests)
+
+box "scan-service" #F5F5F5
+  participant "ScanService" as Svc
+  participant "ScanKafkaProducer" as Prod
+  participant "ScanKafkaConsumer" as Cons
+  participant "GigaChatVisionService" as GigaSvc
+  participant "IngredientSafetyService" as Safe
+  participant "ScanResultRegistry" as Reg
+end box
+
+queue "Kafka\nscan-image-requests" as TopicIn
+queue "Kafka\nscan-image-results\n(опционально)" as TopicOut
+
+note over Prod, Cons
+  spring-kafka: producer при POST /scan/analyze,
+  consumer — отдельный поток,
+  не блокирует event-loop надолго
+end note
+
+Svc -> Prod : send(key=userId,\nvalue=ScanImageMessage)
+activate Prod
+Prod -> TopicIn : produce\n(correlationId, imageRef, profileSnapshot)
+deactivate Prod
+
+Svc -> Reg : registerFuture(correlationId)
+activate Reg
+
+... consumer group scan-service ...
+
+TopicIn -> Cons : @KafkaListener
+activate Cons
+Cons -> GigaSvc : analyze + parse JSON
+activate GigaSvc
+GigaSvc --> Cons : ingredients
+deactivate GigaSvc
+
+Cons -> Safe : classify vs allergies
+activate Safe
+Safe --> Cons : ComponentAnalysisResponse
+deactivate Safe
+
+alt reply-topic
+  Cons -> TopicOut : produce ScanResultMessage
+  TopicOut -> Reg : complete future
+else in-process registry
+  Cons -> Reg : complete(correlationId, dto)
+end
+
+Reg --> Svc : ComponentAnalysisResponse
+deactivate Cons
+deactivate Reg
+
+Svc -> Svc : formatForClient()
+
+note right of TopicIn
+  Пример payload:
+  requestId, userId, imageBase64
+  Retention / DLQ — по политике ops
+end note
+
+@enduml

@@ -1,0 +1,136 @@
+@startuml product-allergen-requirements-diagram
+' Рисунок 2.1 — компактная UML-диаграмма требований
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 9
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 38
+skinparam ranksep 36
+skinparam padding 10
+skinparam wrapWidth 110
+skinparam minClassWidth 72
+
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam usecase {
+  BackgroundColor #FEFECE
+  BorderColor black
+  FontSize 9
+}
+
+skinparam rectangle {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+  FontSize 9
+}
+
+title Диаграмма требований программного комплекса (рис. 2.1)
+
+top to bottom direction
+
+actor "Пользователь" as User
+
+rectangle "Программный комплекс" as SYS {
+
+  usecase "Цель: мониторинг аллергии и непереносимости" as G0
+
+  together {
+    package "Функциональные (§2.1.2)" as P_FR {
+
+      together {
+        usecase "FR-01 Регистрация" as FR01
+        usecase "FR-02 Авторизация" as FR02
+        usecase "FR-03 Профиль" as FR03
+        usecase "FR-04 Дневник питания" as FR04
+        usecase "FR-05 Продукты" as FR05
+        usecase "FR-06 Симптомы" as FR06
+        usecase "FR-07 История наблюдений" as FR07
+        usecase "FR-08 Сведения о ЛП" as FR08
+        FR01 -[hidden]down- FR02
+        FR02 -[hidden]down- FR03
+        FR03 -[hidden]down- FR04
+        FR04 -[hidden]down- FR05
+        FR05 -[hidden]down- FR06
+        FR06 -[hidden]down- FR07
+        FR07 -[hidden]down- FR08
+      }
+
+      together {
+        usecase "FR-09 Приём ЛС" as FR09
+        usecase "FR-10 Отчёты" as FR10
+        usecase "FR-11 Продукт–симптом" as FR11
+        usecase "FR-12 Проверка состава" as FR12
+        usecase "FR-13 Рекомендации" as FR13
+        usecase "FR-14 PDF" as FR14
+        usecase "FR-15 Уведомления" as FR15
+        FR09 -[hidden]down- FR10
+        FR10 -[hidden]down- FR11
+        FR11 -[hidden]down- FR12
+        FR12 -[hidden]down- FR13
+        FR13 -[hidden]down- FR14
+        FR14 -[hidden]down- FR15
+      }
+
+      FR01 -[hidden]right- FR09
+    }
+
+    package "Нефункциональные (§2.1.3)" as P_NFR {
+
+      together {
+        usecase "NFR-01 REST ≤ 2 с" as NF01
+        usecase "NFR-02 REST + JSON" as NF02
+        usecase "NFR-03 Хранение данных" as NF03
+        usecase "NFR-04 JWT" as NF04
+        usecase "NFR-05 Межсервисная защита" as NF05
+        usecase "NFR-06 Масштабирование" as NF06
+        usecase "NFR-07 Независимое обновление" as NF07
+        NF01 -[hidden]down- NF02
+        NF02 -[hidden]down- NF03
+        NF03 -[hidden]down- NF04
+        NF04 -[hidden]down- NF05
+        NF05 -[hidden]down- NF06
+        NF06 -[hidden]down- NF07
+      }
+
+      together {
+        usecase "NFR-08 Расширяемость" as NF08
+        usecase "NFR-09 Внешние API" as NF09
+        usecase "NFR-10 Отказоустойчивость" as NF10
+        usecase "NFR-11 Целостность данных" as NF11
+        usecase "NFR-12 Docker" as NF12
+        usecase "NFR-13 Android" as NF13
+        NF08 -[hidden]down- NF09
+        NF09 -[hidden]down- NF10
+        NF10 -[hidden]down- NF11
+        NF11 -[hidden]down- NF12
+        NF12 -[hidden]down- NF13
+      }
+
+      NF01 -[hidden]right- NF08
+    }
+
+    P_FR -[hidden]right- P_NFR
+  }
+
+  G0 -[hidden]down- P_FR
+}
+
+User -down-> G0
+G0 ..> P_FR : <<реализуется>>
+G0 ..> P_NFR : <<ограничивается>>
+
+@enduml

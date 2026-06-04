@@ -1,0 +1,151 @@
+@startuml product-allergen-component-diagram
+' Рисунок 2.5 — Компонентная диаграмма программного комплекса (§2.2.4)
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 9
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 50
+skinparam ranksep 45
+skinparam padding 12
+
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+  FontSize 9
+}
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+  FontSize 9
+}
+
+skinparam interface {
+  BackgroundColor white
+  BorderColor black
+  FontSize 8
+}
+
+skinparam database {
+  BackgroundColor white
+  BorderColor black
+  FontSize 9
+}
+
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+  FontSize 9
+}
+
+skinparam cloud {
+  BackgroundColor white
+  BorderColor black
+  FontSize 9
+}
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+  FontSize 8
+}
+
+title Рисунок 2.5 — Компонентная диаграмма программного комплекса
+
+top to bottom direction
+
+package "Клиентский уровень" as P_CLIENT {
+  component "Мобильный клиент\nAndroid-приложение" as APP
+}
+
+package "Уровень API" as P_API {
+  component "API Gateway\ngateway-service" as GW
+  interface "REST / HTTPS" as IREST
+  APP --> IREST
+  IREST --> GW
+}
+
+package "Микросервисы" as P_MS {
+
+  together {
+    component "Сервис аутентификации\nauth-service" as AUTH
+    component "Сервис пользовательских\nданных user-service" as USER
+  }
+
+  together {
+    component "Сервис аналитики\nanalytics-service" as AN
+    component "Сервис сканирования\nпродуктов scan-service" as SCAN
+  }
+
+  AUTH -[hidden]right- USER
+  AN -[hidden]right- SCAN
+  AUTH -[hidden]down- AN
+  USER -[hidden]down- SCAN
+}
+
+package "Подсистема хранения данных" as P_STORAGE {
+  together {
+    database "PostgreSQL" as PG
+    database "MongoDB" as MONGO
+    database "Redis" as REDIS
+  }
+  PG -[hidden]right- MONGO
+  MONGO -[hidden]right- REDIS
+}
+
+node "Брокер сообщений\nApache Kafka" as KAFKA
+
+cloud "Внешние сервисы\nанализа данных\n(GigaChat)" as EXT
+
+interface "REST" as IAUTH
+interface "REST" as IUSER
+interface "REST" as IAN
+interface "REST" as ISCAN
+interface "Feign REST" as IFEIGN
+
+GW --> IAUTH
+IAUTH --> AUTH
+GW --> IUSER
+IUSER --> USER
+GW --> IAN
+IAN --> AN
+GW --> ISCAN
+ISCAN --> SCAN
+
+AN ..> IFEIGN
+IFEIGN ..> USER : через gateway
+
+AUTH --> PG
+AUTH --> REDIS
+USER --> PG
+USER --> MONGO
+AN --> PG
+
+AN --> KAFKA
+SCAN --> KAFKA
+AN --> EXT
+SCAN --> EXT
+
+P_CLIENT -[hidden]down- P_API
+P_API -[hidden]down- P_MS
+P_MS -[hidden]down- P_STORAGE
+P_STORAGE -[hidden]down- KAFKA
+
+note right of P_MS
+  Распределение обязанностей
+  между подсистемами и интерфейсы
+  взаимодействия (REST, Feign, Kafka).
+end note
+
+note bottom of P_STORAGE
+  Database per Service:
+  каждый сервис использует
+  собственное хранилище.
+end note
+
+@enduml

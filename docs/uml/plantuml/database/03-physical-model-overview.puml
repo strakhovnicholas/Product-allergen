@@ -1,0 +1,114 @@
+@startuml database-physical-overview
+' Физическая модель — размещение данных по инстансам СУБД
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam linetype ortho
+
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam component {
+  BackgroundColor white
+  BorderColor black
+}
+
+title Физическая модель данных — размещение по серверам и СУБД
+
+left to right direction
+
+node "Docker Host\nbackend-net" as HOST {
+
+  node "auth-service" as N_AUTH_SVC {
+    component "auth-service.jar" as J_AUTH
+  }
+
+  node "PostgreSQL :5432" as N_PG_AUTH {
+    database "allergen_pg" as DB_AUTH {
+      frame "tables" {
+        storage "users" as T_USERS
+      }
+    }
+  }
+
+  node "Redis :6379" as N_REDIS {
+    database "db 0" as DB_REDIS {
+      storage "refresh:*\n(email → token)" as T_REDIS
+    }
+  }
+
+  node "user-service" as N_USER_SVC {
+    component "user-service.jar" as J_USER
+  }
+
+  node "PostgreSQL\nuser_pg" as N_PG_USER {
+    database "user_pg" as DB_USER_PG {
+      storage "food"
+      storage "food_components"
+      storage "symptom"
+      storage "medicine"
+      storage "intake_medicine"
+    }
+  }
+
+  node "MongoDB :27017" as N_MONGO {
+    database "health_tracker" as DB_MONGO {
+      storage "user_info"
+      storage "food_intakes"
+      storage "symptoms"
+      storage "common_feelings"
+      storage "notes"
+    }
+  }
+
+  node "analytics-service" as N_AN_SVC {
+    component "analytics-service.jar" as J_AN
+  }
+
+  node "PostgreSQL :5433" as N_PG_AN {
+    database "report_pg" as DB_AN_PG {
+      storage "medical_reports"
+    }
+  }
+
+  node "Kafka :9092" as N_KAFKA {
+    queue "report-data-requests" as TOPIC
+  }
+
+  node "scan-service" as N_SCAN {
+    database "scan_pg / redis" as DB_SCAN {
+      storage "product_cache"
+      storage "scan_history"
+    }
+  }
+
+  N_AUTH_SVC -[hidden]down- N_PG_AUTH
+  N_PG_AUTH -[hidden]right- N_REDIS
+  N_USER_SVC -[hidden]down- N_PG_USER
+  N_PG_USER -[hidden]right- N_MONGO
+}
+
+J_AUTH --> T_USERS : JDBC\nHibernate ddl-auto=update
+J_AUTH --> T_REDIS : Spring Data Redis
+
+J_USER --> DB_USER_PG : JDBC/JPA
+J_USER --> DB_MONGO : Spring Data MongoDB
+
+J_AN --> T_USERS : не напрямую
+J_AN --> DB_AN_PG : JDBC/JPA
+J_AN --> TOPIC : Kafka producer
+
+note bottom of HOST
+  Каждый микросервис — отдельная схема/БД (Database per Service).
+  Ссылочная целостность user_id между allergen_pg и user_pg
+  обеспечивается на уровне приложения, не FK между инстансами.
+end note
+
+@enduml

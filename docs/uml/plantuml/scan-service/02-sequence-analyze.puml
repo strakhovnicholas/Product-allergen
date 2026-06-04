@@ -1,0 +1,100 @@
+@startuml scan-service-sequence-analyze
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam handwritten false
+skinparam actorStyle stickman
+skinparam sequence {
+  ArrowColor black
+  ParticipantBackgroundColor #FEFECE
+  ActorBackgroundColor white
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 32
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Диаграмма последовательности — UC-S-01 Сканирование состава (фото → Kafka → GigaChat → клиент)
+
+actor "Пользователь" as User
+participant "Mobile App" as App
+participant "API Gateway" as GW
+
+box "scan-service" #F5F5F5
+  participant "ScanController" as Ctrl
+  participant "ScanService" as Svc
+  participant "UserProfileClient" as Feign
+  participant "ScanKafkaProducer" as Prod
+  participant "ScanKafkaConsumer" as Cons
+  participant "GigaChatVisionService" as GigaSvc
+  participant "IngredientSafetyService" as Safe
+end box
+
+queue "Kafka\nscan-image-requests" as Kafka
+participant "GigaChat API\n(Sber Vision)" as Giga
+
+User -> App : сделать фото этикетки
+App -> GW : POST /scan/analyze\nmultipart image + Bearer JWT
+activate GW
+GW -> GW : JWT → X-User-Id,\nX-Internal-Gateway-Token
+GW -> Ctrl : forward
+activate Ctrl
+
+Ctrl -> Svc : analyze(image, userId)
+activate Svc
+
+Svc -> Feign : getUserInfo()
+activate Feign
+Feign -> GW : GET /api/user/info
+GW --> Feign : UserInfoDto\n(allergies, predisposition)
+deactivate Feign
+
+Svc -> Prod : send(ScanImageMessage)\nimage + userId + requestId
+activate Prod
+Prod -> Kafka : produce
+deactivate Prod
+
+note over Svc, Cons
+  Ожидание результата:
+  CompletableFuture / reply-topic /
+  in-memory cache по requestId
+end note
+
+... асинхронная обработка ...
+
+Kafka -> Cons : @KafkaListener
+activate Cons
+Cons -> GigaSvc : analyzeImage(bytes, prompt)
+activate GigaSvc
+GigaSvc -> Giga : OAuth + Vision / completions\n(изображение + промпт)
+activate Giga
+Giga --> GigaSvc : JSON\n(ингредиенты, safe/unsafe)
+deactivate Giga
+GigaSvc -> GigaSvc : parseIngredients(json)
+GigaSvc --> Cons : List<IngredientDto>
+deactivate GigaSvc
+
+Cons -> Safe : classify(ingredients, profile)
+activate Safe
+Safe --> Cons : ComponentAnalysisResponse\n(safe, caution, unsafe, summary)
+deactivate Safe
+
+Cons --> Svc : результат по requestId
+deactivate Cons
+
+Svc -> Svc : mapToClientView()\n(красивые списки + summary)
+Svc --> Ctrl : ComponentAnalysisResponse
+deactivate Svc
+
+Ctrl --> GW : 200 application/json
+deactivate Ctrl
+GW --> App : JSON
+deactivate GW
+App --> User : UI: зелёный / жёлтый / красный\nсписки компонентов
+
+@enduml

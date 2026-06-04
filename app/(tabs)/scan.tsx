@@ -1,3 +1,4 @@
+import { ScreenSafeArea } from '../../components/ScreenSafeArea';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef, useState } from 'react';
@@ -5,51 +6,49 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 
+import { getUserProfileApi } from '../../src/api/profileApi';
+import { recognizeLabelText } from '../../src/ocr/labelOcr';
+import { parseIngredients, guessProductName } from '../../src/ocr/ingredientParser';
+import { analyzeIngredients, type ScanAnalysisResult } from '../../src/ocr/ingredientSafety';
 import { COLORS } from '../../src/styles/palette';
 import { CONTROL, FONT, RADIUS, SHADOW, SPACING } from '../../src/styles/theme';
-
-type DemoScanResult = {
-  productName: string;
-  score: number;
-  riskLabel: 'Низкий риск' | 'Средний риск' | 'Высокий риск';
-  riskColor: string;
-  ingredients: string[];
-  problematic: string[];
-  recommendation: string;
-};
-
-const DEMO_RESULT: DemoScanResult = {
-  productName: 'Шоколадный батончик (демо)',
-  score: 42,
-  riskLabel: 'Средний риск',
-  riskColor: COLORS.warning,
-  ingredients: [
-    'Сахар',
-    'Какао-порошок',
-    'Сухое молоко',
-    'Соевый лецитин',
-    'Ароматизатор ваниль',
-  ],
-  problematic: ['Сухое молоко', 'Соевый лецитин'],
-  recommendation:
-    'Учитывая ваш профиль, лучше ограничить этот продукт. Выбирайте вариант без молока и сои.',
-};
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<DemoScanResult | null>(null);
+  const [scanResult, setScanResult] = useState<ScanAnalysisResult | null>(null);
+  const [manualText, setManualText] = useState('');
+  const [showManual, setShowManual] = useState(false);
   const cameraRef = useRef<CameraView | null>(null);
+
+  const runAnalysis = async (rawText: string) => {
+    const ingredients = parseIngredients(rawText);
+    if (ingredients.length === 0) {
+      Alert.alert(
+        'Не распознан состав',
+        'Введите текст состава вручную или сделайте более чёткое фото. Для OCR нужна сборка приложения (не Expo Go).',
+      );
+      setShowManual(true);
+      setManualText(rawText);
+      return;
+    }
+    const profile = await getUserProfileApi();
+    let result = analyzeIngredients(ingredients, profile);
+    const productName = guessProductName(rawText);
+    if (productName) result = { ...result, productName };
+
+    setScanResult(result);
+  };
 
   const takePhoto = async () => {
     if (!cameraRef.current || isCapturing) return;
@@ -59,27 +58,34 @@ export default function ScanScreen() {
         quality: 0.8,
         skipProcessing: true,
       });
-
       if (photo?.uri) {
         setCapturedUri(photo.uri);
         setScanResult(null);
+        setShowManual(false);
       }
     } catch {
-      Alert.alert('Ошибка', 'Не удалось сделать фото. Попробуйте еще раз.');
+      Alert.alert('Ошибка', 'Не удалось сделать фото.');
     } finally {
       setIsCapturing(false);
     }
   };
 
-  const showDemoResult = async () => {
+  const recognizePhoto = async () => {
     if (!capturedUri || isScanning) return;
     try {
       setIsScanning(true);
-      // Temporary stub: product analysis UI without backend dependency.
-      await new Promise((resolve) => setTimeout(resolve, 850));
-      setScanResult(DEMO_RESULT);
+      const ocr = await recognizeLabelText(capturedUri);
+      if (!ocr.text) {
+        setShowManual(true);
+        Alert.alert(
+          'OCR недоступен',
+          'Используйте development build (см. BUILD_PHONE.md) или вставьте текст состава вручную.',
+        );
+        return;
+      }
+      await runAnalysis(ocr.text);
     } catch {
-      Alert.alert('Ошибка', 'Не удалось показать демо-результат.');
+      Alert.alert('Ошибка', 'Не удалось распознать этикетку.');
     } finally {
       setIsScanning(false);
     }
@@ -87,33 +93,30 @@ export default function ScanScreen() {
 
   if (!permission) {
     return (
-      <SafeAreaView style={styles.centered}>
+      <ScreenSafeArea style={styles.centered}>
         <ActivityIndicator color={COLORS.primary} />
-      </SafeAreaView>
+      </ScreenSafeArea>
     );
   }
 
   if (!permission.granted) {
     return (
-      <SafeAreaView style={styles.centered}>
+      <ScreenSafeArea style={styles.centered}>
         <Ionicons name="camera-outline" size={56} color={COLORS.primary} />
         <Text style={styles.permissionTitle}>Нужен доступ к камере</Text>
-        <Text style={styles.permissionText}>
-          Фото не сохраняется в галерею и используется только для анализа состава.
-        </Text>
         <TouchableOpacity style={styles.primaryButton} onPress={requestPermission}>
           <Text style={styles.primaryButtonText}>Разрешить камеру</Text>
         </TouchableOpacity>
-      </SafeAreaView>
+      </ScreenSafeArea>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenSafeArea style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Сканер этикетки</Text>
         <Text style={styles.subtitle}>
-          Сделайте фото состава и нажмите «Отправить в AI». Пока отобразится демо-экран результата.
+          Фото → OCR на устройстве → проверка аллергенов по вашему профилю (без GigaChat).
         </Text>
 
         <View style={styles.cameraCard}>
@@ -130,6 +133,7 @@ export default function ScanScreen() {
             onPress={() => {
               setCapturedUri(null);
               setScanResult(null);
+              setShowManual(false);
             }}
             disabled={!capturedUri || isCapturing || isScanning}
           >
@@ -138,18 +142,42 @@ export default function ScanScreen() {
 
           <TouchableOpacity
             style={[styles.primaryButton, (isCapturing || isScanning) && styles.disabledButton]}
-            onPress={capturedUri ? showDemoResult : takePhoto}
+            onPress={capturedUri ? recognizePhoto : takePhoto}
             disabled={isCapturing || isScanning}
           >
             {isCapturing || isScanning ? (
               <ActivityIndicator color={COLORS.textInverse} />
             ) : (
               <Text style={styles.primaryButtonText}>
-                {capturedUri ? 'Отправить в AI' : 'Сфотографировать'}
+                {capturedUri ? 'Распознать состав' : 'Сфотографировать'}
               </Text>
             )}
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity onPress={() => setShowManual((v) => !v)}>
+          <Text style={styles.linkText}>
+            {showManual ? 'Скрыть ввод вручную' : 'Ввести текст состава вручную'}
+          </Text>
+        </TouchableOpacity>
+
+        {showManual && (
+          <View style={styles.manualBox}>
+            <TextInput
+              style={styles.manualInput}
+              multiline
+              placeholder="Вставьте текст с этикетки..."
+              value={manualText}
+              onChangeText={setManualText}
+            />
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => void runAnalysis(manualText)}
+            >
+              <Text style={styles.primaryButtonText}>Анализировать текст</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {scanResult && (
           <View style={styles.resultCard}>
@@ -187,10 +215,7 @@ export default function ScanScreen() {
                 return (
                   <View
                     key={item}
-                    style={[
-                      styles.ingredientChip,
-                      isProblem && styles.ingredientChipProblem,
-                    ]}
+                    style={[styles.ingredientChip, isProblem && styles.ingredientChipProblem]}
                   >
                     <Text
                       style={[
@@ -221,7 +246,7 @@ export default function ScanScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
@@ -238,6 +263,17 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: FONT.headline, fontWeight: '700', color: COLORS.textPrimary },
   subtitle: { color: COLORS.textSecondary, lineHeight: 20, fontSize: FONT.body },
+  linkText: { color: COLORS.primary, fontWeight: '600', textAlign: 'center', marginTop: 8 },
+  manualBox: { gap: 8 },
+  manualInput: {
+    minHeight: 100,
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
+    borderRadius: RADIUS.md,
+    padding: 12,
+    backgroundColor: COLORS.surface,
+    textAlignVertical: 'top',
+  },
   cameraCard: {
     borderRadius: RADIUS.md,
     overflow: 'hidden',
@@ -274,7 +310,6 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: COLORS.textPrimary, fontWeight: '600', fontSize: FONT.body },
   disabledButton: { opacity: 0.65 },
   permissionTitle: { fontSize: FONT.title, fontWeight: '700', color: COLORS.textPrimary },
-  permissionText: { color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20, fontSize: FONT.body },
   resultCard: {
     marginTop: 4,
     backgroundColor: COLORS.surface,
@@ -294,11 +329,7 @@ const styles = StyleSheet.create({
   },
   resultTitle: { fontSize: FONT.title, fontWeight: '700', color: COLORS.textPrimary },
   resultProduct: { color: COLORS.textSecondary, fontWeight: '600', marginTop: 2 },
-  riskBadge: {
-    borderRadius: RADIUS.sm,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
+  riskBadge: { borderRadius: RADIUS.sm, paddingHorizontal: 10, paddingVertical: 6 },
   riskBadgeText: { fontWeight: '700', fontSize: 12 },
   scoreCard: {
     flexDirection: 'row',
@@ -325,20 +356,14 @@ const styles = StyleSheet.create({
   scoreTitle: { fontWeight: '700', color: COLORS.textPrimary, marginBottom: 4 },
   scoreDescription: { color: COLORS.textSecondary, lineHeight: 18, fontSize: FONT.caption },
   sectionTitle: { marginTop: 6, color: COLORS.textSecondary, fontWeight: '700' },
-  chipsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   ingredientChip: {
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
     backgroundColor: COLORS.primarySoft,
   },
-  ingredientChipProblem: {
-    backgroundColor: COLORS.dangerSoft,
-  },
+  ingredientChipProblem: { backgroundColor: COLORS.dangerSoft },
   ingredientChipText: { color: COLORS.primary, fontWeight: '600', fontSize: 12 },
   ingredientChipTextProblem: { color: COLORS.danger },
   resultText: { color: COLORS.textPrimary },

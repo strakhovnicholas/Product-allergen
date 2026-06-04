@@ -1,7 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+
 import { refreshApi } from './authApi';
 import { clearAuthTokens, setAccessToken, setRefreshToken } from './client';
 import { API_BASE_URL } from './config';
+import {
+  assertPdfBytes,
+  downloadReportToDevice,
+  saveReportFile,
+  type SavedReport,
+} from '../services/reportFileSave';
+import { toAppDayKey } from '../utils/datetime';
 
 const ANALYTICS_BASE_URL = API_BASE_URL;
 
@@ -20,19 +29,6 @@ function extractFilename(contentDisposition: string | null): string | null {
     return sanitizeFileName(plainMatch[1]);
   }
   return null;
-}
-
-function downloadOnWeb(payload: ArrayBuffer, fileName: string, mimeType: string) {
-  if (typeof document === 'undefined' || typeof window === 'undefined') return;
-  const blob = new Blob([payload], { type: mimeType });
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
 }
 
 async function analyticsRequest<T>(
@@ -98,8 +94,18 @@ export type GenerateReportRequest = {
   dateTo: string;
 };
 
+/** Период для analytics-service: от начала первого дня до конца последнего (включительно). */
+export function normalizeReportPeriodQuery(from: string, to: string) {
+  const fromDay = /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : toAppDayKey(from);
+  const toDay = /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : toAppDayKey(to);
+  return {
+    from: `${fromDay}T00:00:00`,
+    to: `${toDay}T23:59:59`,
+  };
+}
+
 export async function getGeneratedReportsApi(): Promise<GeneratedReport[]> {
-  const paths = ['/api/reports', '/reports'];
+  const paths = ['/reports', '/api/reports'];
   let lastError: Error | null = null;
 
   for (const path of paths) {
@@ -116,7 +122,7 @@ export async function getGeneratedReportsApi(): Promise<GeneratedReport[]> {
   throw lastError ?? new Error('Не удалось загрузить список отчетов');
 }
 
-export async function generateReportApi(from: string, to: string): Promise<void> {
+export async function generateReportApi(from: string, to: string): Promise<SavedReport> {
   const getAccessToken = async () => {
     const current = await AsyncStorage.getItem('accessToken');
     if (current) return current;
@@ -146,58 +152,80 @@ export async function generateReportApi(from: string, to: string): Promise<void>
     headers.Authorization = `Bearer ${accessToken}`;
   }
 
-  const query = `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
-  const endpoints = [`/api/reports/generate?${query}`, `/reports/generate?${query}`];
+  const range = normalizeReportPeriodQuery(from, to);
+  const query = `from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
+  const endpoints = [`/reports/generate?${query}`];
 
-  let lastErrorMessage = '';
-  for (const path of endpoints) {
-    let res = await fetch(`${ANALYTICS_BASE_URL}${path}`, {
-      method: 'GET',
-      headers,
-    });
+  const fallbackName = sanitizeFileName(
+    `medical_report_${from.slice(0, 10)}_${to.slice(0, 10)}.pdf`,
+  );
 
-    if (res.status === 401) {
-      const refreshToken = await AsyncStorage.getItem('refreshToken');
-      if (refreshToken) {
+  const requestReport = async (authHeaders: Record<string, string>) => {
+    let lastPathError = '';
+
+    for (const path of endpoints) {
+      const url = `${ANALYTICS_BASE_URL}${path}`;
+
+      if (Platform.OS !== 'web') {
         try {
-          const refreshed = await refreshApi(refreshToken);
-          accessToken = refreshed?.accessToken || null;
-          if (accessToken) {
-            const nextRefresh = refreshed?.refreshToken || refreshToken;
-            await AsyncStorage.multiSet([
-              ['accessToken', accessToken],
-              ['refreshToken', nextRefresh],
-            ]);
-            setAccessToken(accessToken);
-            setRefreshToken(nextRefresh);
-            headers.Authorization = `Bearer ${accessToken}`;
-            res = await fetch(`${ANALYTICS_BASE_URL}${path}`, {
-              method: 'GET',
-              headers,
-            });
-          }
-        } catch {
-          await clearAuthTokens();
+          return await downloadReportToDevice(url, authHeaders, fallbackName);
+        } catch (error) {
+          lastPathError =
+            error instanceof Error ? error.message : 'Не удалось скачать отчёт на устройство';
+          continue;
         }
       }
+
+      let res = await fetch(url, { method: 'GET', headers: authHeaders });
+
+      if (!res.ok) {
+        const text = await res.text();
+        lastPathError = text?.trim() || `Ошибка запроса (${res.status}) при генерации отчета.`;
+        continue;
+      }
+
+      const reportBytes = await res.arrayBuffer();
+      assertPdfBytes(new Uint8Array(reportBytes));
+      const mimeType = res.headers.get('content-type')?.split(';')[0] || 'application/pdf';
+      const extension = mimeType.includes('pdf') ? 'pdf' : mimeType.includes('word') ? 'docx' : 'bin';
+      const fileName =
+        extractFilename(res.headers.get('content-disposition')) ||
+        fallbackName.replace(/\.pdf$/i, `.${extension}`);
+      return saveReportFile(reportBytes, fileName, mimeType);
     }
 
-    if (!res.ok) {
-      const text = await res.text();
-      lastErrorMessage = text?.trim() || `Ошибка запроса (${res.status}) при генерации отчета.`;
-      continue;
+    throw new Error(lastPathError || 'Не удалось сгенерировать отчёт');
+  };
+
+  try {
+    return await requestReport(headers);
+  } catch (firstError) {
+    const refreshToken = await AsyncStorage.getItem('refreshToken');
+    if (!refreshToken) {
+      throw firstError instanceof Error
+        ? firstError
+        : new Error('Не удалось сгенерировать отчёт');
     }
 
-    const reportBytes = await res.arrayBuffer();
-    const mimeType = res.headers.get('content-type')?.split(';')[0] || 'application/pdf';
-    const extension = mimeType.includes('pdf') ? 'pdf' : mimeType.includes('word') ? 'docx' : 'bin';
-    const fallbackName = sanitizeFileName(
-      `medical_report_${from.slice(0, 10)}_${to.slice(0, 10)}.${extension}`
-    );
-    const fileName = extractFilename(res.headers.get('content-disposition')) || fallbackName;
-    downloadOnWeb(reportBytes, fileName, mimeType);
-    return;
+    try {
+      const refreshed = await refreshApi(refreshToken);
+      accessToken = refreshed?.accessToken || null;
+      if (!accessToken) {
+        throw firstError instanceof Error ? firstError : new Error('Не удалось сгенерировать отчёт');
+      }
+
+      const nextRefresh = refreshed?.refreshToken || refreshToken;
+      await AsyncStorage.multiSet([
+        ['accessToken', accessToken],
+        ['refreshToken', nextRefresh],
+      ]);
+      setAccessToken(accessToken);
+      setRefreshToken(nextRefresh);
+      headers.Authorization = `Bearer ${accessToken}`;
+      return await requestReport(headers);
+    } catch {
+      await clearAuthTokens();
+      throw firstError instanceof Error ? firstError : new Error('Не удалось сгенерировать отчёт');
+    }
   }
-
-  throw new Error(lastErrorMessage || 'Не удалось сгенерировать отчет (500). Проверьте логи analytics-service.');
 }

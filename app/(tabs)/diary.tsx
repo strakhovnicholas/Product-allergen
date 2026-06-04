@@ -1,3 +1,4 @@
+import { ScreenSafeArea } from '../../components/ScreenSafeArea';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -6,13 +7,11 @@ import {
     Alert,
     Platform,
     RefreshControl,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    useWindowDimensions,
     View,
 } from 'react-native';
 
@@ -48,9 +47,30 @@ import {
     upsertCommonFeelingApi
 } from '../../src/api/diaryApi';
 import { TOP_FOOD_CATALOG } from '../../src/constants/foodCatalog';
-import { getUserProfileApi, UserProfile } from '../../src/api/profileApi';
+import { getUserProfileApi, type Profile as UserProfile } from '../../src/api/profileApi';
+import { COLORS, withAlpha } from '../../src/styles/palette';
+import {
+  formatAppDateTime,
+  formatAppScheduleDisplay,
+  normalizeDateTimeForStorage,
+  nowAppDateTimeString,
+  openAndroidDateTimePicker,
+  parseAppDateTime,
+  toAppDateTimeInputValue,
+  toAppDateTimeString,
+  toAppDayKey,
+} from '../../src/utils/datetime';
 
 type EditorType = 'common' | 'symptom' | 'medicine' | 'food' | 'note';
+
+/** Цвета секций — как на экране отчётов (palette.ts) */
+const SECTION_COLORS = {
+  common: COLORS.danger,
+  symptom: COLORS.primary,
+  medicine: COLORS.success,
+  food: COLORS.primary,
+  note: COLORS.warning,
+} as const;
 const NativeDateTimePicker =
   Platform.OS === 'web' ? null : require('@react-native-community/datetimepicker').default;
 
@@ -118,11 +138,263 @@ const MEDICINE_UNIT_LABELS: Record<string, string> = {
   DROP: 'кап',
 };
 
+const MEDICINE_QUICK_DOSES: Record<'MG' | 'ML' | 'TABLET' | 'DROP', string[]> = {
+  MG: ['25', '50', '100', '250'],
+  ML: ['2.5', '5', '10', '15'],
+  TABLET: ['0.5', '1', '2', '3'],
+  DROP: ['5', '10', '15', '20'],
+};
+
+const MEDICINE_UNIT_META: Record<
+  'MG' | 'ML' | 'TABLET' | 'DROP',
+  { icon: keyof typeof Ionicons.glyphMap; title: string; hint: string }
+> = {
+  MG: { icon: 'fitness-outline', title: 'мг', hint: 'масса' },
+  ML: { icon: 'water-outline', title: 'мл', hint: 'объём' },
+  TABLET: { icon: 'ellipse-outline', title: 'таб', hint: 'таблетки' },
+  DROP: { icon: 'water', title: 'кап', hint: 'капли' },
+};
+
+const formatScheduleDisplay = formatAppScheduleDisplay;
+
+function applyNativeDatePick(
+  event: { type?: string },
+  selectedDate: Date | undefined,
+  onApply: (date: Date) => void,
+  onClose: () => void,
+) {
+  if (Platform.OS === 'android') {
+    if (event.type === 'dismissed') {
+      onClose();
+      return;
+    }
+    if (event.type === 'set' && selectedDate) {
+      onApply(selectedDate);
+      onClose();
+    }
+    return;
+  }
+  if (selectedDate) {
+    onApply(selectedDate);
+  }
+}
+
+type ScheduleTheme = 'green' | 'blue' | 'rose' | 'orange' | 'amber';
+
+const NOTE_TEMPLATES = [
+  'После обеда появилась реакция',
+  'Симптомы усилились к вечеру',
+  'После лекарства стало лучше',
+  'Подозрение на продукт-триггер',
+] as const;
+
+const NOTE_TAGS = ['Триггер', 'Лекарство', 'Симптом', 'Питание'] as const;
+
+const SCHEDULE_THEME_STYLES: Record<
+  ScheduleTheme,
+  {
+    card: object;
+    iconWrap: object;
+    iconColor: string;
+    date: object;
+    time: object;
+    action: object;
+    actionText: object;
+    webInput: object;
+    doneBtn: object;
+    doneText: object;
+  }
+> = {
+  green: {
+    card: { borderColor: '#A7F3D0', backgroundColor: '#F8FFFB' },
+    iconWrap: { backgroundColor: '#ECFDF5' },
+    iconColor: '#059669',
+    date: { color: '#064E3B' },
+    time: { color: '#059669' },
+    action: { backgroundColor: '#ECFDF5' },
+    actionText: { color: '#047857' },
+    webInput: {
+      borderColor: '#A7F3D0',
+      backgroundColor: '#FFFFFF',
+      color: '#064E3B',
+    },
+    doneBtn: { backgroundColor: '#059669' },
+    doneText: { color: '#FFFFFF' },
+  },
+  blue: {
+    card: { borderColor: '#BFDBFE', backgroundColor: '#F8FBFF' },
+    iconWrap: { backgroundColor: '#EFF6FF' },
+    iconColor: '#1D4ED8',
+    date: { color: '#0F172A' },
+    time: { color: '#1D4ED8' },
+    action: { backgroundColor: '#EFF6FF' },
+    actionText: { color: '#1D4ED8' },
+    doneBtn: { backgroundColor: '#1D4ED8' },
+    doneText: { color: '#FFFFFF' },
+  },
+  rose: {
+    card: { borderColor: '#FECDD3', backgroundColor: '#FFF1F2' },
+    iconWrap: { backgroundColor: '#FFE4E6' },
+    iconColor: '#E11D48',
+    date: { color: '#881337' },
+    time: { color: '#E11D48' },
+    action: { backgroundColor: '#FFE4E6' },
+    actionText: { color: '#BE123C' },
+    doneBtn: { backgroundColor: '#E11D48' },
+    doneText: { color: '#FFFFFF' },
+  },
+  orange: {
+    card: { borderColor: '#FED7AA', backgroundColor: '#FFF7ED' },
+    iconWrap: { backgroundColor: '#FFEDD5' },
+    iconColor: '#EA580C',
+    date: { color: '#7C2D12' },
+    time: { color: '#EA580C' },
+    action: { backgroundColor: '#FFEDD5' },
+    actionText: { color: '#C2410C' },
+    doneBtn: { backgroundColor: '#EA580C' },
+    doneText: { color: '#FFFFFF' },
+  },
+  amber: {
+    card: { borderColor: '#FDE68A', backgroundColor: '#FFFBEB' },
+    iconWrap: { backgroundColor: '#FEF3C7' },
+    iconColor: '#D97706',
+    date: { color: '#78350F' },
+    time: { color: '#D97706' },
+    action: { backgroundColor: '#FEF3C7' },
+    actionText: { color: '#B45309' },
+    doneBtn: { backgroundColor: '#D97706' },
+    doneText: { color: '#FFFFFF' },
+  },
+};
+
+function EditorScheduleSection({
+  theme,
+  label,
+  dateTime,
+  showPicker,
+  optional,
+  onOpenPicker,
+  onPickerChange,
+  onClosePicker,
+}: {
+  theme: ScheduleTheme;
+  label: string;
+  dateTime: string;
+  showPicker: boolean;
+  optional?: boolean;
+  onOpenPicker: () => void;
+  onPickerChange: (event: { type?: string }, date?: Date) => void;
+  onClosePicker: () => void;
+}) {
+  const palette = SCHEDULE_THEME_STYLES[theme];
+  const schedule = formatScheduleDisplay(dateTime);
+  const hasValue = Boolean(dateTime?.trim());
+
+  const handleOpenPicker = () => {
+    if (Platform.OS === 'android') {
+      openAndroidDateTimePicker(dateTime, onPickerChange);
+      return;
+    }
+    onOpenPicker();
+  };
+
+  return (
+    <View style={styles.editorScheduleBlock}>
+      <Text style={styles.editorSectionTitle}>{label}</Text>
+      {Platform.OS === 'web' ? (
+        <View style={[styles.editorScheduleWebField, palette.card]}>
+          <View style={[styles.editorScheduleIcon, palette.iconWrap]}>
+            <Ionicons name="calendar-outline" size={18} color={palette.iconColor} />
+          </View>
+          <input
+            style={{ ...styles.editorWebDateInputInline, ...palette.webInput } as any}
+            type="datetime-local"
+            value={toAppDateTimeInputValue(dateTime)}
+            onChange={(event) => {
+              if (!event.target.value) {
+                if (optional) {
+                  onPickerChange({ type: 'set' }, undefined);
+                }
+                return;
+              }
+              const nextDate = parseAppDateTime(event.target.value);
+              if (!Number.isNaN(nextDate.getTime())) {
+                onPickerChange({ type: 'set' }, nextDate);
+              }
+            }}
+          />
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={[styles.editorScheduleCard, palette.card]}
+          activeOpacity={0.88}
+          onPress={handleOpenPicker}
+        >
+          <View style={[styles.editorScheduleIcon, palette.iconWrap]}>
+            <Ionicons name="time-outline" size={20} color={palette.iconColor} />
+          </View>
+          <View style={styles.editorScheduleText}>
+            <Text style={[styles.editorScheduleDate, palette.date]}>
+              {hasValue ? schedule.date : optional ? 'Не указано' : 'Нажмите, чтобы выбрать'}
+            </Text>
+            <Text style={[styles.editorScheduleTime, palette.time]}>
+              {hasValue ? schedule.time : '—'}
+            </Text>
+          </View>
+          <View style={[styles.editorScheduleAction, palette.action]}>
+            <Text style={[styles.editorScheduleActionText, palette.actionText]}>Изменить</Text>
+            <Ionicons name="chevron-forward" size={14} color={palette.iconColor} />
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {Platform.OS === 'ios' &&
+        NativeDateTimePicker &&
+        showPicker && (
+          <View style={styles.editorPickerWrap}>
+            <NativeDateTimePicker
+              value={parseAppDateTime(dateTime || nowAppDateTimeString())}
+              mode="datetime"
+              display="spinner"
+              onChange={(event, selectedDate) => onPickerChange(event, selectedDate)}
+            />
+            {Platform.OS === 'ios' && (
+              <TouchableOpacity
+                style={[styles.editorPickerDone, palette.doneBtn]}
+                activeOpacity={0.85}
+                onPress={onClosePicker}
+              >
+                <Text style={[styles.editorPickerDoneText, palette.doneText]}>Готово</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+    </View>
+  );
+}
+
 const FOOD_UNIT_LABELS: Record<string, string> = {
   GRAM: 'г',
   PORTION: 'порц',
   PIECE: 'шт',
   MILLILITER: 'мл',
+};
+
+const FOOD_QUICK_AMOUNTS: Record<'GRAM' | 'PORTION' | 'PIECE' | 'MILLILITER', string[]> = {
+  GRAM: ['50', '100', '150', '200'],
+  PORTION: ['0.5', '1', '1.5', '2'],
+  PIECE: ['1', '2', '3', '4'],
+  MILLILITER: ['100', '200', '250', '500'],
+};
+
+const FOOD_UNIT_META: Record<
+  'GRAM' | 'PORTION' | 'PIECE' | 'MILLILITER',
+  { icon: keyof typeof Ionicons.glyphMap; title: string; hint: string }
+> = {
+  GRAM: { icon: 'scale-outline', title: 'г', hint: 'граммы' },
+  PORTION: { icon: 'restaurant-outline', title: 'порц', hint: 'порция' },
+  PIECE: { icon: 'cube-outline', title: 'шт', hint: 'штуки' },
+  MILLILITER: { icon: 'water-outline', title: 'мл', hint: 'объём' },
 };
 
 const FOOD_CATEGORY_LABELS: Record<string, string> = {
@@ -155,36 +427,12 @@ function toFiveScale(value: number) {
 }
 
 function formatDate(date: string) {
-  if (!date) return '-';
-
-  const parsedDate = new Date(date);
-  if (Number.isNaN(parsedDate.getTime())) return date;
-
-  return parsedDate.toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function toLocalDateTimeInputValue(date: string) {
-  const parsedDate = new Date(date);
-  if (Number.isNaN(parsedDate.getTime())) return '';
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${parsedDate.getFullYear()}-${pad(parsedDate.getMonth() + 1)}-${pad(parsedDate.getDate())}T${pad(parsedDate.getHours())}:${pad(parsedDate.getMinutes())}`;
-}
-
-function toDayKey(value: Date | string) {
-  const parsedDate = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(parsedDate.getTime())) return '';
-  const pad = (num: number) => String(num).padStart(2, '0');
-  return `${parsedDate.getFullYear()}-${pad(parsedDate.getMonth() + 1)}-${pad(parsedDate.getDate())}`;
+  return formatAppDateTime(date);
 }
 
 function formatDayLabel(value: Date) {
   return value.toLocaleDateString('ru-RU', {
+    timeZone: 'Europe/Moscow',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -193,7 +441,7 @@ function formatDayLabel(value: Date) {
 
 function isInSelectedDate(date: string, selectedDateKey: string) {
   if (!date) return false;
-  return toDayKey(date) === selectedDateKey;
+  return toAppDayKey(date) === selectedDateKey;
 }
 
 function getUserDisplayName(profile: UserProfile | null) {
@@ -201,6 +449,1033 @@ function getUserDisplayName(profile: UserProfile | null) {
   if (!fullName) return 'Здравствуйте';
   const name = fullName.split(' ')[0];
   return `Здравствуйте, ${name}`;
+}
+
+const WELLBEING_OPTIONS = [
+  { score: 1, label: 'Плохо', emoji: '😣', short: '1' },
+  { score: 2, label: 'Ниже среднего', emoji: '😕', short: '2' },
+  { score: 3, label: 'Нормально', emoji: '😐', short: '3' },
+  { score: 4, label: 'Хорошо', emoji: '🙂', short: '4' },
+  { score: 5, label: 'Отлично', emoji: '😄', short: '5' },
+] as const;
+
+function CommonFeelingInlineEditor({
+  editorId,
+  score,
+  dateTime,
+  saving,
+  showDatePicker,
+  onSelectScore,
+  onOpenDatePicker,
+  onDatePickerChange,
+  onCloseDatePicker,
+  onCancel,
+  onSave,
+}: {
+  editorId: EntityId | null;
+  score: string;
+  dateTime: string;
+  saving: boolean;
+  showDatePicker: boolean;
+  onSelectScore: (value: string) => void;
+  onOpenDatePicker: () => void;
+  onDatePickerChange: (event: { type?: string }, date?: Date) => void;
+  onCloseDatePicker: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const selectedScore = Math.max(1, Math.min(5, Number(score || '3')));
+  const selected =
+    WELLBEING_OPTIONS.find((item) => item.score === selectedScore) ?? WELLBEING_OPTIONS[2];
+
+  return (
+    <View style={styles.wellbeingEditor}>
+      <View style={styles.wellbeingHero}>
+        <View style={styles.wellbeingHeroGlow} />
+        <View style={styles.wellbeingHeroRow}>
+          <View style={styles.wellbeingHeroIconWrap}>
+            <Ionicons name="heart" size={22} color="#FFFFFF" />
+          </View>
+          <View style={styles.wellbeingHeroText}>
+            <Text style={styles.wellbeingHeroTitle}>
+              {editorId != null ? 'Редактирование' : 'Новая запись'}
+            </Text>
+            <Text style={styles.wellbeingHeroSubtitle}>Как вы себя чувствуете сегодня?</Text>
+          </View>
+          <View style={styles.wellbeingHeroPill}>
+            <Text style={styles.wellbeingHeroPillEmoji}>{selected.emoji}</Text>
+            <Text style={styles.wellbeingHeroPillValue}>{selectedScore}/5</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.editorSection}>
+        <Text style={[styles.editorSectionTitle, styles.wellbeingSectionTitle]}>Оценка</Text>
+        <View style={styles.wellbeingScoreGrid}>
+          {WELLBEING_OPTIONS.map((item) => {
+            const active = selectedScore === item.score;
+            return (
+              <TouchableOpacity
+                key={item.score}
+                style={[styles.wellbeingScoreCard, active && styles.wellbeingScoreCardActive]}
+                activeOpacity={0.88}
+                onPress={() => onSelectScore(String(item.score))}
+              >
+                <Text style={styles.wellbeingScoreCardEmoji}>{item.emoji}</Text>
+                <Text
+                  style={[
+                    styles.wellbeingScoreCardNumber,
+                    active && styles.wellbeingScoreCardNumberActive,
+                  ]}
+                >
+                  {item.short}
+                </Text>
+                <Text
+                  style={[
+                    styles.wellbeingScoreCardLabel,
+                    active && styles.wellbeingScoreCardLabelActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.label}
+                </Text>
+                {active && (
+                  <View style={styles.wellbeingScoreCheck}>
+                    <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      <EditorScheduleSection
+        theme="rose"
+        label="Время записи"
+        dateTime={dateTime}
+        showPicker={showDatePicker}
+        onOpenPicker={onOpenDatePicker}
+        onPickerChange={onDatePickerChange}
+        onClosePicker={onCloseDatePicker}
+      />
+
+      <View style={styles.wellbeingActions}>
+        <TouchableOpacity
+          style={styles.wellbeingCancelBtn}
+          onPress={onCancel}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="close-outline" size={18} color="#BE123C" />
+          <Text style={styles.wellbeingCancelText}>Отмена</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.wellbeingSaveBtn}
+          onPress={onSave}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.wellbeingSaveText}>Сохранить оценку</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const SYMPTOM_SEVERITY_OPTIONS = [
+  { title: 'Слабо', value: 2, hint: 'лёгкое' },
+  { title: 'Умеренно', value: 5, hint: 'заметное' },
+  { title: 'Сильно', value: 8, hint: 'выраженное' },
+] as const;
+
+function SymptomInlineEditor({
+  editorId,
+  name,
+  severity,
+  dateTimeStart,
+  dateTimeEnd,
+  suggestions,
+  saving,
+  showStartPicker,
+  showEndPicker,
+  onChangeName,
+  onSelectSeverity,
+  onOpenStartPicker,
+  onOpenEndPicker,
+  onStartPickerChange,
+  onEndPickerChange,
+  onCloseStartPicker,
+  onCloseEndPicker,
+  onCancel,
+  onSave,
+}: {
+  editorId: EntityId | null;
+  name: string;
+  severity: string;
+  dateTimeStart: string;
+  dateTimeEnd: string;
+  suggestions: string[];
+  saving: boolean;
+  showStartPicker: boolean;
+  showEndPicker: boolean;
+  onChangeName: (value: string) => void;
+  onSelectSeverity: (value: string) => void;
+  onOpenStartPicker: () => void;
+  onOpenEndPicker: () => void;
+  onStartPickerChange: (event: { type?: string }, date?: Date) => void;
+  onEndPickerChange: (event: { type?: string }, date?: Date) => void;
+  onCloseStartPicker: () => void;
+  onCloseEndPicker: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const severityValue = Number(severity || '5');
+  const selectedSeverity =
+    SYMPTOM_SEVERITY_OPTIONS.find((item) => item.value === severityValue) ??
+    SYMPTOM_SEVERITY_OPTIONS[1];
+
+  return (
+    <View style={styles.symptomEditor}>
+      <View style={styles.symptomHero}>
+        <View style={styles.symptomHeroGlow} />
+        <View style={styles.symptomHeroRow}>
+          <View style={styles.symptomHeroIconWrap}>
+            <Ionicons name="pulse" size={22} color="#FFFFFF" />
+          </View>
+          <View style={styles.symptomHeroText}>
+            <Text style={styles.symptomHeroTitle}>
+              {editorId != null ? 'Редактирование' : 'Новый симптом'}
+            </Text>
+            <Text style={styles.symptomHeroSubtitle}>
+              {name.trim() || 'Укажите название и интенсивность'}
+            </Text>
+          </View>
+          <View style={styles.symptomHeroPill}>
+            <Text style={styles.symptomHeroPillValue} numberOfLines={1}>
+              {selectedSeverity.title}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.symptomSection}>
+        <Text style={styles.symptomSectionTitle}>Симптом</Text>
+        <View style={styles.symptomFieldShell}>
+          <View style={styles.symptomFieldIcon}>
+            <Ionicons name="search-outline" size={18} color="#1D4ED8" />
+          </View>
+          <TextInput
+            style={styles.symptomFieldInput}
+            value={name}
+            onChangeText={onChangeName}
+            placeholder="Начните вводить название..."
+            placeholderTextColor="#94A3B8"
+          />
+        </View>
+
+        {!!name.trim() && suggestions.length > 0 && (
+          <View style={styles.symptomSuggestPanel}>
+            <Text style={styles.symptomSuggestTitle}>Частые симптомы</Text>
+            {suggestions.map((item) => (
+              <TouchableOpacity
+                key={item}
+                style={styles.symptomSuggestRow}
+                activeOpacity={0.85}
+                onPress={() => onChangeName(item)}
+              >
+                <View style={styles.symptomSuggestIcon}>
+                  <Ionicons name="medical-outline" size={16} color="#1D4ED8" />
+                </View>
+                <Text style={styles.symptomSuggestText}>{item}</Text>
+                <Ionicons name="chevron-forward" size={16} color="#93C5FD" />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+
+      <View style={styles.symptomSection}>
+        <Text style={styles.symptomSectionTitle}>Интенсивность</Text>
+        <View style={styles.symptomSeverityHero}>
+          <View style={styles.symptomSeverityHeroLeft}>
+            <Text style={styles.symptomSeverityHeroLabel}>Уровень</Text>
+            <Text style={styles.symptomSeverityHeroValue}>{selectedSeverity.title}</Text>
+            <Text style={styles.symptomSeverityHeroHint}>
+              {selectedSeverity.hint} · {severityValue}/10
+            </Text>
+          </View>
+          <View style={styles.symptomSeverityHeroRing}>
+            <Ionicons name="pulse" size={22} color="#FFFFFF" />
+          </View>
+        </View>
+
+        <View style={styles.symptomSeverityGrid}>
+          {SYMPTOM_SEVERITY_OPTIONS.map((item) => {
+            const active = severityValue === item.value;
+            return (
+              <TouchableOpacity
+                key={item.title}
+                style={[styles.symptomSeverityCard, active && styles.symptomSeverityCardActive]}
+                activeOpacity={0.88}
+                onPress={() => onSelectSeverity(String(item.value))}
+              >
+                <View style={[styles.symptomSeverityCardIcon, active && styles.symptomSeverityCardIconActive]}>
+                  <Ionicons
+                    name={item.value >= 7 ? 'warning' : item.value >= 4 ? 'alert-circle' : 'checkmark-circle'}
+                    size={18}
+                    color={active ? '#FFFFFF' : '#1D4ED8'}
+                  />
+                </View>
+                <Text style={[styles.symptomSeverityCardTitle, active && styles.symptomSeverityCardTitleActive]}>
+                  {item.title}
+                </Text>
+                <Text style={[styles.symptomSeverityCardHint, active && styles.symptomSeverityCardHintActive]}>
+                  {item.hint}
+                </Text>
+                {active && (
+                  <View style={styles.symptomSeverityCheck}>
+                    <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      <EditorScheduleSection
+        theme="blue"
+        label="Начало симптома"
+        dateTime={dateTimeStart}
+        showPicker={showStartPicker}
+        onOpenPicker={onOpenStartPicker}
+        onPickerChange={onStartPickerChange}
+        onClosePicker={onCloseStartPicker}
+      />
+
+      <EditorScheduleSection
+        theme="blue"
+        label="Окончание (необязательно)"
+        dateTime={dateTimeEnd}
+        showPicker={showEndPicker}
+        optional
+        onOpenPicker={onOpenEndPicker}
+        onPickerChange={onEndPickerChange}
+        onClosePicker={onCloseEndPicker}
+      />
+
+      <View style={styles.symptomActions}>
+        <TouchableOpacity
+          style={styles.symptomCancelBtn}
+          onPress={onCancel}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="close-outline" size={18} color="#1D4ED8" />
+          <Text style={styles.symptomCancelText}>Отмена</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.symptomSaveBtn}
+          onPress={onSave}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.symptomSaveText}>Сохранить симптом</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function MedicineInlineEditor({
+  editorId,
+  name,
+  dosage,
+  unit,
+  dateTime,
+  suggestions,
+  saving,
+  showDatePicker,
+  onChangeName,
+  onChangeDosage,
+  onSelectUnit,
+  onOpenDatePicker,
+  onDatePickerChange,
+  onCloseDatePicker,
+  onCancel,
+  onSave,
+}: {
+  editorId: EntityId | null;
+  name: string;
+  dosage: string;
+  unit: string;
+  dateTime: string;
+  suggestions: string[];
+  saving: boolean;
+  showDatePicker: boolean;
+  onChangeName: (value: string) => void;
+  onChangeDosage: (value: string) => void;
+  onSelectUnit: (value: 'MG' | 'ML' | 'TABLET' | 'DROP') => void;
+  onOpenDatePicker: () => void;
+  onDatePickerChange: (event: { type?: string }, date?: Date) => void;
+  onCloseDatePicker: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const selectedUnit = (unit || 'MG') as 'MG' | 'ML' | 'TABLET' | 'DROP';
+  const unitLabel = MEDICINE_UNIT_LABELS[selectedUnit];
+  const quickDoses = MEDICINE_QUICK_DOSES[selectedUnit];
+  const dosePreview = dosage.trim() ? `${dosage.trim()} ${unitLabel}` : '—';
+
+  return (
+    <View style={styles.medicineEditor}>
+      <View style={styles.medicineHero}>
+        <View style={styles.medicineHeroGlow} />
+        <View style={styles.medicineHeroRow}>
+          <View style={styles.medicineHeroIconWrap}>
+            <Ionicons name="medkit" size={22} color="#FFFFFF" />
+          </View>
+          <View style={styles.medicineHeroText}>
+            <Text style={styles.medicineHeroTitle}>
+              {editorId != null ? 'Редактирование' : 'Новый приём'}
+            </Text>
+            <Text style={styles.medicineHeroSubtitle}>
+              {name.trim() || 'Укажите препарат и дозу'}
+            </Text>
+          </View>
+          <View style={styles.medicineHeroPill}>
+            <Text style={styles.medicineHeroPillValue}>{dosePreview}</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.medicineSection}>
+        <Text style={styles.medicineSectionTitle}>Препарат</Text>
+        <View style={styles.medicineFieldShell}>
+          <View style={styles.medicineFieldIcon}>
+            <Ionicons name="search-outline" size={18} color="#059669" />
+          </View>
+          <TextInput
+            style={styles.medicineFieldInput}
+            value={name}
+            onChangeText={onChangeName}
+            placeholder="Начните вводить название..."
+            placeholderTextColor="#94A3B8"
+          />
+        </View>
+
+        {!!name.trim() && suggestions.length > 0 && (
+          <View style={styles.medicineSuggestPanel}>
+            <Text style={styles.medicineSuggestTitle}>Популярные варианты</Text>
+            {suggestions.map((item) => (
+              <TouchableOpacity
+                key={item}
+                style={styles.medicineSuggestRow}
+                activeOpacity={0.85}
+                onPress={() => onChangeName(item)}
+              >
+                <View style={styles.medicineSuggestIcon}>
+                  <Ionicons name="medical-outline" size={16} color="#059669" />
+                </View>
+                <Text style={styles.medicineSuggestText}>{item}</Text>
+                <Ionicons name="chevron-forward" size={16} color="#86EFAC" />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+
+      <View style={styles.medicineSection}>
+        <Text style={styles.medicineSectionTitle}>Дозировка</Text>
+        <View style={styles.medicineDoseHero}>
+          <View style={styles.medicineDoseHeroLeft}>
+            <Text style={styles.medicineDoseHeroLabel}>Количество</Text>
+            <View style={styles.medicineDoseInputRow}>
+              <TextInput
+                style={styles.medicineDoseHeroInput}
+                value={dosage}
+                onChangeText={onChangeDosage}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor="#A7F3D0"
+              />
+              <Text style={styles.medicineDoseHeroUnit}>{unitLabel}</Text>
+            </View>
+          </View>
+          <View style={styles.medicineDoseHeroRing}>
+            <Ionicons name="pulse-outline" size={22} color="#FFFFFF" />
+          </View>
+        </View>
+
+        <View style={styles.medicineUnitGrid}>
+          {(['MG', 'ML', 'TABLET', 'DROP'] as const).map((item) => {
+            const active = selectedUnit === item;
+            const meta = MEDICINE_UNIT_META[item];
+            return (
+              <TouchableOpacity
+                key={item}
+                style={[styles.medicineUnitCard, active && styles.medicineUnitCardActive]}
+                activeOpacity={0.88}
+                onPress={() => onSelectUnit(item)}
+              >
+                <View style={[styles.medicineUnitCardIcon, active && styles.medicineUnitCardIconActive]}>
+                  <Ionicons
+                    name={meta.icon}
+                    size={18}
+                    color={active ? '#FFFFFF' : '#059669'}
+                  />
+                </View>
+                <Text style={[styles.medicineUnitCardTitle, active && styles.medicineUnitCardTitleActive]}>
+                  {meta.title}
+                </Text>
+                <Text style={[styles.medicineUnitCardHint, active && styles.medicineUnitCardHintActive]}>
+                  {meta.hint}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={styles.medicineQuickTitle}>Быстрый выбор</Text>
+        <View style={styles.medicineQuickGrid}>
+          {quickDoses.map((value) => {
+            const active = dosage.trim() === value;
+            return (
+              <TouchableOpacity
+                key={`${selectedUnit}-${value}`}
+                style={[styles.medicineQuickCard, active && styles.medicineQuickCardActive]}
+                activeOpacity={0.88}
+                onPress={() => onChangeDosage(value)}
+              >
+                <Text style={[styles.medicineQuickValue, active && styles.medicineQuickValueActive]}>
+                  {value}
+                </Text>
+                <Text style={[styles.medicineQuickUnit, active && styles.medicineQuickUnitActive]}>
+                  {unitLabel}
+                </Text>
+                {active && (
+                  <View style={styles.medicineQuickCheck}>
+                    <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      <EditorScheduleSection
+        theme="green"
+        label="Когда приняли"
+        dateTime={dateTime}
+        showPicker={showDatePicker}
+        onOpenPicker={onOpenDatePicker}
+        onPickerChange={onDatePickerChange}
+        onClosePicker={onCloseDatePicker}
+      />
+
+      <View style={styles.medicineActions}>
+        <TouchableOpacity
+          style={styles.medicineCancelBtn}
+          onPress={onCancel}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="close-outline" size={18} color="#047857" />
+          <Text style={styles.medicineCancelText}>Отмена</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.medicineSaveBtn}
+          onPress={onSave}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.medicineSaveText}>Сохранить приём</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function FoodInlineEditor({
+  editorId,
+  query,
+  amount,
+  unit,
+  dateTime,
+  reaction,
+  selectedProducts,
+  allergens,
+  suggestions,
+  suggestionsOpen,
+  suggestionsLoading,
+  saving,
+  showDatePicker,
+  onChangeQuery,
+  onChangeAmount,
+  onSelectUnit,
+  onToggleReaction,
+  onSelectSuggestion,
+  onRemoveProduct,
+  onOpenDatePicker,
+  onDatePickerChange,
+  onCloseDatePicker,
+  onCancel,
+  onSave,
+}: {
+  editorId: EntityId | null;
+  query: string;
+  amount: string;
+  unit: string;
+  dateTime: string;
+  reaction: boolean;
+  selectedProducts: { foodName: string; category?: string; components?: string[] }[];
+  allergens: string[];
+  suggestions: { foodName: string; category?: string; components?: string[] }[];
+  suggestionsOpen: boolean;
+  suggestionsLoading: boolean;
+  saving: boolean;
+  showDatePicker: boolean;
+  onChangeQuery: (value: string) => void;
+  onChangeAmount: (value: string) => void;
+  onSelectUnit: (value: string) => void;
+  onToggleReaction: (value: boolean) => void;
+  onSelectSuggestion: (item: { foodName: string; category?: string; components?: string[] }) => void;
+  onRemoveProduct: (name: string) => void;
+  onOpenDatePicker: () => void;
+  onDatePickerChange: (event: { type?: string }, date?: Date) => void;
+  onCloseDatePicker: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const selectedUnit = (unit || 'GRAM') as 'GRAM' | 'PORTION' | 'PIECE' | 'MILLILITER';
+  const unitLabel = FOOD_UNIT_LABELS[selectedUnit] ?? selectedUnit;
+  const quickAmounts = FOOD_QUICK_AMOUNTS[selectedUnit];
+  const productLine = selectedProducts.map((item) => item.foodName).join(' + ');
+  const preview = query.trim() || productLine || 'Что вы ели?';
+  const amountPreview = amount.trim() ? `${amount.trim()} ${unitLabel}` : '—';
+  const showSuggestions = suggestionsOpen && query.trim().length > 0 && suggestions.length > 0;
+
+  return (
+    <View style={styles.foodEditor}>
+      <View style={styles.foodHero}>
+        <View style={styles.foodHeroGlow} />
+        <View style={styles.foodHeroRow}>
+          <View style={styles.foodHeroIconWrap}>
+            <Ionicons name="restaurant" size={22} color="#FFFFFF" />
+          </View>
+          <View style={styles.foodHeroText}>
+            <Text style={styles.foodHeroTitle}>
+              {editorId != null ? 'Редактирование' : 'Новый приём пищи'}
+            </Text>
+            <Text style={styles.foodHeroSubtitle} numberOfLines={2}>
+              {preview}
+            </Text>
+          </View>
+          <View style={styles.foodHeroPill}>
+            <Text style={styles.foodHeroPillValue}>{amountPreview}</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.foodSection}>
+        <Text style={styles.foodSectionTitle}>Что съели</Text>
+        <View style={styles.foodFieldShell}>
+          <View style={styles.foodFieldIcon}>
+            <Ionicons name="search-outline" size={18} color="#1D4ED8" />
+          </View>
+          <TextInput
+            style={styles.foodFieldInput}
+            value={query}
+            onChangeText={onChangeQuery}
+            placeholder="Начните вводить название..."
+            placeholderTextColor="#94A3B8"
+          />
+        </View>
+
+        {showSuggestions && (
+          <View style={styles.foodSuggestPanel}>
+            <Text style={styles.foodSuggestTitle}>Подсказки</Text>
+            {suggestions.slice(0, 6).map((item) => (
+              <TouchableOpacity
+                key={item.foodName}
+                style={styles.foodSuggestRow}
+                activeOpacity={0.85}
+                onPress={() => onSelectSuggestion(item)}
+              >
+                <View style={styles.foodSuggestIcon}>
+                  <Ionicons name="restaurant-outline" size={16} color="#1D4ED8" />
+                </View>
+                <Text style={styles.foodSuggestText} numberOfLines={1}>
+                  {item.foodName}
+                </Text>
+                <Ionicons name="add-circle" size={18} color="#93C5FD" />
+              </TouchableOpacity>
+            ))}
+            {suggestionsLoading && <ActivityIndicator size="small" color="#1D4ED8" />}
+          </View>
+        )}
+
+        {!!selectedProducts.length && (
+          <View style={styles.foodSelectedWrap}>
+            {selectedProducts.map((item) => (
+              <View key={item.foodName} style={styles.foodSelectedChip}>
+                <Text style={styles.foodSelectedChipText} numberOfLines={1}>
+                  {item.foodName}
+                </Text>
+                <TouchableOpacity onPress={() => onRemoveProduct(item.foodName)} hitSlop={8}>
+                  <Ionicons name="close" size={14} color="#1D4ED8" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {!!allergens.length && (
+          <View style={styles.foodAllergenPanel}>
+            <Text style={styles.foodAllergenPanelTitle}>Аллергены и компоненты</Text>
+            <View style={styles.foodAllergenChipsWrap}>
+              {allergens.map((item) => (
+                <View key={item} style={styles.foodAllergenChip}>
+                  <Ionicons name="flask-outline" size={12} color="#1D4ED8" />
+                  <Text style={styles.foodAllergenChipText} numberOfLines={1}>
+                    {item}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.foodSection}>
+        <Text style={styles.foodSectionTitle}>Количество</Text>
+        <View style={styles.foodDoseHero}>
+          <View style={styles.foodDoseHeroLeft}>
+            <Text style={styles.foodDoseHeroLabel}>Порция</Text>
+            <View style={styles.foodDoseInputRow}>
+              <TextInput
+                style={styles.foodDoseHeroInput}
+                value={amount}
+                onChangeText={onChangeAmount}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor="#93C5FD"
+              />
+              <Text style={styles.foodDoseHeroUnit}>{unitLabel}</Text>
+            </View>
+          </View>
+          <View style={styles.foodDoseHeroRing}>
+            <Ionicons name="nutrition-outline" size={22} color="#FFFFFF" />
+          </View>
+        </View>
+
+        <View style={styles.foodUnitGrid}>
+          {(['GRAM', 'PORTION', 'PIECE', 'MILLILITER'] as const).map((item) => {
+            const active = selectedUnit === item;
+            const meta = FOOD_UNIT_META[item];
+            return (
+              <TouchableOpacity
+                key={item}
+                style={[styles.foodUnitCard, active && styles.foodUnitCardActive]}
+                activeOpacity={0.88}
+                onPress={() => onSelectUnit(item)}
+              >
+                <View style={[styles.foodUnitCardIcon, active && styles.foodUnitCardIconActive]}>
+                  <Ionicons name={meta.icon} size={18} color={active ? '#FFFFFF' : '#1D4ED8'} />
+                </View>
+                <Text style={[styles.foodUnitCardTitle, active && styles.foodUnitCardTitleActive]}>
+                  {meta.title}
+                </Text>
+                <Text style={[styles.foodUnitCardHint, active && styles.foodUnitCardHintActive]}>
+                  {meta.hint}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={styles.foodQuickTitle}>Быстрый выбор</Text>
+        <View style={styles.foodQuickGrid}>
+          {quickAmounts.map((value) => {
+            const active = amount.trim() === value;
+            return (
+              <TouchableOpacity
+                key={`${selectedUnit}-${value}`}
+                style={[styles.foodQuickCard, active && styles.foodQuickCardActive]}
+                activeOpacity={0.88}
+                onPress={() => onChangeAmount(value)}
+              >
+                <Text style={[styles.foodQuickValue, active && styles.foodQuickValueActive]}>
+                  {value}
+                </Text>
+                <Text style={[styles.foodQuickUnit, active && styles.foodQuickUnitActive]}>
+                  {unitLabel}
+                </Text>
+                {active && (
+                  <View style={styles.foodQuickCheck}>
+                    <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.foodSection}>
+        <Text style={styles.foodSectionTitle}>Реакция</Text>
+        <View style={styles.foodReactionGrid}>
+          <TouchableOpacity
+            style={[styles.foodReactionCard, !reaction && styles.foodReactionCardActive]}
+            activeOpacity={0.88}
+            onPress={() => onToggleReaction(false)}
+          >
+            <View style={[styles.foodReactionCardIcon, !reaction && styles.foodReactionCardIconActive]}>
+              <Ionicons name="checkmark-circle" size={18} color={!reaction ? '#FFFFFF' : '#1D4ED8'} />
+            </View>
+            <Text style={[styles.foodReactionCardTitle, !reaction && styles.foodReactionCardTitleActive]}>
+              Не было
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.foodReactionCard, reaction && styles.foodReactionCardDanger]}
+            activeOpacity={0.88}
+            onPress={() => onToggleReaction(true)}
+          >
+            <View style={[styles.foodReactionCardIcon, reaction && styles.foodReactionCardIconDanger]}>
+              <Ionicons name="alert-circle" size={18} color={reaction ? '#FFFFFF' : '#DC2626'} />
+            </View>
+            <Text style={[styles.foodReactionCardTitle, reaction && styles.foodReactionCardTitleDanger]}>
+              Была реакция
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <EditorScheduleSection
+        theme="blue"
+        label="Когда ели"
+        dateTime={dateTime}
+        showPicker={showDatePicker}
+        onOpenPicker={onOpenDatePicker}
+        onPickerChange={onDatePickerChange}
+        onClosePicker={onCloseDatePicker}
+      />
+
+      <View style={styles.foodActions}>
+        <TouchableOpacity
+          style={styles.foodCancelBtn}
+          onPress={onCancel}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="close-outline" size={18} color="#1D4ED8" />
+          <Text style={styles.foodCancelText}>Отмена</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.foodSaveBtn}
+          onPress={onSave}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.foodSaveText}>Сохранить приём</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function NoteInlineEditor({
+  editorId,
+  text,
+  dateTime,
+  saving,
+  showDatePicker,
+  onChangeText,
+  onOpenDatePicker,
+  onDatePickerChange,
+  onCloseDatePicker,
+  onCancel,
+  onSave,
+}: {
+  editorId: EntityId | null;
+  text: string;
+  dateTime: string;
+  saving: boolean;
+  showDatePicker: boolean;
+  onChangeText: (value: string) => void;
+  onOpenDatePicker: () => void;
+  onDatePickerChange: (event: { type?: string }, date?: Date) => void;
+  onCloseDatePicker: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const preview = text.trim() ? text.trim().slice(0, 48) : 'Ваша заметка за день';
+  const charCount = text.trim().length;
+
+  return (
+    <View style={styles.noteEditor}>
+      <View style={styles.noteHero}>
+        <View style={styles.noteHeroGlow} />
+        <View style={styles.noteHeroRow}>
+          <View style={styles.noteHeroIconWrap}>
+            <Ionicons name="document-text" size={22} color="#FFFFFF" />
+          </View>
+          <View style={styles.noteHeroText}>
+            <Text style={styles.noteHeroTitle}>
+              {editorId != null ? 'Редактирование' : 'Новая заметка'}
+            </Text>
+            <Text style={styles.noteHeroSubtitle} numberOfLines={2}>
+              {preview}
+            </Text>
+          </View>
+          <View style={styles.noteHeroPill}>
+            <Text style={styles.noteHeroPillValue}>{charCount}</Text>
+            <Text style={styles.noteHeroPillSub}>симв.</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.noteSection}>
+        <Text style={styles.noteSectionTitle}>Шаблоны</Text>
+        <View style={styles.noteQuickGrid}>
+          {NOTE_TEMPLATES.map((item) => {
+            const active = text.trim() === item;
+            return (
+              <TouchableOpacity
+                key={item}
+                style={[styles.noteQuickCard, active && styles.noteQuickCardActive]}
+                activeOpacity={0.88}
+                onPress={() => onChangeText(item)}
+              >
+                <View style={[styles.noteQuickCardIcon, active && styles.noteQuickCardIconActive]}>
+                  <Ionicons
+                    name="document-text-outline"
+                    size={16}
+                    color={active ? '#FFFFFF' : '#D97706'}
+                  />
+                </View>
+                <Text style={[styles.noteQuickCardText, active && styles.noteQuickCardTextActive]} numberOfLines={2}>
+                  {item}
+                </Text>
+                {active && (
+                  <View style={styles.noteQuickCheck}>
+                    <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.noteSection}>
+        <Text style={styles.noteSectionTitle}>Метки</Text>
+        <View style={styles.noteTagGrid}>
+          {NOTE_TAGS.map((tag) => {
+            const active = text.includes(`#${tag}`);
+            return (
+              <TouchableOpacity
+                key={tag}
+                style={[styles.noteTagCard, active && styles.noteTagCardActive]}
+                activeOpacity={0.88}
+                onPress={() => onChangeText(text ? `${text}\n#${tag}` : `#${tag}`)}
+              >
+                <Text style={[styles.noteTagCardText, active && styles.noteTagCardTextActive]}>
+                  #{tag}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.noteSection}>
+        <Text style={styles.noteSectionTitle}>Текст заметки</Text>
+        <View style={styles.noteFieldShell}>
+          <View style={styles.noteFieldIcon}>
+            <Ionicons name="create-outline" size={18} color="#D97706" />
+          </View>
+          <TextInput
+            style={styles.noteFieldInput}
+            value={text}
+            onChangeText={onChangeText}
+            placeholder="Опишите, что произошло..."
+            placeholderTextColor="#94A3B8"
+            multiline
+            textAlignVertical="top"
+          />
+        </View>
+      </View>
+
+      <EditorScheduleSection
+        theme="amber"
+        label="Дата и время"
+        dateTime={dateTime}
+        showPicker={showDatePicker}
+        onOpenPicker={onOpenDatePicker}
+        onPickerChange={onDatePickerChange}
+        onClosePicker={onCloseDatePicker}
+      />
+
+      <View style={styles.noteActions}>
+        <TouchableOpacity
+          style={styles.noteCancelBtn}
+          onPress={onCancel}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="close-outline" size={18} color="#B45309" />
+          <Text style={styles.noteCancelText}>Отмена</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.noteSaveBtn}
+          onPress={onSave}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.noteSaveText}>Сохранить заметку</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 }
 
 function SectionBlock({
@@ -222,23 +1497,15 @@ function SectionBlock({
     <View style={styles.sectionWrap}>
       <View style={styles.sectionHeader}>
         <View style={styles.sectionTitleRow}>
-          <View style={[styles.sectionIconWrap, { backgroundColor: `${accentColor}22` }]}>
-            <Ionicons name={icon} size={18} color={accentColor} />
-          </View>
+          <Ionicons name={icon} size={22} color={accentColor} style={styles.sectionIcon} />
           <Text style={styles.sectionTitle}>{title}</Text>
         </View>
 
         <View style={styles.sectionRight}>
-          <View style={[styles.countBadge, { backgroundColor: `${accentColor}1F` }]}>
-            <Text style={[styles.countBadgeText, { color: accentColor }]}>{count}</Text>
-          </View>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={onAddPress}
-            style={[styles.addButton, { backgroundColor: `${accentColor}1F` }]}
-          >
-            <Ionicons name="add" size={18} color={accentColor} />
-      </TouchableOpacity>
+          <Text style={[styles.countBadgeText, { color: accentColor }]}>{count}</Text>
+          <TouchableOpacity activeOpacity={0.7} onPress={onAddPress} style={styles.addButton}>
+            <Ionicons name="add" size={24} color={accentColor} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -259,6 +1526,9 @@ function EntryCard({
   title,
   subtitle,
   accentColor,
+  icon,
+  badge,
+  badgeEmoji,
   children,
   onEdit,
   onDelete,
@@ -267,66 +1537,244 @@ function EntryCard({
   title: string;
   subtitle?: string;
   accentColor: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  badge?: string;
+  badgeEmoji?: string;
   children?: React.ReactNode;
   onEdit: () => void;
   onDelete: () => void;
   deleting?: boolean;
 }) {
   return (
-    <View style={[styles.entryCard, { borderLeftColor: accentColor }]}>
-      <View style={styles.entryTop}>
-        <View style={styles.entryTextBlock}>
-          <Text style={styles.entryTitle}>{title}</Text>
-          {!!subtitle && <Text style={styles.entrySubtitle}>{subtitle}</Text>}
-        </View>
+    <View style={styles.entryCard}>
+      <View style={[styles.entryAccentStripe, { backgroundColor: accentColor }]} />
+      <View style={styles.entryMain}>
+        <View style={styles.entryTop}>
+          <View style={[styles.entryIconWrap, { backgroundColor: withAlpha(accentColor, 0.1) }]}>
+            <Ionicons name={icon} size={18} color={accentColor} />
+          </View>
 
-        <View style={styles.entryActions}>
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={onEdit}
-            activeOpacity={0.85}
-            disabled={deleting}
-          >
-            <Ionicons name="create-outline" size={16} color="#1D4ED8" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={onDelete}
-            activeOpacity={0.85}
-            disabled={deleting}
-          >
-            {deleting ? (
-              <ActivityIndicator size="small" color="#1D4ED8" />
-            ) : (
-              <Ionicons name="trash-outline" size={16} color="#1D4ED8" />
+          <View style={styles.entryTextBlock}>
+            <Text style={styles.entryTitle} numberOfLines={2}>
+              {title}
+            </Text>
+            {!!subtitle && (
+              <View style={styles.entryTimeRow}>
+                <Ionicons name="time-outline" size={12} color="#94A3B8" />
+                <Text style={styles.entrySubtitle} numberOfLines={1}>
+                  {subtitle}
+                </Text>
+              </View>
             )}
-          </TouchableOpacity>
-        </View>
-      </View>
+          </View>
 
-      {!!children && <View style={styles.entryBody}>{children}</View>}
+          {!!(badge || badgeEmoji) && (
+            <View style={[styles.entryBadge, { backgroundColor: withAlpha(accentColor, 0.1) }]}>
+              {!!badgeEmoji && <Text style={styles.entryBadgeEmoji}>{badgeEmoji}</Text>}
+              {!!badge && (
+                <Text style={[styles.entryBadgeText, { color: accentColor }]}>{badge}</Text>
+              )}
+            </View>
+          )}
+
+          <View style={styles.entryActions}>
+            <TouchableOpacity
+              style={[styles.editButton, { backgroundColor: withAlpha(accentColor, 0.08) }]}
+              onPress={onEdit}
+              activeOpacity={0.85}
+              disabled={deleting}
+            >
+              <Ionicons name="create-outline" size={16} color={accentColor} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.deleteButton, { backgroundColor: withAlpha(accentColor, 0.08) }]}
+              onPress={onDelete}
+              activeOpacity={0.85}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <ActivityIndicator size="small" color={accentColor} />
+              ) : (
+                <Ionicons name="trash-outline" size={16} color={accentColor} />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {!!children && <View style={styles.entryBody}>{children}</View>}
+      </View>
     </View>
   );
 }
 
-function MetaRow({
+function MetaChip({
   label,
   value,
+  accentColor,
 }: {
   label: string;
   value: string;
+  accentColor: string;
 }) {
   return (
-    <View style={styles.metaRow}>
-      <Text style={styles.metaLabel}>{label}</Text>
-      <Text style={styles.metaValue}>{value}</Text>
+    <View style={[styles.metaChip, { backgroundColor: withAlpha(accentColor, 0.06) }]}>
+      <Text style={styles.metaChipLabel}>{label}</Text>
+      <Text style={[styles.metaChipValue, { color: accentColor }]} numberOfLines={1}>
+        {value}
+      </Text>
     </View>
   );
 }
 
+function FoodEntryCard({
+  item,
+  onEdit,
+  onDelete,
+  deleting,
+}: {
+  item: Food;
+  onEdit: () => void;
+  onDelete: () => void;
+  deleting?: boolean;
+}) {
+  const [compositionExpanded, setCompositionExpanded] = useState(false);
+  const accentColor = SECTION_COLORS.food;
+  const categoryLabel =
+    (FOOD_CATEGORY_LABELS[item.category ?? ''] ?? item.category) || '—';
+  const hasReaction = !!item.reactionOccurred;
+  const composition = item.components?.length ? item.components.join(', ') : '';
+  const amountBadge =
+    item.amount != null
+      ? `${item.amount} ${FOOD_UNIT_LABELS[item.unit ?? ''] ?? item.unit ?? ''}`.trim()
+      : undefined;
+  const canExpandComposition = composition.length > 42;
+
+  return (
+    <View style={styles.entryCard}>
+      <View style={[styles.entryAccentStripe, { backgroundColor: accentColor }]} />
+      <View style={styles.entryMain}>
+        <View style={styles.entryTop}>
+          <View style={[styles.entryIconWrap, { backgroundColor: withAlpha(accentColor, 0.1) }]}>
+            <Ionicons name="restaurant-outline" size={18} color={accentColor} />
+          </View>
+
+          <View style={styles.entryTextBlock}>
+            <Text style={styles.entryTitle} numberOfLines={2}>
+              {item.foodName}
+            </Text>
+            <View style={styles.entryTimeRow}>
+              <Ionicons name="time-outline" size={12} color="#94A3B8" />
+              <Text style={styles.entrySubtitle} numberOfLines={1}>
+                {formatDate(item.intakeTime)}
+              </Text>
+            </View>
+          </View>
+
+          {!!amountBadge && (
+            <View style={[styles.entryBadge, { backgroundColor: withAlpha(accentColor, 0.1) }]}>
+              <Text style={[styles.entryBadgeText, { color: accentColor }]}>{amountBadge}</Text>
+            </View>
+          )}
+
+          <View style={styles.entryActions}>
+            <TouchableOpacity
+              style={[styles.editButton, { backgroundColor: withAlpha(accentColor, 0.08) }]}
+              onPress={onEdit}
+              activeOpacity={0.85}
+              disabled={deleting}
+            >
+              <Ionicons name="create-outline" size={16} color={accentColor} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.deleteButton, { backgroundColor: withAlpha(accentColor, 0.08) }]}
+              onPress={onDelete}
+              activeOpacity={0.85}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <ActivityIndicator size="small" color={accentColor} />
+              ) : (
+                <Ionicons name="trash-outline" size={16} color={accentColor} />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.foodMetaRow}>
+          <View style={[styles.foodMetaTag, { backgroundColor: withAlpha(accentColor, 0.08) }]}>
+            <Text style={[styles.foodMetaTagText, { color: accentColor }]} numberOfLines={1}>
+              {categoryLabel}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.foodMetaTag,
+              {
+                backgroundColor: hasReaction
+                  ? withAlpha(COLORS.danger, 0.1)
+                  : withAlpha(accentColor, 0.06),
+              },
+            ]}
+          >
+            <Ionicons
+              name={hasReaction ? 'alert-circle' : 'checkmark-circle-outline'}
+              size={13}
+              color={hasReaction ? COLORS.danger : '#64748B'}
+            />
+            <Text
+              style={[
+                styles.foodMetaTagText,
+                { color: hasReaction ? COLORS.danger : '#64748B' },
+              ]}
+            >
+              {hasReaction ? 'Реакция' : 'Нет'}
+            </Text>
+          </View>
+        </View>
+
+        {!!composition && (
+          <TouchableOpacity
+            style={styles.foodCompositionRow}
+            onPress={() => {
+              if (canExpandComposition) {
+                setCompositionExpanded((value) => !value);
+              }
+            }}
+            activeOpacity={canExpandComposition ? 0.85 : 1}
+            disabled={!canExpandComposition}
+          >
+            <Text
+              style={styles.foodCompositionText}
+              numberOfLines={compositionExpanded ? undefined : 1}
+            >
+              {composition}
+            </Text>
+            {canExpandComposition && (
+              <Ionicons
+                name={compositionExpanded ? 'chevron-up' : 'chevron-down'}
+                size={16}
+                color="#94A3B8"
+              />
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function getWellbeingVisual(score: number) {
+  const normalized = toFiveScale(score);
+  const option = WELLBEING_OPTIONS.find((item) => item.score === normalized);
+  return {
+    emoji: option?.emoji ?? '😐',
+    label: option?.label ?? `${normalized}/5`,
+    short: `${normalized}/5`,
+  };
+}
+
 export default function DiaryScreen() {
-  const { width } = useWindowDimensions();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -371,8 +1819,8 @@ export default function DiaryScreen() {
   const [componentInput, setComponentInput] = useState('');
   const [commonComments, setCommonComments] = useState<Record<string, string>>({});
 
-  const todayDateKey = useMemo(() => toDayKey(new Date()), []);
-  const selectedDateKey = useMemo(() => toDayKey(selectedDate), [selectedDate]);
+  const todayDateKey = toAppDayKey(new Date());
+  const selectedDateKey = useMemo(() => toAppDayKey(selectedDate), [selectedDate]);
   const canGoNextDate = selectedDateKey < todayDateKey;
   const defaultSelectedDateTime = useMemo(
     () => `${selectedDateKey}T12:00:00`,
@@ -384,7 +1832,7 @@ export default function DiaryScreen() {
       const next = new Date(prev);
       next.setDate(next.getDate() + delta);
       next.setHours(0, 0, 0, 0);
-      if (delta > 0 && toDayKey(next) > toDayKey(new Date())) {
+      if (delta > 0 && toAppDayKey(next) > toAppDayKey(new Date())) {
         return prev;
       }
       return next;
@@ -411,11 +1859,7 @@ export default function DiaryScreen() {
       setProfile(profileResult.status === 'fulfilled' ? profileResult.value ?? null : null);
 
       setCommonFeelings(
-        commonResult.status === 'fulfilled'
-          ? commonResult.value
-            ? [commonResult.value]
-            : []
-          : []
+        commonResult.status === 'fulfilled' ? commonResult.value ?? [] : [],
       );
       setSymptoms(symptomResult.status === 'fulfilled' ? symptomResult.value ?? [] : []);
       setMedicines(medicineResult.status === 'fulfilled' ? medicineResult.value ?? [] : []);
@@ -425,7 +1869,7 @@ export default function DiaryScreen() {
       if (commonResult.status === 'fulfilled') {
         setCommonComments((prev) => {
           const next = { ...prev };
-          const commonItems = commonResult.value ? [commonResult.value] : [];
+          const commonItems = commonResult.value ?? [];
           commonItems.forEach((item) => {
             const key = String(item.feelingId);
             if (item.comment && item.comment.trim()) {
@@ -448,11 +1892,20 @@ export default function DiaryScreen() {
     }
   }, [selectedDateKey]);
 
+  useEffect(() => {
+    void loadDiary();
+  }, [loadDiary]);
+
   useFocusEffect(
     useCallback(() => {
-      void loadDiary();
-    }, [loadDiary])
+      void loadDiary(true);
+    }, [loadDiary]),
   );
+
+  useEffect(() => {
+    if (editorType == null || editorId != null) return;
+    setFDateTime(defaultSelectedDateTime);
+  }, [selectedDateKey, defaultSelectedDateTime, editorType, editorId]);
 
   useEffect(() => {
     void getSymptomsCatalogApi()
@@ -550,12 +2003,12 @@ export default function DiaryScreen() {
     [notes, selectedDateKey]
   );
 
-const totalCount =
-  commonFeelings.length +
-  symptoms.length +
-  medicines.length +
-  foods.length +
-  notes.length;
+  const totalCount =
+    filteredCommonFeelings.length +
+    filteredSymptoms.length +
+    filteredMedicines.length +
+    filteredFoods.length +
+    filteredNotes.length;
 
   const executeDelete = useCallback(
     async (id: string, onDelete: () => Promise<void>) => {
@@ -649,7 +2102,7 @@ const totalCount =
     setEditorType(type);
     setEditorId(null);
     setFName('');
-    setFNumber(type === 'common' ? '3' : '');
+    setFNumber(type === 'common' ? '3' : type === 'symptom' ? '5' : '');
     setFUnit(type === 'medicine' ? 'MG' : type === 'food' ? 'GRAM' : '');
     setFText('');
     setFText2(type === 'food' ? 'OTHER' : '');
@@ -672,7 +2125,7 @@ const totalCount =
       if (type === 'common') {
         setEditorId(item.feelingId);
         setFNumber(String(toFiveScale(Number(item.wellbeingScore ?? 3))));
-        setFDateTime(item.dateTime ?? new Date().toISOString());
+        setFDateTime(item.dateTime ?? nowAppDateTimeString());
         return;
       }
       if (type === 'symptom') {
@@ -681,7 +2134,7 @@ const totalCount =
         const severity = Number(item.severity ?? 5);
         const snapped = severity >= 7 ? 8 : severity >= 4 ? 5 : 2;
         setFNumber(String(snapped));
-        setFDateTime(item.startTime || item.createdAt || new Date().toISOString());
+        setFDateTime(item.startTime || item.createdAt || nowAppDateTimeString());
         setFDateTimeEnd(item.endTime || '');
         return;
       }
@@ -690,7 +2143,7 @@ const totalCount =
         setFName(item.medicineName ?? '');
         setFNumber(String(item.dosage ?? ''));
         setFUnit(item.unit ?? 'MG');
-        setFDateTime(item.intakeTime || item.intakeDate || new Date().toISOString());
+        setFDateTime(item.intakeTime || item.intakeDate || nowAppDateTimeString());
         return;
       }
       if (type === 'food') {
@@ -699,7 +2152,7 @@ const totalCount =
         setFNumber(String(item.amount ?? ''));
         setFUnit(item.unit ?? 'GRAM');
         setFText2(item.category ?? 'OTHER');
-        setFDateTime(item.intakeTime || new Date().toISOString());
+        setFDateTime(item.intakeTime || nowAppDateTimeString());
         setFToggle(Boolean(item.reactionOccurred));
         setFText(item.reactionDescription ?? '');
         setFoodSearch('');
@@ -711,7 +2164,7 @@ const totalCount =
       }
       setEditorId(item.noteId);
       setFText(item.content ?? '');
-      setFDateTime(item.date || new Date().toISOString());
+      setFDateTime(item.date || nowAppDateTimeString());
     },
     [commonComments]
   );
@@ -722,28 +2175,32 @@ const totalCount =
       setEditorSaving(true);
       if (editorType === 'common') {
         const score = Math.max(1, Math.min(5, Number(fNumber || '3')));
+        const dateTime = normalizeDateTimeForStorage(
+          fDateTime || defaultSelectedDateTime,
+          selectedDateKey,
+        );
         if (editorId != null) {
           await updateCommonFeelingApi(editorId, {
-            dateTime: fDateTime || new Date().toISOString(),
+            dateTime,
             wellbeingScore: score,
           });
         } else {
           await upsertCommonFeelingApi({
-            dateTime: fDateTime || new Date().toISOString(),
+            dateTime,
             wellbeingScore: score,
           });
         }
       } else if (editorType === 'symptom') {
         if (!fName.trim()) throw new Error('Введите название симптома');
-        const fallbackStart = new Date().toISOString();
-        const parsedStart = Date.parse(fDateTime);
-        const startTime = Number.isNaN(parsedStart) ? fallbackStart : new Date(parsedStart).toISOString();
-
-        const parsedEnd = fDateTimeEnd ? Date.parse(fDateTimeEnd) : Number.NaN;
+        const startTime = normalizeDateTimeForStorage(
+          fDateTime || defaultSelectedDateTime,
+          selectedDateKey,
+        );
+        const endTimeRaw = fDateTimeEnd.trim()
+          ? normalizeDateTimeForStorage(fDateTimeEnd, selectedDateKey)
+          : undefined;
         const safeEndTime =
-          Number.isNaN(parsedEnd)
-            ? undefined
-            : new Date(Math.max(parsedEnd, Date.parse(startTime))).toISOString();
+          endTimeRaw && endTimeRaw >= startTime ? endTimeRaw.slice(0, 19) : undefined;
 
         const payload = {
           symptomName: fName.trim(),
@@ -759,7 +2216,7 @@ const totalCount =
           medicineName: fName.trim(),
           dosage: Number(fNumber || '0'),
           unit: (fUnit || 'MG') as 'MG' | 'ML' | 'TABLET' | 'DROP',
-          intakeDate: fDateTime || new Date().toISOString(),
+          intakeDate: normalizeDateTimeForStorage(fDateTime, selectedDateKey),
         };
         if (editorId != null) await updateMedicineApi(editorId, payload);
         else await createMedicineApi(payload);
@@ -772,7 +2229,7 @@ const totalCount =
           category: normalizeCategory(fText2),
           amount: Number(fNumber || '0'),
           unit: (fUnit || 'GRAM') as 'GRAM' | 'PORTION' | 'PIECE' | 'MILLILITER',
-          intakeTime: fDateTime || new Date().toISOString(),
+          intakeTime: normalizeDateTimeForStorage(fDateTime, selectedDateKey),
           reactionOccurred: fToggle,
           reactionDescription: '',
           components: mergeUnique(foodComponents),
@@ -781,7 +2238,10 @@ const totalCount =
         else await createFoodApi(payload);
       } else if (editorType === 'note') {
         if (!fText.trim()) throw new Error('Введите текст заметки');
-        const payload = { content: fText.trim(), date: fDateTime || new Date().toISOString() };
+        const payload = {
+          content: fText.trim(),
+          date: normalizeDateTimeForStorage(fDateTime, selectedDateKey),
+        };
         if (editorId != null) await updateNoteApi(editorId, payload);
         else await createNoteApi(payload);
       }
@@ -794,6 +2254,7 @@ const totalCount =
     }
   }, [
     closeEditor,
+    defaultSelectedDateTime,
     editorId,
     editorType,
     fDateTime,
@@ -808,517 +2269,263 @@ const totalCount =
     loadDiary,
     mergeUnique,
     normalizeCategory,
+    selectedDateKey,
     selectedProducts,
   ]);
 
   const renderInlineEditor = useCallback(
     (type: EditorType) => {
       if (editorType !== type) return null;
-      const symptomFiltered = symptomCatalog
-        .filter((item) => item.toLowerCase().includes(fName.toLowerCase()))
-        .slice(0, 12);
-      const medicineFiltered = medicineCatalog
-        .filter((item) => item.toLowerCase().includes(fName.toLowerCase()))
-        .slice(0, 12);
-      const commonOptions = [
-        { score: 1, label: 'Плохо', color: '#2563EB' },
-        { score: 2, label: 'Ниже среднего', color: '#1D4ED8' },
-        { score: 3, label: 'Нормально', color: '#0EA5E9' },
-        { score: 4, label: 'Хорошо', color: '#38BDF8' },
-        { score: 5, label: 'Отлично', color: '#7DD3FC' },
-      ];
-      const renderEntryDateTimeControl = (label: string) => {
-        if (Platform.OS === 'web') {
-          return (
-            <>
-              <Text style={styles.inlineHint}>{label}</Text>
-              <input
-                style={styles.webDateInput as any}
-                type="datetime-local"
-                value={toLocalDateTimeInputValue(fDateTime || defaultSelectedDateTime)}
-                onChange={(event) => {
-                  const nextDate = new Date(event.target.value);
-                  if (!Number.isNaN(nextDate.getTime())) {
-                    setFDateTime(nextDate.toISOString());
-                  }
-                }}
-              />
-            </>
-          );
-        }
 
+      if (type === 'common') {
         return (
-          <>
-            <TouchableOpacity
-              style={styles.datePickerButton}
-              activeOpacity={0.85}
-              onPress={() => setShowEntryDatePicker(true)}
-            >
-              <Text style={styles.datePickerLabel}>{label}</Text>
-              <Text style={styles.datePickerValue}>
-                {formatDate(fDateTime || defaultSelectedDateTime)}
-              </Text>
-            </TouchableOpacity>
-            {NativeDateTimePicker && showEntryDatePicker && (
-              <NativeDateTimePicker
-                value={new Date(fDateTime || defaultSelectedDateTime)}
-                mode="datetime"
-                onChange={(_event: any, selectedDate?: Date) => {
-                  setShowEntryDatePicker(false);
-                  if (selectedDate) setFDateTime(selectedDate.toISOString());
-                }}
-              />
-            )}
-          </>
+          <CommonFeelingInlineEditor
+            editorId={editorId}
+            score={fNumber}
+            dateTime={fDateTime || defaultSelectedDateTime}
+            saving={editorSaving}
+            showDatePicker={showEntryDatePicker}
+            onSelectScore={setFNumber}
+            onOpenDatePicker={() => setShowEntryDatePicker(true)}
+            onDatePickerChange={(event, selectedDate) => {
+              applyNativeDatePick(
+                event,
+                selectedDate,
+                (date) => setFDateTime(toAppDateTimeString(date)),
+                () => setShowEntryDatePicker(false),
+              );
+            }}
+            onCloseDatePicker={() => setShowEntryDatePicker(false)}
+            onCancel={closeEditor}
+            onSave={() => void submitEditor()}
+          />
         );
-      };
-      return (
-        <View style={styles.inlineEditorCard}>
-          <View style={styles.inlineEditorHeader}>
-            <Ionicons
-              name={
-                type === 'common'
-                  ? 'heart-circle-outline'
-                  : type === 'symptom'
-                    ? 'pulse-outline'
-                    : type === 'medicine'
-                      ? 'medkit-outline'
-                      : type === 'food'
-                        ? 'restaurant-outline'
-                        : 'document-text-outline'
+      }
+
+      if (type === 'symptom') {
+        const symptomFiltered = symptomCatalog
+          .filter((item) => item.toLowerCase().includes(fName.toLowerCase()))
+          .slice(0, 12);
+        return (
+          <SymptomInlineEditor
+            editorId={editorId}
+            name={fName}
+            severity={fNumber}
+            dateTimeStart={fDateTime}
+            dateTimeEnd={fDateTimeEnd}
+            suggestions={symptomFiltered}
+            saving={editorSaving}
+            showStartPicker={showSymptomStartPicker}
+            showEndPicker={showSymptomEndPicker}
+            onChangeName={setFName}
+            onSelectSeverity={setFNumber}
+            onOpenStartPicker={() => {
+              setShowSymptomEndPicker(false);
+              setShowSymptomStartPicker(true);
+            }}
+            onOpenEndPicker={() => {
+              setShowSymptomStartPicker(false);
+              setShowSymptomEndPicker(true);
+            }}
+            onStartPickerChange={(event, selectedDate) => {
+              applyNativeDatePick(
+                event,
+                selectedDate,
+                (date) => setFDateTime(toAppDateTimeString(date)),
+                () => setShowSymptomStartPicker(false),
+              );
+            }}
+            onEndPickerChange={(event, selectedDate) => {
+              if (!selectedDate) {
+                setFDateTimeEnd('');
+                return;
               }
-              size={18}
-              color="#1D4ED8"
-            />
-            <Text style={styles.editorTitle}>
-              {editorId != null ? 'Редактирование записи' : 'Новая запись'}
-            </Text>
-          </View>
+              applyNativeDatePick(
+                event,
+                selectedDate,
+                (date) => setFDateTimeEnd(toAppDateTimeString(date)),
+                () => setShowSymptomEndPicker(false),
+              );
+            }}
+            onCloseStartPicker={() => setShowSymptomStartPicker(false)}
+            onCloseEndPicker={() => setShowSymptomEndPicker(false)}
+            onCancel={closeEditor}
+            onSave={() => void submitEditor()}
+          />
+        );
+      }
 
-          {type === 'common' && (
-            <>
-              <View style={styles.feelingsRow}>
-                {commonOptions.map((item) => {
-                  const active = Number(fNumber || '3') === item.score;
-                  return (
-                    <TouchableOpacity
-                      key={item.score}
-                      style={[styles.feelingDotWrap, active && styles.feelingDotWrapActive]}
-                      onPress={() => setFNumber(String(item.score))}
-                    >
-                      <View style={[styles.feelingDot, { backgroundColor: item.color }]} />
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <Text style={styles.inlineHint}>
-                Выбрано: {commonOptions.find((item) => item.score === Number(fNumber || '3'))?.label ?? 'Нормально'}
-              </Text>
-            </>
-          )}
+      if (type === 'medicine') {
+        return (
+          <MedicineInlineEditor
+            editorId={editorId}
+            name={fName}
+            dosage={fNumber}
+            unit={fUnit}
+            dateTime={fDateTime || defaultSelectedDateTime}
+            suggestions={medicineCatalog
+              .filter((item) => item.toLowerCase().includes(fName.toLowerCase()))
+              .slice(0, 12)}
+            saving={editorSaving}
+            showDatePicker={showEntryDatePicker}
+            onChangeName={setFName}
+            onChangeDosage={setFNumber}
+            onSelectUnit={setFUnit}
+            onOpenDatePicker={() => setShowEntryDatePicker(true)}
+            onDatePickerChange={(event, selectedDate) => {
+              applyNativeDatePick(
+                event,
+                selectedDate,
+                (date) => setFDateTime(toAppDateTimeString(date)),
+                () => setShowEntryDatePicker(false),
+              );
+            }}
+            onCloseDatePicker={() => setShowEntryDatePicker(false)}
+            onCancel={closeEditor}
+            onSave={() => void submitEditor()}
+          />
+        );
+      }
 
-          {type === 'symptom' && (
-            <>
-              <TextInput
-                style={styles.editorInput}
-                value={fName}
-                onChangeText={setFName}
-                placeholder="Название симптома"
-              />
-              {!!fName.trim() && symptomFiltered.length > 0 && (
-                <View style={styles.suggestBox}>
-                  {symptomFiltered.map((item) => (
-                    <TouchableOpacity key={item} style={styles.suggestItem} onPress={() => setFName(item)}>
-                      <Text style={styles.suggestText}>{item}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-              <View style={styles.chipsRow}>
-                {[{ title: 'Сильно', value: 8, color: '#1E40AF' }, { title: 'Умеренно', value: 5, color: '#2563EB' }, { title: 'Слабо', value: 2, color: '#0EA5E9' }].map((item) => {
-                  const active = Number(fNumber || '5') === item.value;
-                  return (
-                    <TouchableOpacity
-                      key={item.title}
-                      style={[styles.levelChip, { borderColor: `${item.color}66` }, active && { backgroundColor: item.color, borderColor: item.color }]}
-                      onPress={() => setFNumber(String(item.value))}
-                    >
-                      <Text style={[styles.levelChipText, active && styles.levelChipTextActive]}>{item.title}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              {Platform.OS === 'web' ? (
-                <>
-                  <Text style={styles.inlineHint}>Начало симптома</Text>
-                  <input
-                    style={styles.webDateInput as any}
-                    type="datetime-local"
-                    value={toLocalDateTimeInputValue(fDateTime || new Date().toISOString())}
-                    onChange={(event) => {
-                      const nextDate = new Date(event.target.value);
-                      if (!Number.isNaN(nextDate.getTime())) {
-                        setFDateTime(nextDate.toISOString());
-                      }
-                    }}
-                  />
-                  <Text style={styles.inlineHint}>Окончание симптома (необязательно)</Text>
-                  <input
-                    style={styles.webDateInput as any}
-                    type="datetime-local"
-                    value={toLocalDateTimeInputValue(fDateTimeEnd)}
-                    min={toLocalDateTimeInputValue(fDateTime || new Date().toISOString())}
-                    onChange={(event) => {
-                      if (!event.target.value) {
-                        setFDateTimeEnd('');
-                        return;
-                      }
-                      const nextDate = new Date(event.target.value);
-                      if (!Number.isNaN(nextDate.getTime())) {
-                        setFDateTimeEnd(nextDate.toISOString());
-                      }
-                    }}
-                  />
-                </>
-              ) : (
-                <>
-                  <TouchableOpacity
-                    style={styles.datePickerButton}
-                    activeOpacity={0.85}
-                    onPress={() => setShowSymptomStartPicker(true)}
-                  >
-                    <Text style={styles.datePickerLabel}>Начало симптома</Text>
-                    <Text style={styles.datePickerValue}>
-                      {formatDate(fDateTime || new Date().toISOString())}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.datePickerButton}
-                    activeOpacity={0.85}
-                    onPress={() => setShowSymptomEndPicker(true)}
-                  >
-                    <Text style={styles.datePickerLabel}>Окончание симптома</Text>
-                    <Text style={styles.datePickerValue}>
-                      {fDateTimeEnd ? formatDate(fDateTimeEnd) : 'Не указано'}
-                    </Text>
-                  </TouchableOpacity>
-                  {NativeDateTimePicker && showSymptomStartPicker && (
-                    <NativeDateTimePicker
-                      value={new Date(fDateTime || new Date().toISOString())}
-                      mode="datetime"
-                      onChange={(_event: any, selectedDate?: Date) => {
-                        setShowSymptomStartPicker(false);
-                        if (selectedDate) setFDateTime(selectedDate.toISOString());
-                      }}
-                    />
-                  )}
-                  {NativeDateTimePicker && showSymptomEndPicker && (
-                    <NativeDateTimePicker
-                      value={new Date(fDateTimeEnd || fDateTime || new Date().toISOString())}
-                      mode="datetime"
-                      onChange={(_event: any, selectedDate?: Date) => {
-                        setShowSymptomEndPicker(false);
-                        if (selectedDate) setFDateTimeEnd(selectedDate.toISOString());
-                      }}
-                    />
-                  )}
-                </>
-              )}
-            </>
-          )}
+      if (type === 'food') {
+        const foodAllergens = mergeUnique([
+          ...foodComponents,
+          ...selectedProducts.flatMap((p) => p.components ?? []),
+        ]);
+        return (
+          <FoodInlineEditor
+            editorId={editorId}
+            query={foodSearch}
+            amount={fNumber}
+            unit={fUnit}
+            dateTime={fDateTime || defaultSelectedDateTime}
+            reaction={fToggle}
+            selectedProducts={selectedProducts}
+            allergens={foodAllergens}
+            suggestions={foodSuggestions}
+            suggestionsOpen={foodSuggestionsOpen}
+            suggestionsLoading={foodSuggestionsLoading}
+            saving={editorSaving}
+            showDatePicker={showEntryDatePicker}
+            onChangeQuery={(value) => {
+              setFName(value);
+              setFoodSearch(value);
+              setFoodSuggestionsOpen(true);
+            }}
+            onChangeAmount={setFNumber}
+            onSelectUnit={setFUnit}
+            onToggleReaction={setFToggle}
+            onSelectSuggestion={(item) => {
+              const nextProducts = selectedProducts.some(
+                (p) => p.foodName.toLowerCase() === item.foodName.toLowerCase(),
+              )
+                ? selectedProducts
+                : [...selectedProducts, item];
+              setSelectedProducts(nextProducts);
+              setFoodComponents((prev) => mergeUnique([...prev, ...(item.components ?? [])]));
+              setFText2(item.category ?? 'OTHER');
+              const autoName = nextProducts.map((p) => p.foodName).join(' + ');
+              setFName(autoName);
+              setFoodSearch('');
+              setFoodSuggestionsOpen(true);
+            }}
+            onRemoveProduct={(name) => {
+              const nextProducts = selectedProducts.filter((p) => p.foodName !== name);
+              setSelectedProducts(nextProducts);
+              setFName(nextProducts.map((p) => p.foodName).join(' + '));
+            }}
+            onOpenDatePicker={() => setShowEntryDatePicker(true)}
+            onDatePickerChange={(event, selectedDate) => {
+              applyNativeDatePick(
+                event,
+                selectedDate,
+                (date) => setFDateTime(toAppDateTimeString(date)),
+                () => setShowEntryDatePicker(false),
+              );
+            }}
+            onCloseDatePicker={() => setShowEntryDatePicker(false)}
+            onCancel={closeEditor}
+            onSave={() => void submitEditor()}
+          />
+        );
+      }
 
-          {type === 'medicine' && (
-            <>
-              <TextInput
-                style={styles.editorInput}
-                value={fName}
-                onChangeText={setFName}
-                placeholder="Название лекарства"
-              />
-              {!!fName.trim() && medicineFiltered.length > 0 && (
-                <View style={styles.suggestBox}>
-                  {medicineFiltered.map((item) => (
-                    <TouchableOpacity key={item} style={styles.suggestItem} onPress={() => setFName(item)}>
-                      <Text style={styles.suggestText}>{item}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-              <TextInput
-                style={styles.editorInput}
-                value={fNumber}
-                onChangeText={setFNumber}
-                keyboardType="numeric"
-                placeholder="Дозировка"
-              />
-              <View style={styles.chipsRow}>
-                {['MG', 'ML', 'TABLET', 'DROP'].map((item) => {
-                  const active = (fUnit || 'MG') === item;
-                  return (
-                    <TouchableOpacity key={item} style={[styles.unitChip, active && styles.unitChipActive]} onPress={() => setFUnit(item)}>
-                      <Text style={[styles.unitChipText, active && styles.unitChipTextActive]}>
-                        {MEDICINE_UNIT_LABELS[item] ?? item}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              {renderEntryDateTimeControl('Время приема лекарства')}
-            </>
-          )}
+      if (type === 'note') {
+        return (
+          <NoteInlineEditor
+            editorId={editorId}
+            text={fText}
+            dateTime={fDateTime || defaultSelectedDateTime}
+            saving={editorSaving}
+            showDatePicker={showEntryDatePicker}
+            onChangeText={setFText}
+            onOpenDatePicker={() => setShowEntryDatePicker(true)}
+            onDatePickerChange={(event, selectedDate) => {
+              applyNativeDatePick(
+                event,
+                selectedDate,
+                (date) => setFDateTime(toAppDateTimeString(date)),
+                () => setShowEntryDatePicker(false),
+              );
+            }}
+            onCloseDatePicker={() => setShowEntryDatePicker(false)}
+            onCancel={closeEditor}
+            onSave={() => void submitEditor()}
+          />
+        );
+      }
 
-          {type === 'food' && (
-            <>
-              <TextInput
-                style={styles.editorInput}
-                value={fName}
-                onChangeText={setFName}
-                placeholder="Название блюда (например, салат)"
-              />
-              <TextInput
-                style={styles.editorInput}
-                value={foodSearch}
-                onChangeText={(text) => {
-                  setFoodSearch(text);
-                  setFoodSuggestionsOpen(true);
-                }}
-                onFocus={() => setFoodSuggestionsOpen(true)}
-                placeholder="Добавить продукт в блюдо"
-              />
-              {foodSuggestionsOpen && (
-                <View style={styles.suggestBox}>
-                  <ScrollView style={{ maxHeight: 160 }}>
-                    {foodSuggestions.map((item) => (
-                      <TouchableOpacity
-                        key={item.foodName}
-                        style={styles.suggestItem}
-                        onPress={() => {
-                          setSelectedProducts((prev) =>
-                            prev.some((p) => p.foodName.toLowerCase() === item.foodName.toLowerCase())
-                              ? prev
-                              : [...prev, item]
-                          );
-                          setFoodComponents((prev) =>
-                            mergeUnique([...prev, ...(item.components ?? [])])
-                          );
-                          setFText2(item.category ?? 'OTHER');
-                          setFoodSearch('');
-                          setFoodSuggestionsOpen(false);
-                        }}
-                      >
-                        <Text style={styles.suggestText}>{item.foodName}</Text>
-                        {!!item.components?.length && (
-                          <Text style={styles.suggestSubText} numberOfLines={1}>
-                            {item.components.join(', ')}
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                    {foodSuggestionsLoading && <ActivityIndicator style={{ marginVertical: 8 }} />}
-                  </ScrollView>
-                </View>
-              )}
-              {!!selectedProducts.length && (
-                <View style={styles.tagsWrap}>
-                  {selectedProducts.map((item) => (
-                    <View key={item.foodName} style={styles.tag}>
-                      <Text style={styles.tagText}>{item.foodName}</Text>
-                      <TouchableOpacity
-                        onPress={() =>
-                          setSelectedProducts((prev) => prev.filter((p) => p.foodName !== item.foodName))
-                        }
-                      >
-                        <Text style={styles.tagRemove}>x</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-              <TextInput
-                style={styles.editorInput}
-                value={fNumber}
-                onChangeText={setFNumber}
-                keyboardType="numeric"
-                placeholder="Количество"
-              />
-              <View style={styles.chipsRow}>
-                {['GRAM', 'PORTION', 'PIECE', 'MILLILITER'].map((item) => {
-                  const active = (fUnit || 'GRAM') === item;
-                  return (
-                    <TouchableOpacity key={item} style={[styles.unitChip, active && styles.unitChipActive]} onPress={() => setFUnit(item)}>
-                      <Text style={[styles.unitChipText, active && styles.unitChipTextActive]}>
-                        {FOOD_UNIT_LABELS[item] ?? item}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <View style={styles.chipsRow}>
-                {(['OTHER', 'FRUIT', 'VEGETABLE', 'MEAT', 'DAIRY', 'BEVERAGES'] as const).map((item) => {
-                  const active = (fText2 || 'OTHER') === item;
-                  return (
-                    <TouchableOpacity key={item} style={[styles.categoryChip, active && styles.categoryChipActive]} onPress={() => setFText2(item)}>
-                      <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>
-                        {FOOD_CATEGORY_LABELS[item] ?? item}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <View style={styles.addRow}>
-                <TextInput
-                  style={[styles.editorInput, styles.addRowInput]}
-                  value={componentInput}
-                  onChangeText={setComponentInput}
-                  placeholder="Ингредиент"
-                />
-                <TouchableOpacity
-                  style={styles.addRowButton}
-                  onPress={() => {
-                    if (!componentInput.trim()) return;
-                    setFoodComponents((prev) => mergeUnique([...prev, componentInput]));
-                    setComponentInput('');
-                  }}
-                >
-                  <Ionicons name="add" size={18} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-              {!!foodComponents.length && (
-                <View style={styles.tagsWrap}>
-                  {foodComponents.map((item) => (
-                    <View key={item} style={styles.tag}>
-                      <Text style={styles.tagText}>{item}</Text>
-                      <TouchableOpacity
-                        onPress={() =>
-                          setFoodComponents((prev) => prev.filter((component) => component !== item))
-                        }
-                      >
-                        <Text style={styles.tagRemove}>x</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-              <View style={styles.chipsRow}>
-                <TouchableOpacity
-                  style={[styles.reactionChip, fToggle && styles.reactionChipActive]}
-                  onPress={() => setFToggle(true)}
-                >
-                  <Text style={[styles.reactionChipText, fToggle && styles.reactionChipTextActive]}>Реакция: Да</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.reactionChip, !fToggle && styles.reactionChipActive]}
-                  onPress={() => setFToggle(false)}
-                >
-                  <Text style={[styles.reactionChipText, !fToggle && styles.reactionChipTextActive]}>Реакция: Нет</Text>
-                </TouchableOpacity>
-              </View>
-              {renderEntryDateTimeControl('Время приема еды')}
-            </>
-          )}
-
-          {type === 'note' && (
-            <>
-              <View style={styles.noteTemplateWrap}>
-                {[
-                  'После обеда появилась реакция',
-                  'Симптомы усилились к вечеру',
-                  'После лекарства стало лучше',
-                  'Подозрение на продукт-триггер',
-                ].map((item) => (
-                  <TouchableOpacity key={item} style={styles.noteTemplateChip} onPress={() => setFText(item)}>
-                    <Text style={styles.noteTemplateText}>{item}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <View style={styles.noteTemplateWrap}>
-                {['Триггер', 'Лекарство', 'Симптом', 'Питание'].map((tag) => (
-                  <TouchableOpacity
-                    key={tag}
-                    style={styles.noteTagChip}
-                    onPress={() => setFText((prev) => (prev ? `${prev}\n#${tag}` : `#${tag}`))}
-                  >
-                    <Text style={styles.noteTagText}>#{tag}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <TextInput
-                style={[styles.editorInput, styles.editorInputMultiline]}
-                value={fText}
-                onChangeText={setFText}
-                placeholder="Текст заметки"
-                multiline
-              />
-              {renderEntryDateTimeControl('Дата и время заметки')}
-              <Text style={styles.noteCounter}>{fText.trim().length} символов</Text>
-            </>
-          )}
-
-          <View style={styles.editorActions}>
-            <TouchableOpacity
-              style={styles.editorCancelButton}
-              onPress={closeEditor}
-              disabled={editorSaving}
-            >
-              <Text style={styles.editorCancelText}>Отмена</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.editorSaveButton}
-              onPress={() => void submitEditor()}
-              disabled={editorSaving}
-            >
-              {editorSaving ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.editorSaveText}>Сохранить</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
+      return null;
     },
     [
       closeEditor,
+      componentInput,
       defaultSelectedDateTime,
       editorId,
       editorSaving,
       editorType,
+      fDateTime,
+      fDateTimeEnd,
       fName,
-      foodComponents,
-      foodSearch,
-      foodSuggestions,
-      foodSuggestionsLoading,
-      foodSuggestionsOpen,
       fNumber,
       fText,
       fText2,
       fToggle,
       fUnit,
-      fDateTimeEnd,
+      foodComponents,
+      foodSearch,
+      foodSuggestions,
+      foodSuggestionsLoading,
+      foodSuggestionsOpen,
       medicineCatalog,
       mergeUnique,
       selectedProducts,
       showEntryDatePicker,
+      showSymptomEndPicker,
+      showSymptomStartPicker,
       symptomCatalog,
       submitEditor,
-    ]
+    ],
   );
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <ScreenSafeArea style={styles.safeArea}>
         <View style={styles.loaderWrap}>
           <ActivityIndicator size="large" color="#1D4ED8" />
         </View>
-      </SafeAreaView>
+      </ScreenSafeArea>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={[styles.contentContainer, { maxWidth: 860, width: Math.min(width - 20, 860), alignSelf: 'center' }]}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { width: '100%', maxWidth: 860, alignSelf: 'center' },
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -1331,36 +2538,32 @@ const totalCount =
         }
       >
         <View style={styles.heroCard}>
-          <View style={styles.heroHeaderRow}>
-            <View style={styles.heroAvatar}>
-              <Ionicons name="person" size={22} color="#FFFFFF" />
+          <View style={styles.heroTop}>
+            <View style={styles.heroIconWrap}>
+              <Ionicons name="book" size={22} color="#FFFFFF" />
             </View>
-            <View style={styles.heroTitleWrap}>
+            <View style={styles.heroTextWrap}>
               <Text style={styles.heroTitle}>{getUserDisplayName(profile)}</Text>
-              <Text style={styles.heroSubtitle}>Все записи и изменения за день</Text>
+              <Text style={styles.heroSubtitle}>
+                Все записи и изменения за день — самочувствие, симптомы, лекарства, питание и заметки.
+              </Text>
             </View>
           </View>
 
           <View style={styles.heroInnerCard}>
-            <Text style={styles.heroInnerTitle}>Сегодня</Text>
-            <Text style={styles.heroInnerText}>
-              Добавляйте самочувствие, симптомы, лекарства, питание и заметки.
-            </Text>
-
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryValue}>{totalCount}</Text>
-                <Text style={styles.summaryLabel}>Записей</Text>
+            <Text style={styles.heroInnerLabel}>Сводка за день</Text>
+            <View style={styles.metricsRow}>
+              <View style={styles.metricBox}>
+                <Text style={styles.metricLabel}>Записей</Text>
+                <Text style={styles.metricValue}>{totalCount}</Text>
               </View>
-              <View style={styles.summaryDivider} />
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryValue}>{filteredFoods.length}</Text>
-                <Text style={styles.summaryLabel}>Питание</Text>
+              <View style={styles.metricBox}>
+                <Text style={styles.metricLabel}>Питание</Text>
+                <Text style={styles.metricValue}>{filteredFoods.length}</Text>
               </View>
-              <View style={styles.summaryDivider} />
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryValue}>{filteredSymptoms.length}</Text>
-                <Text style={styles.summaryLabel}>Симптомы</Text>
+              <View style={styles.metricBox}>
+                <Text style={styles.metricLabel}>Симптомы</Text>
+                <Text style={styles.metricValue}>{filteredSymptoms.length}</Text>
               </View>
             </View>
           </View>
@@ -1410,34 +2613,39 @@ const totalCount =
         <SectionBlock
           title="Самочувствие"
           count={filteredCommonFeelings.length}
-          icon="heart-circle-outline"
-          accentColor="#1D4ED8"
+          icon="heart-outline"
+          accentColor={SECTION_COLORS.common}
           onAddPress={() => openCreateEditor('common')}
         >
           {renderInlineEditor('common')}
           {filteredCommonFeelings.length === 0 ? (
             <EmptySection text="Записей самочувствия пока нет" />
           ) : (
-            filteredCommonFeelings.map((item) => (
-              <EntryCard
-                key={`common-${item.feelingId}`}
-                title={`Самочувствие ${toFiveScale(item.wellbeingScore)}/5`}
-                subtitle={formatDate(item.dateTime)}
-                accentColor="#1D4ED8"
-                deleting={deletingId === `common-${item.feelingId}`}
-                onEdit={() => openEditEditor('common', item)}
-                onDelete={() =>
-                  confirmDelete(
-                    `common-${item.feelingId}`,
-                    `Самочувствие ${item.wellbeingScore}/10`,
-                    async () => {
-                      await deleteCommonFeelingApi(item.feelingId);
-                    }
-                  )
-                }
-              >
-              </EntryCard>
-            ))
+            filteredCommonFeelings.map((item) => {
+              const wellbeing = getWellbeingVisual(item.wellbeingScore);
+              return (
+                <EntryCard
+                  key={`common-${item.feelingId}`}
+                  icon="heart"
+                  title={wellbeing.label}
+                  subtitle={formatDate(item.dateTime)}
+                  badge={wellbeing.short}
+                  badgeEmoji={wellbeing.emoji}
+                  accentColor={SECTION_COLORS.common}
+                  deleting={deletingId === `common-${item.feelingId}`}
+                  onEdit={() => openEditEditor('common', item)}
+                  onDelete={() =>
+                    confirmDelete(
+                      `common-${item.feelingId}`,
+                      wellbeing.label,
+                      async () => {
+                        await deleteCommonFeelingApi(item.feelingId);
+                      },
+                    )
+                  }
+                />
+              );
+            })
           )}
         </SectionBlock>
 
@@ -1445,7 +2653,7 @@ const totalCount =
           title="Симптомы"
           count={filteredSymptoms.length}
           icon="pulse-outline"
-          accentColor="#1D4ED8"
+          accentColor={SECTION_COLORS.symptom}
           onAddPress={() => openCreateEditor('symptom')}
         >
           {renderInlineEditor('symptom')}
@@ -1455,30 +2663,31 @@ const totalCount =
             filteredSymptoms.map((item) => (
               <EntryCard
                 key={`symptom-${item.id}`}
+                icon="pulse-outline"
                 title={item.symptomName}
                 subtitle={formatDate(item.startTime || item.createdAt || '')}
-                accentColor="#1D4ED8"
+                badge={toSeverityLabel(item.severity)}
+                accentColor={SECTION_COLORS.symptom}
                 deleting={deletingId === `symptom-${item.id}`}
                 onEdit={() => openEditEditor('symptom', item)}
                 onDelete={() =>
-                  confirmDelete(
-                    `symptom-${item.id}`,
-                    item.symptomName,
-                    async () => {
-                      await deleteSymptomApi(item.id);
-                    }
-                  )
+                  confirmDelete(`symptom-${item.id}`, item.symptomName, async () => {
+                    await deleteSymptomApi(item.id);
+                  })
                 }
               >
-                <MetaRow label="Сила" value={`${toSeverityLabel(item.severity)} (${item.severity}/10)`} />
-                <MetaRow
-                  label="Начало"
-                  value={formatDate(item.startTime || item.createdAt || '')}
+                <MetaChip
+                  label="Сила"
+                  value={`${toSeverityLabel(item.severity)} · ${item.severity}/10`}
+                  accentColor={SECTION_COLORS.symptom}
                 />
-                <MetaRow
-                  label="Окончание"
-                  value={item.endTime ? formatDate(item.endTime) : 'Не указано'}
-                />
+                {!!item.endTime && (
+                  <MetaChip
+                    label="Конец"
+                    value={formatDate(item.endTime)}
+                    accentColor={SECTION_COLORS.symptom}
+                  />
+                )}
               </EntryCard>
             ))
           )}
@@ -1488,7 +2697,7 @@ const totalCount =
           title="Лекарства"
           count={filteredMedicines.length}
           icon="medkit-outline"
-          accentColor="#0EA5E9"
+          accentColor={SECTION_COLORS.medicine}
           onAddPress={() => openCreateEditor('medicine')}
         >
           {renderInlineEditor('medicine')}
@@ -1498,34 +2707,23 @@ const totalCount =
             filteredMedicines.map((item) => (
               <EntryCard
                 key={`medicine-${item.id}`}
+                icon="medkit-outline"
                 title={item.medicineName}
                 subtitle={formatDate(item.intakeTime || item.intakeDate || '')}
-                accentColor="#0EA5E9"
+                badge={
+                  item.dosage != null
+                    ? `${item.dosage} ${MEDICINE_UNIT_LABELS[item.unit ?? ''] ?? item.unit ?? ''}`.trim()
+                    : undefined
+                }
+                accentColor={SECTION_COLORS.medicine}
                 deleting={deletingId === `medicine-${item.id}`}
                 onEdit={() => openEditEditor('medicine', item)}
                 onDelete={() =>
-                  confirmDelete(
-                    `medicine-${item.id}`,
-                    item.medicineName,
-                    async () => {
-                      await deleteMedicineApi(item.id);
-                    }
-                  )
+                  confirmDelete(`medicine-${item.id}`, item.medicineName, async () => {
+                    await deleteMedicineApi(item.id);
+                  })
                 }
-              >
-                <MetaRow
-                  label="Дозировка"
-                  value={
-                    item.dosage != null
-                      ? `${item.dosage} ${MEDICINE_UNIT_LABELS[item.unit ?? ''] ?? item.unit ?? ''}`.trim()
-                      : '-'
-                  }
-                />
-                <MetaRow
-                  label="Время"
-                  value={formatDate(item.intakeTime || item.intakeDate || '')}
-                />
-              </EntryCard>
+              />
             ))
           )}
         </SectionBlock>
@@ -1534,7 +2732,7 @@ const totalCount =
           title="Питание"
           count={filteredFoods.length}
           icon="restaurant-outline"
-          accentColor="#1D4ED8"
+          accentColor={SECTION_COLORS.food}
           onAddPress={() => openCreateEditor('food')}
         >
           {renderInlineEditor('food')}
@@ -1542,46 +2740,17 @@ const totalCount =
             <EmptySection text="Записей о питании пока нет" />
           ) : (
             filteredFoods.map((item) => (
-              <EntryCard
+              <FoodEntryCard
                 key={`food-${item.foodIntakeId}`}
-                title={item.foodName}
-                subtitle={formatDate(item.intakeTime)}
-                accentColor="#1D4ED8"
+                item={item}
                 deleting={deletingId === `food-${item.foodIntakeId}`}
                 onEdit={() => openEditEditor('food', item)}
                 onDelete={() =>
-                  confirmDelete(
-                    `food-${item.foodIntakeId}`,
-                    item.foodName,
-                    async () => {
-                      await deleteFoodApi(item.foodIntakeId);
-                    }
-                  )
+                  confirmDelete(`food-${item.foodIntakeId}`, item.foodName, async () => {
+                    await deleteFoodApi(item.foodIntakeId);
+                  })
                 }
-              >
-                <MetaRow
-                  label="Категория"
-                  value={
-                    (FOOD_CATEGORY_LABELS[item.category ?? ''] ?? item.category) || '-'
-                  }
-                />
-                <MetaRow
-                  label="Количество"
-                  value={
-                    item.amount != null
-                      ? `${item.amount} ${FOOD_UNIT_LABELS[item.unit ?? ''] ?? item.unit ?? ''}`.trim()
-                      : '-'
-                  }
-                />
-                <MetaRow
-                  label="Реакция"
-                  value={item.reactionOccurred ? 'Да' : 'Нет'}
-                />
-                <MetaRow
-                  label="Ингредиенты"
-                  value={item.components?.length ? item.components.join(', ') : '-'}
-                />
-              </EntryCard>
+              />
             ))
           )}
         </SectionBlock>
@@ -1590,7 +2759,7 @@ const totalCount =
           title="Заметки"
           count={filteredNotes.length}
           icon="document-text-outline"
-          accentColor="#1D4ED8"
+          accentColor={SECTION_COLORS.note}
           onAddPress={() => openCreateEditor('note')}
         >
           {renderInlineEditor('note')}
@@ -1600,29 +2769,38 @@ const totalCount =
             filteredNotes.map((item) => (
               <EntryCard
                 key={`note-${item.noteId}`}
-                title={formatDate(item.date)}
-                subtitle="Заметка"
-                accentColor="#1D4ED8"
+                icon="document-text-outline"
+                title="Заметка"
+                subtitle={formatDate(item.date)}
+                accentColor={SECTION_COLORS.note}
                 deleting={deletingId === `note-${item.noteId}`}
                 onEdit={() => openEditEditor('note', item)}
                 onDelete={() =>
-                  confirmDelete(
-                    `note-${item.noteId}`,
-                    formatDate(item.date),
-                    async () => {
-                      await deleteNoteApi(item.noteId);
-                    }
-                  )
+                  confirmDelete(`note-${item.noteId}`, 'Заметка', async () => {
+                    await deleteNoteApi(item.noteId);
+                  })
                 }
               >
-                <Text style={styles.noteText}>{item.content}</Text>
+                <View
+                  style={[
+                    styles.notePreviewBox,
+                    {
+                      backgroundColor: withAlpha(SECTION_COLORS.note, 0.07),
+                      borderColor: withAlpha(SECTION_COLORS.note, 0.15),
+                    },
+                  ]}
+                >
+                  <Text style={styles.notePreviewText} numberOfLines={3}>
+                    {item.content}
+                  </Text>
+                </View>
               </EntryCard>
             ))
           )}
         </SectionBlock>
 
       </ScrollView>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
@@ -1648,90 +2826,76 @@ const styles = StyleSheet.create({
 
   heroCard: {
     backgroundColor: '#1D4ED8',
-    borderRadius: 30,
-    padding: 22,
-    marginBottom: 16,
+    borderRadius: 28,
+    padding: 18,
+    marginBottom: 4,
     shadowColor: '#1D4ED8',
-    shadowOpacity: 0.25,
-    shadowRadius: 18,
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
+    elevation: 4,
   },
-  heroHeaderRow: {
+  heroTop: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 14,
   },
-  heroAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#7AA4E7',
-    borderWidth: 2,
-    borderColor: '#FFFFFF66',
+  heroIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF2B',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  heroTitleWrap: {
+  heroTextWrap: {
     flex: 1,
   },
   heroTitle: {
-    color: '#FFFFFF',
     fontSize: 24,
     fontWeight: '700',
-    marginBottom: 2,
+    color: '#FFFFFF',
+    marginBottom: 4,
   },
   heroSubtitle: {
-    color: '#D8E7F3',
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 14,
+    color: '#DDEAF8',
+    lineHeight: 20,
   },
   heroInnerCard: {
     backgroundColor: '#3B82F6',
-    borderRadius: 24,
-    padding: 18,
-  },
-  heroInnerTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  heroInnerText: {
-    color: '#EAF2FF',
-    fontSize: 15,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-    backgroundColor: '#5B98F8',
-    borderRadius: 20,
-    paddingVertical: 14,
+    borderRadius: 16,
+    paddingVertical: 10,
     paddingHorizontal: 12,
   },
-  summaryItem: {
-    flex: 1,
-    alignItems: 'center',
+  heroInnerLabel: {
+    color: '#DDEAF8',
+    fontSize: 12,
+    marginBottom: 8,
   },
-  summaryValue: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
+  metricsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  metricBox: {
+    flex: 1,
+    backgroundColor: '#FFFFFF26',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFFFFF3D',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  metricLabel: {
+    color: '#DDEAF8',
+    fontSize: 12,
     marginBottom: 4,
   },
-  summaryLabel: {
-    color: '#DCEAF5',
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  summaryDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: '#FFFFFF33',
+  metricValue: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 
   dayNavWrap: {
@@ -1791,11 +2955,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 14,
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    ...Platform.select({
+      android: {
+        elevation: 0,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#EEF2F6',
+      },
+      default: {
+        shadowColor: '#0F172A',
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 2,
+      },
+    }),
   },
   sectionHeader: {
     marginBottom: 10,
@@ -1806,15 +2979,10 @@ const styles = StyleSheet.create({
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  sectionIconWrap: {
-    width: 34,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
+  sectionIcon: {
+    marginRight: 2,
   },
   sectionTitle: {
     fontSize: 22,
@@ -1824,28 +2992,18 @@ const styles = StyleSheet.create({
   sectionRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
   addButton: {
-    width: 34,
-    height: 30,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  countBadge: {
-    minWidth: 36,
-    paddingHorizontal: 10,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: '#DBEAFE',
+    padding: 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
   countBadgeText: {
-    color: '#1D4ED8',
-    fontSize: 13,
+    fontSize: 17,
     fontWeight: '700',
+    minWidth: 20,
+    textAlign: 'right',
   },
 
   emptyCard: {
@@ -1862,80 +3020,195 @@ const styles = StyleSheet.create({
   },
 
   entryCard: {
+    flexDirection: 'row',
+    borderRadius: 16,
+    marginBottom: 10,
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 5,
-    borderLeftColor: '#CBD5E1',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    ...Platform.select({
+      android: {
+        elevation: 0,
+        overflow: 'hidden',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#EEF2F6',
+      },
+      default: {
+        overflow: 'hidden',
+        shadowColor: '#0F172A',
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+      },
+    }),
+  },
+  entryAccentStripe: {
+    width: 4,
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
+  },
+  entryMain: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
   entryTop: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    gap: 8,
+  },
+  entryIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
   },
   entryTextBlock: {
     flex: 1,
-    paddingRight: 10,
+    minWidth: 0,
+    paddingRight: 4,
   },
   entryTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#233142',
-    marginBottom: 4,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1E293B',
+    lineHeight: 20,
+  },
+  entryTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
   },
   entrySubtitle: {
-    fontSize: 13,
-    color: '#667085',
+    fontSize: 12,
+    color: '#64748B',
+    flex: 1,
+  },
+  entryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 2,
+  },
+  entryBadgeEmoji: {
+    fontSize: 14,
+  },
+  entryBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
   entryActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
+    marginTop: 2,
   },
   editButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    backgroundColor: '#E0F2FE',
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   deleteButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    backgroundColor: '#DBEAFE',
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   entryBody: {
-    marginTop: 14,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F2F5',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+    ...Platform.select({
+      android: {
+        paddingTop: 0,
+      },
+      default: {
+        paddingTop: 8,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: '#EEF2F6',
+      },
+    }),
   },
-
-  metaRow: {
-    marginBottom: 8,
+  metaChip: {
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    maxWidth: '100%',
+    minWidth: '30%',
+    flexGrow: 1,
+    flexBasis: '45%',
   },
-  metaLabel: {
-    fontSize: 12,
-    color: '#98A2B3',
+  metaChipLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
     marginBottom: 2,
   },
-  metaValue: {
-    fontSize: 14,
-    color: '#344054',
-    lineHeight: 20,
+  metaChipValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
   },
-  noteText: {
-    fontSize: 14,
-    color: '#344054',
-    lineHeight: 21,
+  foodMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  foodMetaTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    maxWidth: '100%',
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  foodMetaTagText: {
+    fontSize: 11,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  foodCompositionRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 6,
+  },
+  foodCompositionText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#64748B',
+  },
+  notePreviewBox: {
+    width: '100%',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    ...Platform.select({
+      android: {
+        borderWidth: 0,
+      },
+      default: {
+        borderWidth: 1,
+      },
+    }),
+  },
+  notePreviewText: {
+    fontSize: 13,
+    color: '#334155',
+    lineHeight: 19,
   },
   inlineEditorCard: {
     backgroundColor: '#F8FBFF',
@@ -1962,24 +3235,1679 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginBottom: 4,
   },
-  feelingsRow: {
+  editorSection: {
+    gap: 10,
+  },
+  editorSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  editorFieldShell: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    paddingHorizontal: 4,
+    minHeight: 44,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
-  feelingDotWrap: {
-    padding: 4,
-    borderRadius: 20,
+  editorFieldIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
   },
-  feelingDotWrapActive: {
-    backgroundColor: '#FFFFFF',
+  editorFieldInput: {
+    flex: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  editorSuggestPanel: {
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    padding: 8,
+    gap: 4,
   },
-  feelingDot: {
+  editorSuggestTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    paddingHorizontal: 6,
+    paddingBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  editorSuggestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderWidth: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  editorSuggestIcon: {
     width: 28,
     height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editorSuggestText: {
+    flex: 1,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  editorScheduleBlock: {
+    gap: 8,
+  },
+  editorScheduleWebField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  editorWebDateInputInline: {
+    flex: 1,
+    borderWidth: 0,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    fontSize: 15,
+    fontWeight: '600',
+    outlineStyle: 'none',
+    backgroundColor: 'transparent',
+  },
+  editorScheduleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 12,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  editorScheduleIcon: {
+    width: 44,
+    height: 44,
     borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editorScheduleText: {
+    flex: 1,
+  },
+  editorScheduleDate: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  editorScheduleTime: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  compactChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  compactTagsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  editorScheduleAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  editorScheduleActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  editorWebDateInput: {
+    width: '100%',
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    outlineStyle: 'none',
+  },
+  editorPickerWrap: {
+    gap: 8,
+    marginTop: 4,
+  },
+  editorPickerDone: {
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editorPickerDoneText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  wellbeingEditor: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#FECDD3',
+    padding: 12,
+    marginBottom: 10,
+    gap: 10,
+    overflow: 'hidden',
+    shadowColor: '#BE123C',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
+  wellbeingSectionTitle: {
+    color: '#9F1239',
+  },
+  wellbeingHero: {
+    backgroundColor: '#BE123C',
+    borderRadius: 14,
+    padding: 10,
+    overflow: 'hidden',
+  },
+  wellbeingHeroGlow: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#FB7185',
+    opacity: 0.25,
+    top: -40,
+    right: -20,
+  },
+  wellbeingHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  wellbeingHeroIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: '#FFFFFF2E',
+    borderWidth: 1,
+    borderColor: '#FFFFFF45',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wellbeingHeroText: {
+    flex: 1,
+  },
+  wellbeingHeroTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  wellbeingHeroSubtitle: {
+    fontSize: 12,
+    color: '#FFE4E6',
+    lineHeight: 16,
+  },
+  wellbeingHeroPill: {
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF24',
+    borderWidth: 1,
+    borderColor: '#FFFFFF40',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 52,
+  },
+  wellbeingHeroPillEmoji: {
+    fontSize: 18,
+  },
+  wellbeingHeroPillValue: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  wellbeingScoreHero: {
+    borderRadius: 16,
+    backgroundColor: '#E11D48',
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  wellbeingScoreHeroEmoji: {
+    fontSize: 32,
+  },
+  wellbeingScoreHeroLabel: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  wellbeingScoreGrid: {
+    flexDirection: 'row',
+    gap: 5,
+  },
+  wellbeingScoreCard: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#FECDD3',
+    backgroundColor: '#FFF1F2',
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    alignItems: 'center',
+    position: 'relative',
+    minHeight: 52,
+    justifyContent: 'center',
+  },
+  wellbeingScoreCardActive: {
+    backgroundColor: '#E11D48',
+    borderColor: '#BE123C',
+  },
+  wellbeingScoreCardEmoji: {
+    fontSize: 14,
+    marginBottom: 1,
+  },
+  wellbeingScoreCardNumber: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#BE123C',
+  },
+  wellbeingScoreCardNumberActive: {
+    color: '#FFFFFF',
+  },
+  wellbeingScoreCardLabel: {
+    display: 'none',
+  },
+  wellbeingScoreCardLabelActive: {
+    color: '#FFE4E6',
+  },
+  wellbeingScoreCheck: {
+    position: 'absolute',
+    top: 3,
+    right: 3,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#BE123C',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wellbeingActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 2,
+  },
+  wellbeingCancelBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#FECDD3',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  wellbeingCancelText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#BE123C',
+  },
+  wellbeingSaveBtn: {
+    flex: 2,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: '#E11D48',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    shadowColor: '#BE123C',
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
+  },
+  wellbeingSaveText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  symptomEditor: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    padding: 12,
+    marginBottom: 10,
+    gap: 10,
+    overflow: 'hidden',
+    shadowColor: '#1D4ED8',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
+  symptomSection: { gap: 10 },
+  symptomSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E40AF',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  symptomHero: {
+    backgroundColor: '#1D4ED8',
+    borderRadius: 18,
+    padding: 14,
+    overflow: 'hidden',
+  },
+  symptomHeroGlow: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#60A5FA',
+    opacity: 0.25,
+    top: -40,
+    right: -20,
+  },
+  symptomHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  symptomHeroIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF2E',
+    borderWidth: 1,
+    borderColor: '#FFFFFF45',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  symptomHeroText: {
+    flex: 1,
+  },
+  symptomHeroTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  symptomHeroSubtitle: {
+    fontSize: 12,
+    color: '#DBEAFE',
+    lineHeight: 16,
+  },
+  symptomHeroPill: {
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF24',
+    borderWidth: 1,
+    borderColor: '#FFFFFF40',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 96,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  symptomHeroPillValue: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  symptomFieldShell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FBFF',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 4,
+    minHeight: 52,
+    shadowColor: '#1D4ED8',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  symptomFieldIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+  },
+  symptomFieldInput: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1E3A8A',
+  },
+  symptomSuggestPanel: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    padding: 8,
+    gap: 4,
+  },
+  symptomSuggestTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1D4ED8',
+    paddingHorizontal: 6,
+    paddingBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  symptomSuggestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  symptomSuggestIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  symptomSuggestText: {
+    flex: 1,
+    color: '#1E3A8A',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  symptomSeverityHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 18,
+    backgroundColor: '#2563EB',
+    padding: 14,
+    overflow: 'hidden',
+  },
+  symptomSeverityHeroLeft: { flex: 1 },
+  symptomSeverityHeroLabel: {
+    fontSize: 12,
+    color: '#DBEAFE',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  symptomSeverityHeroValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  symptomSeverityHeroHint: {
+    fontSize: 12,
+    color: '#93C5FD',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  symptomSeverityHeroRing: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FFFFFF22',
+    borderWidth: 2,
+    borderColor: '#FFFFFF55',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  symptomSeverityGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  symptomSeverityCard: {
+    width: '31%',
+    flexGrow: 1,
+    minHeight: 88,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    gap: 4,
+    position: 'relative',
+    shadowColor: '#1E3A8A',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  symptomSeverityCardActive: {
+    backgroundColor: '#1D4ED8',
+    borderColor: '#1E40AF',
+    elevation: 3,
+  },
+  symptomSeverityCardIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  symptomSeverityCardIconActive: {
+    backgroundColor: '#FFFFFF30',
+  },
+  symptomSeverityCardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1E40AF',
+  },
+  symptomSeverityCardTitleActive: {
+    color: '#FFFFFF',
+  },
+  symptomSeverityCardHint: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  symptomSeverityCardHintActive: {
+    color: '#DBEAFE',
+  },
+  symptomSeverityCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#1E40AF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  symptomActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 2,
+  },
+  symptomCancelBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  symptomCancelText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1D4ED8',
+  },
+  symptomSaveBtn: {
+    flex: 2,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: '#1D4ED8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    shadowColor: '#1D4ED8',
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
+  },
+  symptomSaveText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  foodEditor: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    padding: 12,
+    marginBottom: 10,
+    gap: 10,
+    overflow: 'hidden',
+    shadowColor: '#1D4ED8',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
+  foodHero: {
+    backgroundColor: '#1D4ED8',
+    borderRadius: 18,
+    padding: 14,
+    overflow: 'hidden',
+  },
+  foodHeroGlow: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#60A5FA',
+    opacity: 0.22,
+    top: -40,
+    right: -20,
+  },
+  foodHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  foodHeroIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF2E',
+    borderWidth: 1,
+    borderColor: '#FFFFFF45',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  foodHeroText: { flex: 1 },
+  foodHeroTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  foodHeroSubtitle: {
+    fontSize: 12,
+    color: '#DBEAFE',
+    lineHeight: 16,
+  },
+  foodHeroPill: {
+    maxWidth: 92,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF24',
+    borderWidth: 1,
+    borderColor: '#FFFFFF40',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  foodHeroPillValue: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  foodSection: { gap: 10 },
+  foodSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E40AF',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  foodFieldShell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FBFF',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 4,
+    minHeight: 52,
+    shadowColor: '#1D4ED8',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  foodFieldIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+  },
+  foodFieldInput: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1E3A8A',
+  },
+  foodSuggestPanel: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    padding: 8,
+    gap: 4,
+  },
+  foodSuggestTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1D4ED8',
+    paddingHorizontal: 6,
+    paddingBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  foodSuggestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  foodSuggestIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  foodSuggestText: {
+    flex: 1,
+    color: '#1E3A8A',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  foodSelectedWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  foodSelectedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+    maxWidth: '100%',
+  },
+  foodSelectedChipText: {
+    color: '#1E40AF',
+    fontSize: 13,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  foodAllergenPanel: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    padding: 10,
+    gap: 8,
+  },
+  foodAllergenPanelTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1D4ED8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  foodAllergenChipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  foodAllergenChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  foodAllergenChipText: { fontSize: 12, color: '#1E40AF', fontWeight: '700' },
+  foodDoseHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 18,
+    backgroundColor: '#2563EB',
+    padding: 14,
+    overflow: 'hidden',
+  },
+  foodDoseHeroLeft: { flex: 1 },
+  foodDoseHeroLabel: {
+    fontSize: 12,
+    color: '#DBEAFE',
+    marginBottom: 6,
+    fontWeight: '600',
+  },
+  foodDoseInputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  foodDoseHeroInput: {
+    minWidth: 72,
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    padding: 0,
+  },
+  foodDoseHeroUnit: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#93C5FD',
+    marginBottom: 6,
+  },
+  foodDoseHeroRing: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FFFFFF22',
+    borderWidth: 2,
+    borderColor: '#FFFFFF55',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  foodUnitGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  foodUnitCard: {
+    width: '48%',
+    minHeight: 58,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    gap: 4,
+    shadowColor: '#1E3A8A',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  foodUnitCardActive: {
+    backgroundColor: '#1D4ED8',
+    borderColor: '#1E40AF',
+    shadowOpacity: 0.18,
+    elevation: 3,
+  },
+  foodUnitCardIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  foodUnitCardIconActive: { backgroundColor: '#FFFFFF30' },
+  foodUnitCardTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1E40AF',
+  },
+  foodUnitCardTitleActive: { color: '#FFFFFF' },
+  foodUnitCardHint: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  foodUnitCardHintActive: { color: '#DBEAFE' },
+  foodQuickTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1D4ED8',
+    marginTop: 2,
+  },
+  foodQuickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  foodQuickCard: {
+    width: '48%',
+    minHeight: 48,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#F8FBFF',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  foodQuickCardActive: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#3B82F6',
+  },
+  foodQuickValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1E40AF',
+  },
+  foodQuickValueActive: { color: '#1D4ED8' },
+  foodQuickUnit: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  foodQuickUnitActive: { color: '#2563EB' },
+  foodQuickCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  foodReactionGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  foodReactionCard: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    gap: 4,
+  },
+  foodReactionCardActive: {
+    backgroundColor: '#1D4ED8',
+    borderColor: '#1E40AF',
+  },
+  foodReactionCardDanger: {
+    backgroundColor: '#DC2626',
+    borderColor: '#B91C1C',
+  },
+  foodReactionCardIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  foodReactionCardIconActive: { backgroundColor: '#FFFFFF30' },
+  foodReactionCardIconDanger: { backgroundColor: '#FFFFFF30' },
+  foodReactionCardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1E40AF',
+  },
+  foodReactionCardTitleActive: { color: '#FFFFFF' },
+  foodReactionCardTitleDanger: { color: '#FFFFFF' },
+  foodActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 2,
+  },
+  foodCancelBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  foodCancelText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1D4ED8',
+  },
+  foodSaveBtn: {
+    flex: 2,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: '#1D4ED8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    shadowColor: '#1D4ED8',
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
+  },
+  foodSaveText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  noteEditor: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    padding: 12,
+    marginBottom: 10,
+    gap: 10,
+    overflow: 'hidden',
+    shadowColor: '#D97706',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
+  noteHero: {
+    backgroundColor: '#D97706',
+    borderRadius: 18,
+    padding: 14,
+    overflow: 'hidden',
+  },
+  noteHeroGlow: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#FBBF24',
+    opacity: 0.22,
+    top: -40,
+    right: -20,
+  },
+  noteHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  noteHeroIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF2E',
+    borderWidth: 1,
+    borderColor: '#FFFFFF45',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noteHeroText: { flex: 1 },
+  noteHeroTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  noteHeroSubtitle: {
+    fontSize: 12,
+    color: '#FEF3C7',
+    lineHeight: 16,
+  },
+  noteHeroPill: {
+    alignItems: 'center',
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF24',
+    borderWidth: 1,
+    borderColor: '#FFFFFF40',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 52,
+  },
+  noteHeroPillValue: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  noteHeroPillSub: { color: '#FEF3C7', fontSize: 10, fontWeight: '600' },
+  noteSection: { gap: 10 },
+  noteSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#92400E',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  noteQuickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  noteQuickCard: {
+    width: '48%',
+    minHeight: 64,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    backgroundColor: '#FFFBEB',
+    padding: 10,
+    gap: 6,
+    position: 'relative',
+  },
+  noteQuickCardActive: {
+    backgroundColor: '#D97706',
+    borderColor: '#B45309',
+  },
+  noteQuickCardIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noteQuickCardIconActive: { backgroundColor: '#FFFFFF30' },
+  noteQuickCardText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
+    lineHeight: 16,
+  },
+  noteQuickCardTextActive: { color: '#FFFFFF' },
+  noteQuickCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#B45309',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noteTagGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  noteTagCard: {
+    paddingHorizontal: 14,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    backgroundColor: '#FFFBEB',
+    justifyContent: 'center',
+  },
+  noteTagCardActive: {
+    backgroundColor: '#D97706',
+    borderColor: '#B45309',
+  },
+  noteTagCardText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  noteTagCardTextActive: { color: '#FFFFFF' },
+  noteFieldShell: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFBEB',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    minHeight: 120,
+    shadowColor: '#D97706',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  noteFieldIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+    marginTop: 4,
+  },
+  noteFieldInput: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#78350F',
+    minHeight: 100,
+    lineHeight: 22,
+  },
+  noteActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 2,
+  },
+  noteCancelBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  noteCancelText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  noteSaveBtn: {
+    flex: 2,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: '#D97706',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    shadowColor: '#D97706',
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
+  },
+  noteSaveText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  medicineEditor: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
+    padding: 12,
+    marginBottom: 10,
+    gap: 10,
+    overflow: 'hidden',
+    shadowColor: '#047857',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
+  medicineHero: {
+    backgroundColor: '#047857',
+    borderRadius: 18,
+    padding: 14,
+    overflow: 'hidden',
+  },
+  medicineHeroGlow: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#34D399',
+    opacity: 0.22,
+    top: -40,
+    right: -20,
+  },
+  medicineHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  medicineHeroIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF2E',
+    borderWidth: 1,
+    borderColor: '#FFFFFF45',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medicineHeroText: {
+    flex: 1,
+  },
+  medicineHeroTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  medicineHeroSubtitle: {
+    fontSize: 12,
+    color: '#D1FAE5',
+    lineHeight: 16,
+  },
+  medicineHeroPill: {
+    maxWidth: 92,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF24',
+    borderWidth: 1,
+    borderColor: '#FFFFFF40',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  medicineHeroPillValue: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  medicineSection: {
+    gap: 10,
+  },
+  medicineSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#065F46',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  medicineFieldShell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FFFB',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 4,
+    minHeight: 52,
+    shadowColor: '#059669',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  medicineFieldIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+  },
+  medicineFieldInput: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#064E3B',
+  },
+  medicineSuggestPanel: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    backgroundColor: '#F0FDF4',
+    padding: 8,
+    gap: 4,
+  },
+  medicineSuggestTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#047857',
+    paddingHorizontal: 6,
+    paddingBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  medicineSuggestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+  },
+  medicineSuggestIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medicineSuggestText: {
+    flex: 1,
+    color: '#065F46',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  medicineDoseHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 18,
+    backgroundColor: '#059669',
+    padding: 14,
+    overflow: 'hidden',
+  },
+  medicineDoseHeroLeft: {
+    flex: 1,
+  },
+  medicineDoseHeroLabel: {
+    fontSize: 12,
+    color: '#D1FAE5',
+    marginBottom: 6,
+    fontWeight: '600',
+  },
+  medicineDoseInputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  medicineDoseHeroInput: {
+    minWidth: 72,
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    padding: 0,
+  },
+  medicineDoseHeroUnit: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#A7F3D0',
+    marginBottom: 6,
+  },
+  medicineDoseHeroRing: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FFFFFF22',
+    borderWidth: 2,
+    borderColor: '#FFFFFF55',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medicineUnitGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  medicineUnitCard: {
+    width: '48%',
+    minHeight: 58,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#BBF7D0',
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    gap: 4,
+    shadowColor: '#064E3B',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  medicineUnitCardActive: {
+    backgroundColor: '#059669',
+    borderColor: '#047857',
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  medicineUnitCardIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medicineUnitCardIconActive: {
+    backgroundColor: '#FFFFFF30',
+  },
+  medicineUnitCardTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#065F46',
+  },
+  medicineUnitCardTitleActive: {
+    color: '#FFFFFF',
+  },
+  medicineUnitCardHint: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  medicineUnitCardHintActive: {
+    color: '#D1FAE5',
+  },
+  medicineQuickTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#047857',
+    marginTop: 2,
+  },
+  medicineQuickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  medicineQuickCard: {
+    width: '48%',
+    minHeight: 48,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#BBF7D0',
+    backgroundColor: '#F8FFFB',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  medicineQuickCardActive: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#22C55E',
+  },
+  medicineQuickValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#065F46',
+  },
+  medicineQuickValueActive: {
+    color: '#047857',
+  },
+  medicineQuickUnit: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  medicineQuickUnitActive: {
+    color: '#15803D',
+  },
+  medicineQuickCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#16A34A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medicineActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 2,
+  },
+  medicineCancelBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  medicineCancelText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  medicineSaveBtn: {
+    flex: 2,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    shadowColor: '#047857',
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
+  },
+  medicineSaveText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   editorInput: {
     borderWidth: 1,

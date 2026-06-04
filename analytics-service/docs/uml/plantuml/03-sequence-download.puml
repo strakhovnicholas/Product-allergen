@@ -1,0 +1,129 @@
+@startuml analytics-service-sequence-download
+' Классический UML + отступы против наложений
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 80
+skinparam ranksep 80
+skinparam padding 14
+skinparam wrapWidth 160
+skinparam minClassWidth 100
+
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam usecase {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam rectangle {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #FEFECE
+  BorderColor black
+  ArrowColor black
+}
+skinparam interface {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+}
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+  ParticipantBorderColor black
+  ParticipantBackgroundColor #FEFECE
+  ActorBackgroundColor white
+  ActorBorderColor black
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 28
+skinparam BoxPadding 14
+skinparam sequenceMessageAlign center
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Диаграмма последовательности — UC-02 Скачивание PDF (GET /reports/download)
+
+skinparam ParticipantPadding 40
+
+actor "Клиент" as Client
+participant "API Gateway" as GW
+participant "InternalGatewayFilter" as F
+participant "ReportController" as C
+participant "ReportService" as S
+participant "JasperReports" as JR
+
+Client -> GW : GET /reports/download\n+ ReportDataDto (body/query)
+activate GW
+GW -> F : X-Internal-Gateway-Token
+activate F
+
+alt невалидный токен
+  F --> GW : HTTP 401
+  GW --> Client : HTTP 401
+else токен принят
+  F -> C : chain
+  activate C
+  C -> S : generateMedicalReport(reportData)
+  activate S
+
+  alt ошибка Jasper
+    S -> JR : fillReport + export
+    JR --> S : JRException
+    S --> C : exception
+    C --> GW : HTTP 500
+    GW --> Client : HTTP 500
+  else успех
+    S -> JR : fillReport(medical_report.jrxml)
+    activate JR
+    JR --> S : byte[] PDF
+    deactivate JR
+    S --> C : byte[]
+    deactivate S
+    C --> GW : HTTP 200\nContent-Disposition: attachment
+    GW --> Client : medical_report.pdf
+  end
+
+  deactivate C
+end
+
+deactivate F
+deactivate GW
+
+@enduml

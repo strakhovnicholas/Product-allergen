@@ -1,9 +1,10 @@
+import { ScreenSafeArea } from '../components/ScreenSafeArea';
+import { nowAppDateTimeString } from '../src/utils/datetime';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -42,7 +43,7 @@ export default function AddCommonFeelingScreen() {
     }
 
     const payload = {
-      dateTime: new Date().toISOString(),
+      dateTime: nowAppDateTimeString(),
       wellbeingScore: score,
       comment: comment.trim() || undefined,
     };
@@ -66,7 +67,7 @@ export default function AddCommonFeelingScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>
           {isEdit ? 'Редактировать самочувствие' : 'Самочувствие'}
@@ -123,7 +124,7 @@ export default function AddCommonFeelingScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

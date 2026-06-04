@@ -1,0 +1,184 @@
+@startuml analytics-service-sequence-generate
+' Классический UML + отступы против наложений
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 80
+skinparam ranksep 80
+skinparam padding 14
+skinparam wrapWidth 160
+skinparam minClassWidth 100
+
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam usecase {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam rectangle {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #FEFECE
+  BorderColor black
+  ArrowColor black
+}
+skinparam interface {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+}
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+  ParticipantBorderColor black
+  ParticipantBackgroundColor #FEFECE
+  ActorBackgroundColor white
+  ActorBorderColor black
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 28
+skinparam BoxPadding 14
+skinparam sequenceMessageAlign center
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Диаграмма последовательности — UC-01 Генерация отчёта (GET /reports/generate)
+
+skinparam ParticipantPadding 32
+
+actor "Клиент" as Client
+participant "API Gateway" as GW
+
+box "analytics-service" #F5F5F5
+  participant "InternalGatewayFilter" as F
+  participant "ReportController" as C
+  participant "ReportService" as S
+  participant "UserServiceClient\n(Feign)" as Feign
+  participant "ReportDataProducer" as Prod
+  participant "AiAnalysisConsumer" as Cons
+  participant "GigaChatService" as AI
+end box
+
+box "Внешние системы" #FFFFFF
+  participant "gateway-service\n:8080" as GS
+  queue "Kafka\ntopic:\nreport-data-requests" as Kafka
+  participant "GigaChat API" as Giga
+end box
+
+participant "JasperReports" as JR
+
+Client -> GW : GET /reports/generate\n?from=&to=
+activate GW
+GW -> F : X-Internal-Gateway-Token\nX-User-Id
+activate F
+
+alt невалидный токен
+  F --> GW : HTTP 401
+  GW --> Client : HTTP 401
+else токен принят
+  F -> F : setAttribute(currentUserId)
+  F -> C : chain
+  activate C
+  C -> S : fillReport(userId, from, to)
+  activate S
+
+  S -> Feign : getUserInfo()
+  activate Feign
+  Feign -> GS : GET /api/user/info
+  GS --> Feign : UserInfoDto
+  deactivate Feign
+
+  S -> Feign : getMedicines(from, to)
+  activate Feign
+  Feign -> GS : GET /api/feelings/medicines
+  GS --> Feign : List<MedicineDto>
+  deactivate Feign
+
+  S -> Feign : getWellbeing(from, to)
+  activate Feign
+  Feign -> GS : GET /api/feelings/common
+  GS --> Feign : List<CommonFeelingRequest>
+  deactivate Feign
+
+  S -> Feign : analyzeFood(from, to)
+  activate Feign
+  Feign -> GS : GET /api/food-analyzer/analyze
+  GS --> Feign : List<FoodComponentSymptomsResponse>
+  deactivate Feign
+
+  group AI-анализ (Kafka → GigaChat)
+    S -> Prod : publish(ReportDataDto)
+    activate Prod
+    Prod -> Kafka : produce
+    deactivate Prod
+    Kafka -> Cons : consume
+    activate Cons
+    Cons -> AI : analyze(reportData)
+    activate AI
+    AI -> Giga : completions(prompt)
+    Giga --> AI : HTML recommendations
+    AI --> Cons : AnalysisResultDto
+    deactivate AI
+    Cons --> S : enriched analysis
+    deactivate Cons
+  end
+
+  note over S
+    Сейчас: transformToAnalysis()
+    локально, без GigaChat
+  end note
+
+  S --> C : ReportDataDto
+  deactivate S
+
+  C -> S : generateMedicalReport(dto)
+  activate S
+  S -> JR : fillReport + export PDF
+  JR --> S : byte[]
+  deactivate S
+
+  C --> GW : HTTP 200\napplication/pdf
+  deactivate C
+  GW --> Client : PDF
+end
+
+deactivate F
+deactivate GW
+
+@enduml

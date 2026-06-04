@@ -1,0 +1,62 @@
+@startuml scan-service-use-case
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam handwritten false
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam usecase {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam rectangle {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+left to right direction
+title Диаграмма вариантов использования — scan-service
+
+actor "Пользователь\n(Mobile App)" as User
+actor "GigaChat API\n(Sber)" as Giga
+
+rectangle "scan-service" {
+  usecase "UC-S-01\nСканировать состав\n(фото этикетки)" as UC1
+  usecase "UC-S-02\nОтправить задачу\nв Kafka" as UC2
+  usecase "UC-S-03\nЗагрузить профиль\n(Feign → user-service)" as UC3
+  usecase "UC-S-04\nAI-анализ изображения\n(Kafka consumer → GigaChat)" as UC4
+  usecase "UC-S-05\nРазобрать JSON\nи классифицировать\nингредиенты" as UC5
+  usecase "UC-S-06\nВернуть результат\nклиенту (safe / caution / unsafe)" as UC6
+}
+
+User --> UC1
+UC1 ..> UC2 : <<include>>
+UC1 ..> UC3 : <<include>>
+UC2 ..> UC4 : <<include>>
+UC4 ..> Giga : HTTPS Vision
+UC4 ..> UC5 : <<include>>
+UC5 ..> UC6 : <<include>>
+User <-- UC6
+
+note right of UC2
+  Топик: scan-image-requests
+  Payload: image (base64/URL),
+  userId, correlationId
+end note
+
+note bottom of UC5
+  Ответ GigaChat — JSON со списком
+  компонентов; сопоставление
+  с аллергиями и предрасположенностью
+end note
+
+@enduml

@@ -1,4 +1,10 @@
 import { apiRequest } from './client';
+import {
+  eachAppDayKeyInRange,
+  nowAppDateTimeString,
+  toAppDayKey,
+  toAppDateTimeString,
+} from '../utils/datetime';
 
 export type EntityId = number | string;
 
@@ -122,14 +128,40 @@ export type FoodComponentSymptomsResponse = {
 };
 
 function toBackendDateTime(value: Date) {
-  return value.toISOString().slice(0, 19);
+  return toAppDateTimeString(value);
+}
+
+/** API симптомов: `yyyy-MM-dd'T'HH:mm:ss` (без миллисекунд и таймзоны). */
+function toBackendSymptomDateTime(value: string): string {
+  const trimmed = value.trim().slice(0, 19);
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(trimmed)) {
+    return `${trimmed}:00`;
+  }
+  return trimmed;
+}
+
+function buildSymptomRequestBody(payload: SymptomRequest) {
+  const startTime = toBackendSymptomDateTime(payload.startTime ?? nowAppDateTimeString());
+  const body: {
+    symptomName: string;
+    severity: number;
+    startTime: string;
+    endTime: string;
+  } = {
+    symptomName: payload.symptomName.trim(),
+    severity: Math.round(Math.max(1, Math.min(10, payload.severity))),
+    startTime,
+    // Часть сборок user-service требует endTime; если не задан — дублируем startTime.
+    endTime: payload.endTime?.trim()
+      ? toBackendSymptomDateTime(payload.endTime)
+      : startTime,
+  };
+  return body;
 }
 
 function toDateKey(dateTime?: string) {
   if (!dateTime) return '';
-  const parsed = new Date(dateTime);
-  if (Number.isNaN(parsed.getTime())) return String(dateTime).slice(0, 10);
-  return parsed.toISOString().slice(0, 10);
+  return toAppDayKey(dateTime);
 }
 
 function pickLatestCommonPerDate(list: CommonFeeling[]) {
@@ -220,12 +252,14 @@ export async function getCommonFeelingsApi(): Promise<CommonFeeling[]> {
   return pickLatestCommonPerDate(list ?? []);
 }
 
-export async function getCommonFeelingsByDateApi(date: string): Promise<CommonFeeling | null> {
-  const item = await apiRequest<CommonFeeling | null>(
+export async function getCommonFeelingsByDateApi(date: string): Promise<CommonFeeling[]> {
+  const raw = await apiRequest<CommonFeeling[] | CommonFeeling | null>(
     `/api/feelings/common/by-date?date=${encodeURIComponent(date)}`,
-    { method: 'GET', auth: true }
+    { method: 'GET', auth: true },
   );
-  return item ?? null;
+  if (raw == null) return [];
+  if (Array.isArray(raw)) return raw;
+  return [raw];
 }
 
 export async function createCommonFeelingApi(payload: CommonFeelingRequest): Promise<CommonFeeling> {
@@ -241,12 +275,13 @@ export async function createCommonFeelingApi(payload: CommonFeelingRequest): Pro
 }
 
 export async function upsertCommonFeelingApi(payload: CommonFeelingRequest): Promise<CommonFeeling> {
-  const dateKey = toDateKey(payload.dateTime || new Date().toISOString());
+  const dateKey = toDateKey(payload.dateTime || nowAppDateTimeString());
   if (!dateKey) {
     return createCommonFeelingApi(payload);
   }
 
-  const existing = await getCommonFeelingsByDateApi(dateKey).catch(() => null);
+  const existingList = await getCommonFeelingsByDateApi(dateKey).catch(() => []);
+  const existing = existingList[0];
   if (existing?.feelingId) {
     return updateCommonFeelingApi(existing.feelingId, payload);
   }
@@ -296,30 +331,18 @@ export async function getSymptomsByDateRangeApi(fromIso: string, toIso: string):
 }
 
 export async function createSymptomApi(payload: SymptomRequest): Promise<Symptom> {
-  const normalized = {
-    symptomName: payload.symptomName.trim(),
-    severity: payload.severity,
-    startTime: (payload.startTime ?? new Date().toISOString()).slice(0, 19),
-    endTime: payload.endTime ? payload.endTime.slice(0, 19) : undefined,
-  };
   const dto = await apiRequest<any>('/api/feelings/symptoms', {
     method: 'POST',
-    body: { ...normalized, request: normalized, dto: normalized },
+    body: buildSymptomRequestBody(payload),
     auth: true,
   });
   return mapSymptom(dto);
 }
 
 export async function updateSymptomApi(symptomsId: EntityId, payload: SymptomRequest): Promise<Symptom> {
-  const normalized = {
-    symptomName: payload.symptomName.trim(),
-    severity: payload.severity,
-    startTime: payload.startTime ? payload.startTime.slice(0, 19) : undefined,
-    endTime: payload.endTime ? payload.endTime.slice(0, 19) : undefined,
-  };
   const dto = await apiRequest<any>(`/api/feelings/symptoms/${symptomsId}`, {
     method: 'PUT',
-    body: { ...normalized, dto: normalized, request: normalized },
+    body: buildSymptomRequestBody(payload),
     auth: true,
   });
   return mapSymptom(dto);
@@ -412,9 +435,30 @@ export async function getFoodByDateApi(date: string): Promise<Food[]> {
   return (list ?? []).map(mapFood);
 }
 
+export async function getFoodByPeriodApi(fromIso: string, toIso: string): Promise<Food[]> {
+  const fromDay = toAppDayKey(fromIso);
+  const toDay = toAppDayKey(toIso);
+  const days = eachAppDayKeyInRange(fromDay, toDay);
+  const batches = await Promise.all(
+    days.map((day) => getFoodByDateApi(day).catch(() => [] as Food[])),
+  );
+  return batches.flat();
+}
+
 export async function getFoodApi(): Promise<Food[]> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toAppDayKey(new Date());
   return getFoodByDateApi(today);
+}
+
+export async function getCommonFeelingsByPeriodApi(
+  fromIso: string,
+  toIso: string,
+): Promise<CommonFeeling[]> {
+  const list = await apiRequest<CommonFeeling[]>(
+    `/api/feelings/common?from=${encodeURIComponent(fromIso.slice(0, 19))}&to=${encodeURIComponent(toIso.slice(0, 19))}`,
+    { method: 'GET', auth: true },
+  );
+  return pickLatestCommonPerDate(list ?? []);
 }
 
 export async function createFoodApi(payload: FoodRequest): Promise<Food> {
@@ -443,7 +487,7 @@ export async function updateFoodApi(foodIntakeId: EntityId, payload: FoodRequest
     amount: payload.amount,
     unit: payload.unit,
     intakeTime: payload.intakeTime.slice(0, 19),
-    createdAt: new Date().toISOString().slice(0, 19),
+    createdAt: nowAppDateTimeString(),
     reactionOccurred: payload.reactionOccurred ?? false,
     reactionDescription: payload.reactionDescription?.trim() || null,
     components: payload.components ?? [],
@@ -468,7 +512,7 @@ export async function getNotesByDateApi(date: string): Promise<Note[]> {
 }
 
 export async function getNotesApi(): Promise<Note[]> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toAppDayKey(new Date());
   return getNotesByDateApi(today);
 }
 

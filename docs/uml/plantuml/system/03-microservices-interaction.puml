@@ -1,0 +1,97 @@
+@startuml product-allergen-microservices-interaction
+' Рисунок 2.3 — подписи на стрелках, клиент снизу-слева (не на пути к сервисам)
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 9
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 110
+skinparam ranksep 52
+skinparam padding 14
+
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+  FontSize 9
+}
+
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+  FontSize 9
+}
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+  FontSize 8
+}
+
+title Рисунок 2.3 — Диаграмма взаимодействия микросервисов
+
+left to right direction
+
+actor "Пользователь" as User
+component "Android-\nприложение" as App
+component "gateway-service\nJWT, маршрутизация" as GW
+
+component "auth-service" as AUTH
+component "user-service" as USER
+component "analytics-service" as AN
+component "scan-service" as SCAN
+node "Apache Kafka" as KAFKA
+
+' --- раскладка: GW слева, сервисы столбиком справа, клиент внизу слева ---
+AUTH -[hidden]down- USER
+USER -[hidden]down- AN
+AN -[hidden]down- SCAN
+USER -[hidden]left- GW
+GW -[hidden]down- App
+App -[hidden]left- User
+AN -[hidden]up- KAFKA
+SCAN -[hidden]up- KAFKA
+KAFKA -[hidden]right- AN
+
+' --- клиент → gateway (отдельно от маршрутов к сервисам) ---
+User -right-> App
+App -up-> GW : <<синхронно>>\nHTTP/JSON\nклиент-сервер
+
+' --- gateway → сервисы: горизонтальные стрелки, подпись вдоль линии ---
+GW -right-> AUTH : /auth/**\nрегистрация, JWT
+GW -right-> USER : /api/**\nдневник, симптомы, ЛП
+GW -right-> AN : /reports/**\nаналитические отчёты
+GW -right-> SCAN : /scan/**\nпроверка состава
+
+' --- Feign: analytics / scan → gateway → user ---
+AN ..> GW : <<синхронно>>\nFeign REST
+GW ..> USER : GET /api/user/info\n(данные для отчёта)
+
+SCAN ..> GW : <<синхронно>>\nFeign REST
+GW ..> USER : профиль пользователя
+
+' --- Kafka ---
+AN -up-> KAFKA : <<асинхронно>>\nevent
+SCAN -up-> KAFKA : <<асинхронно>>\nevent
+
+note bottom of GW
+  После запроса клиента gateway проверяет JWT,
+  выбирает маршрут и перенаправляет запрос
+  в auth / user / analytics / scan.
+end note
+
+note bottom of KAFKA
+  Событийный обмен: снижение связанности,
+  фоновые задачи, отказоустойчивость,
+  производительность аналитики (GigaChat).
+end note
+
+@enduml

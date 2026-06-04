@@ -1,0 +1,58 @@
+@startuml database-physical-scan
+allowmixing
+
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam entity { BackgroundColor #FEFECE BorderColor black }
+skinparam cloud { BackgroundColor white BorderColor black }
+skinparam note { BackgroundColor #FFFFCC BorderColor black }
+
+title Физическая модель — scan-service (опциональное хранение истории)
+
+hide circle
+hide methods
+
+entity "users (auth-service)\n<<external>>" as users_ext #DDDDDD {
+  * **id** : UUID <<PK>>
+}
+
+entity "user-service\n<<external>>" as user_ext #DDDDDD {
+  * **REST via Feign** : GET /api/user/info
+}
+
+cloud "GigaChat API\n<<external>>" as giga
+
+entity "label_scan_history" as hist {
+  * **id** : UUID <<PK>>
+  --
+  * user_id : UUID <<NOT NULL>>
+  scanned_at : TIMESTAMP
+  result_json : JSONB
+  summary : TEXT
+  ..
+  idx_scan_user_id (user_id)
+  idx_scan_user_date (user_id, scanned_at)
+}
+
+users_ext ||..o{ hist : "user_id"
+user_ext ..> hist : "профиль для анализа"
+giga ..> hist : "источник распознавания"
+
+note right of hist
+  Сервис stateless по умолчанию.
+  Таблица опциональна — для истории
+  анализов на VPS (PostgreSQL scan_pg).
+end note
+
+note bottom of user_ext
+  allergies[], predisposition,
+  chronicDiseases — через gateway
+  X-User-Id, X-Internal-Gateway-Token
+end note
+
+@enduml

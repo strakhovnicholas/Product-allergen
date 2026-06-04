@@ -1,46 +1,162 @@
+import { ScreenSafeArea } from '../../components/ScreenSafeArea';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
-import { getUserProfileApi } from '../../src/api/profileApi';
+import { getUserProfileApi, type Profile } from '../../src/api/profileApi';
 import { useAuth } from '../../src/context/AuthContext';
-import { COLORS } from '../../src/styles/palette';
-import { FONT, SPACING } from '../../src/styles/theme';
+import { CHRONIC_DISEASE_LABELS, COLORS, withAlpha } from '../../src/styles/palette';
 
 function formatBoolean(value?: boolean) {
   if (value === true) return 'Да';
   if (value === false) return 'Нет';
-  return 'Не указано';
+  return '—';
 }
 
-function getLifestyleStatusColor(type: 'smoker' | 'alcohol' | 'sports', value?: boolean) {
-  if (typeof value !== 'boolean') return '#64748B';
+function predispositionLabel(value?: string) {
+  const normalized = String(value || '').toUpperCase();
+  if (normalized === 'HIGH') return 'Высокая';
+  if (normalized === 'MEDIUM') return 'Средняя';
+  if (normalized === 'LOW') return 'Низкая';
+  if (normalized === 'NONE') return 'Нет';
+  return 'Не указана';
+}
 
-  const isHealthyChoice =
-    (type === 'sports' && value === true) ||
-    ((type === 'smoker' || type === 'alcohol') && value === false);
+function predispositionColor(value?: string) {
+  const normalized = String(value || '').toUpperCase();
+  if (normalized === 'HIGH') return COLORS.danger;
+  if (normalized === 'MEDIUM') return COLORS.warning;
+  if (normalized === 'LOW' || normalized === 'NONE') return COLORS.success;
+  return '#64748B';
+}
 
-  return isHealthyChoice ? '#16A34A' : '#DC2626';
+function genderLabel(value?: string) {
+  const normalized = String(value || '').toUpperCase();
+  if (normalized === 'MALE') return 'Мужской';
+  if (normalized === 'FEMALE') return 'Женский';
+  return null;
+}
+
+function lifestyleTone(type: 'smoker' | 'alcohol' | 'sports', value?: boolean) {
+  if (typeof value !== 'boolean') return '#94A3B8';
+  const healthy =
+    (type === 'sports' && value) || ((type === 'smoker' || type === 'alcohol') && !value);
+  return healthy ? COLORS.success : COLORS.danger;
+}
+
+function ProfileBlock({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.block}>
+      <Text style={styles.blockTitle}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
+function EditRow({
+  icon,
+  iconColor,
+  title,
+  hint,
+  onPress,
+  children,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  iconColor: string;
+  title: string;
+  hint?: string;
+  onPress: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <TouchableOpacity style={styles.editRow} activeOpacity={0.88} onPress={onPress}>
+      <View style={[styles.editRowIcon, { backgroundColor: withAlpha(iconColor, 0.1) }]}>
+        <Ionicons name={icon} size={20} color={iconColor} />
+      </View>
+      <View style={styles.editRowBody}>
+        <View style={styles.editRowHead}>
+          <Text style={styles.editRowTitle}>{title}</Text>
+          <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
+        </View>
+        {!!hint && <Text style={styles.editRowHint}>{hint}</Text>}
+        {children}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function TagList({
+  items,
+  emptyLabel,
+  accentColor,
+}: {
+  items: string[];
+  emptyLabel: string;
+  accentColor: string;
+}) {
+  if (!items.length) {
+    return <Text style={styles.emptyTags}>{emptyLabel}</Text>;
+  }
+  return (
+    <View style={styles.tagList}>
+      {items.map((item) => (
+        <View
+          key={item}
+          style={[styles.tag, { backgroundColor: withAlpha(accentColor, 0.08) }]}
+        >
+          <Text style={[styles.tagText, { color: accentColor }]} numberOfLines={1}>
+            {item}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function LifestyleTile({
+  icon,
+  label,
+  value,
+  tone,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  tone: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity style={styles.lifeTile} activeOpacity={0.88} onPress={onPress}>
+      <View style={[styles.lifeTileIcon, { backgroundColor: withAlpha(tone, 0.1) }]}>
+        <Ionicons name={icon} size={20} color={tone} />
+      </View>
+      <Text style={styles.lifeTileLabel}>{label}</Text>
+      <Text style={[styles.lifeTileValue, { color: tone }]}>{value}</Text>
+    </TouchableOpacity>
+  );
 }
 
 export default function ProfileScreen() {
-  const { width } = useWindowDimensions();
-  const isCompact = width < 760;
   const { logout } = useAuth();
-
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [logoutSubmitting, setLogoutSubmitting] = useState(false);
@@ -49,14 +165,12 @@ export default function ProfileScreen() {
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
-
       const data = await getUserProfileApi();
-
       setProfile(data ?? null);
     } catch (error) {
       Alert.alert(
         'Ошибка',
-        error instanceof Error ? error.message : 'Не удалось загрузить профиль'
+        error instanceof Error ? error.message : 'Не удалось загрузить профиль',
       );
     } finally {
       setLoading(false);
@@ -67,106 +181,42 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       void loadProfile();
-    }, [loadProfile])
+    }, [loadProfile]),
   );
 
-  const lifeStyle = useMemo(() => {
-    return [
-      {
-        id: 1,
-        title: 'Курение',
-        value: formatBoolean(profile?.smoker),
-        subtitle: 'Табачные привычки',
-        icon: 'flame-outline',
-        iconColor: '#F59E0B',
-        statusColor: getLifestyleStatusColor('smoker', profile?.smoker),
-      },
-      {
-        id: 2,
-        title: 'Алкоголь',
-        value: formatBoolean(profile?.alcohol),
-        subtitle: 'Употребление алкоголя',
-        icon: 'wine-outline',
-        iconColor: '#BE123C',
-        statusColor: getLifestyleStatusColor('alcohol', profile?.alcohol),
-      },
-      {
-        id: 3,
-        title: 'Спорт',
-        value: formatBoolean(profile?.sports),
-        subtitle: 'Физическая активность',
-        icon: 'fitness-outline',
-        iconColor: '#16A34A',
-        statusColor: getLifestyleStatusColor('sports', profile?.sports),
-      },
-    ];
-  }, [profile]);
+  const openEdit = () => router.push('/edit-profile' as any);
 
-  const keyFacts = useMemo(() => {
-    return [
-      {
-        id: 'age',
-        label: 'Возраст',
-        value:
-          typeof profile?.age === 'number'
-            ? `${profile.age}`
-            : '--',
-        unit: 'лет',
-        icon: 'calendar-outline',
-        color: '#FFFFFF',
-        bg: '#FFFFFF2B',
-      },
-      {
-        id: 'weight',
-        label: 'Вес',
-        value:
-          typeof profile?.weight === 'number'
-            ? `${profile.weight}`
-            : '--',
-        unit: 'кг',
-        icon: 'barbell-outline',
-        color: '#FFFFFF',
-        bg: '#FFFFFF2B',
-      },
-      {
-        id: 'height',
-        label: 'Рост',
-        value:
-          typeof profile?.height === 'number'
-            ? `${profile.height}`
-            : '--',
-        unit: 'см',
-        icon: 'resize-outline',
-        color: '#FFFFFF',
-        bg: '#FFFFFF2B',
-      },
-    ];
-  }, [profile]);
-
-  const allergyList = useMemo(() => {
-    return Array.isArray(profile?.allergies) ? profile.allergies.filter(Boolean) : [];
-  }, [profile]);
+  const allergyList = useMemo(
+    () => (Array.isArray(profile?.allergies) ? profile.allergies.filter(Boolean) : []),
+    [profile],
+  );
 
   const chronicList = useMemo(() => {
-    return Array.isArray(profile?.chronicDiseases) ? profile.chronicDiseases.filter(Boolean) : [];
+    const raw = Array.isArray(profile?.chronicDiseases)
+      ? profile.chronicDiseases.filter(Boolean)
+      : [];
+    return raw.map((item) => CHRONIC_DISEASE_LABELS[item] ?? item);
   }, [profile]);
 
-  const predispositionLabel = useMemo(() => {
-    const value = String(profile?.predisposition || '').toUpperCase();
-    if (value === 'HIGH') return 'Высокая';
-    if (value === 'MEDIUM') return 'Средняя';
-    if (value === 'LOW') return 'Низкая';
-    if (value === 'NONE') return 'Отсутствует';
-    return 'Не указана';
-  }, [profile]);
+  const predisposition = predispositionLabel(profile?.predisposition);
+  const predispositionAccent = predispositionColor(profile?.predisposition);
+  const gender = genderLabel(profile?.gender);
+
+  const metrics = useMemo(
+    () => [
+      { label: 'Возраст', value: typeof profile?.age === 'number' ? `${profile.age}` : '—', unit: 'лет' },
+      { label: 'Вес', value: typeof profile?.weight === 'number' ? `${profile.weight}` : '—', unit: 'кг' },
+      { label: 'Рост', value: typeof profile?.height === 'number' ? `${profile.height}` : '—', unit: 'см' },
+    ],
+    [profile],
+  );
 
   const handleLogout = async () => {
     try {
       setLogoutSubmitting(true);
       await logout();
       router.replace('/login' as any);
-    } catch (error) {
-      console.log('Ошибка выхода:', error);
+    } catch {
       Alert.alert('Ошибка', 'Не удалось выйти из аккаунта');
     } finally {
       setLogoutSubmitting(false);
@@ -175,452 +225,475 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <ScreenSafeArea style={styles.safeArea}>
         <View style={styles.loaderWrap}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
-      </SafeAreaView>
+      </ScreenSafeArea>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={[
-          styles.contentContainer,
-          { maxWidth: 860, width: Math.min(width - 20, 860), alignSelf: 'center' },
-        ]}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => {
-              void loadProfile(true);
-            }}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={() => void loadProfile(true)} />
         }
       >
-        <View style={styles.profileHero}>
+        <View style={styles.hero}>
+          <View style={styles.heroGlow} />
           <View style={styles.heroTop}>
-            <View style={styles.heroUserBlock}>
-              <View style={styles.heroIconWrap}>
-                <Ionicons name="person-outline" size={22} color={COLORS.textInverse} />
-              </View>
-              <View style={styles.profileTitleWrap}>
-                <Text style={styles.userName}>
-                  {profile?.fullName?.trim() || 'Пользователь'}
-                </Text>
-                <Text style={styles.profileMetaText}>
-                  Профиль здоровья
-                </Text>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarLetter}>
+                {(profile?.fullName?.trim()?.[0] ?? 'П').toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.heroInfo}>
+              <Text style={styles.heroName} numberOfLines={2}>
+                {profile?.fullName?.trim() || 'Пользователь'}
+              </Text>
+              {!!gender && <Text style={styles.heroMeta}>{gender}</Text>}
+              <View
+                style={[
+                  styles.riskPill,
+                  { backgroundColor: withAlpha(predispositionAccent, 0.25) },
+                ]}
+              >
+                <Ionicons name="pulse" size={12} color="#FFFFFF" />
+                <Text style={styles.riskPillText}>Риск: {predisposition}</Text>
               </View>
             </View>
-            <TouchableOpacity
-              style={styles.heroEditRoundButton}
-              activeOpacity={0.85}
-              onPress={() => router.push('/edit-profile' as any)}
+          </View>
+
+          <View style={styles.metricsRow}>
+            {metrics.map((item) => (
+              <View key={item.label} style={styles.metricCell}>
+                <Text style={styles.metricLabel}>{item.label}</Text>
+                <Text style={styles.metricValue}>
+                  {item.value}
+                  {item.value !== '—' ? (
+                    <Text style={styles.metricUnit}> {item.unit}</Text>
+                  ) : null}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          <TouchableOpacity style={styles.heroEditBtn} activeOpacity={0.9} onPress={openEdit}>
+            <Ionicons name="create-outline" size={18} color={COLORS.primary} />
+            <Text style={styles.heroEditText}>Редактировать профиль</Text>
+            <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
+          </TouchableOpacity>
+        </View>
+
+        <ProfileBlock title="Здоровье">
+          <EditRow
+            icon="alert-circle-outline"
+            iconColor={COLORS.danger}
+            title="Аллергии"
+            hint={
+              allergyList.length
+                ? `${allergyList.length} ${allergyList.length === 1 ? 'запись' : 'записей'}`
+                : 'Не указаны'
+            }
+            onPress={openEdit}
+          >
+            <TagList
+              items={allergyList}
+              emptyLabel="Добавьте аллергии при редактировании"
+              accentColor={COLORS.danger}
+            />
+          </EditRow>
+
+          <View style={styles.rowDivider} />
+
+          <EditRow
+            icon="medkit-outline"
+            iconColor={COLORS.primary}
+            title="Хронические заболевания"
+            hint={
+              chronicList.length
+                ? `${chronicList.length} ${chronicList.length === 1 ? 'запись' : 'записей'}`
+                : 'Не указаны'
+            }
+            onPress={openEdit}
+          >
+            <TagList
+              items={chronicList}
+              emptyLabel="Нет хронических заболеваний"
+              accentColor={COLORS.primary}
+            />
+          </EditRow>
+
+          <View style={styles.rowDivider} />
+
+          <EditRow
+            icon="shield-checkmark-outline"
+            iconColor={predispositionAccent}
+            title="Предрасположенность"
+            onPress={openEdit}
+          >
+            <View
+              style={[
+                styles.inlineBadge,
+                { backgroundColor: withAlpha(predispositionAccent, 0.1) },
+              ]}
             >
-              <Ionicons name="create-outline" size={24} color={COLORS.textInverse} />
-            </TouchableOpacity>
-          </View>
+              <Text style={[styles.inlineBadgeText, { color: predispositionAccent }]}>
+                {predisposition}
+              </Text>
+            </View>
+          </EditRow>
+        </ProfileBlock>
 
-          <View style={styles.heroFactsCard}>
-            <View style={styles.heroFactsHead}>
-              <Ionicons name="grid-outline" size={17} color="#DDEAF8" />
-              <Text style={styles.heroFactsTitle}>Ключевые показатели</Text>
-            </View>
-            <View style={[styles.factsGrid, isCompact && styles.factsGridCompact]}>
-              {keyFacts.map((fact) => (
-                <View key={fact.id} style={styles.heroFactItem}>
-                  <View style={styles.heroFactTopRow}>
-                    <View style={[styles.heroFactIconWrap, { backgroundColor: fact.bg }]}>
-                      <Ionicons name={fact.icon as any} size={15} color={fact.color} />
-                    </View>
-                    <Text style={[styles.heroFactValue, { color: fact.color }]}>
-                      {fact.value}
-                    </Text>
-                  </View>
-                  <Text style={styles.factLabel}>{fact.label}</Text>
-                  <View style={styles.factValueRow}>
-                    <Text style={styles.factUnit}>{fact.unit}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
+        <ProfileBlock title="Образ жизни">
+          <View style={styles.lifeRow}>
+            <LifestyleTile
+              icon="flame-outline"
+              label="Курение"
+              value={formatBoolean(profile?.smoker)}
+              tone={lifestyleTone('smoker', profile?.smoker)}
+              onPress={openEdit}
+            />
+            <LifestyleTile
+              icon="wine-outline"
+              label="Алкоголь"
+              value={formatBoolean(profile?.alcohol)}
+              tone={lifestyleTone('alcohol', profile?.alcohol)}
+              onPress={openEdit}
+            />
+            <LifestyleTile
+              icon="fitness-outline"
+              label="Спорт"
+              value={formatBoolean(profile?.sports)}
+              tone={lifestyleTone('sports', profile?.sports)}
+              onPress={openEdit}
+            />
           </View>
-        </View>
-
-        <View style={[styles.splitRow, isCompact && styles.splitRowCompact]}>
-          <View style={[styles.cardSection, styles.splitCard, isCompact && styles.splitCardCompact]}>
-            <View style={styles.sectionHead}>
-              <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.primary} />
-              <Text style={styles.sectionTitle}>Особенности здоровья</Text>
-            </View>
-            <View style={styles.healthList}>
-              <View style={styles.healthInfoRow}>
-                <View style={styles.healthInfoLeft}>
-                  <Text style={styles.healthInfoLabel}>Аллергии</Text>
-                  <Text style={styles.healthInfoDetail}>
-                    {allergyList.length ? allergyList.join(', ') : 'Не указаны'}
-                  </Text>
-                </View>
-                <Text style={styles.healthInfoValue}>{allergyList.length}</Text>
-              </View>
-              <View style={styles.healthInfoRow}>
-                <View style={styles.healthInfoLeft}>
-                  <Text style={styles.healthInfoLabel}>Хронические</Text>
-                  <Text style={styles.healthInfoDetail}>
-                    {chronicList.length ? chronicList.join(', ') : 'Не указаны'}
-                  </Text>
-                </View>
-                <Text style={styles.healthInfoValue}>{chronicList.length}</Text>
-              </View>
-              <View style={styles.healthInfoRow}>
-                <View style={styles.healthInfoLeft}>
-                  <Text style={styles.healthInfoLabel}>Предрасположенность</Text>
-                  <Text style={styles.healthInfoDetail}>Уровень риска: {predispositionLabel}</Text>
-                </View>
-                <Text style={styles.healthInfoValue}>{predispositionLabel}</Text>
-              </View>
-            </View>
-            <Text style={styles.healthNoteText}>
-              Следите за записями в дневнике - так проще замечать триггеры и динамику.
-            </Text>
-          </View>
-
-          <View style={[styles.cardSection, styles.splitCard, isCompact && styles.splitCardCompact]}>
-            <View style={styles.sectionHead}>
-              <Text style={styles.sectionEmoji}>⚕️</Text>
-              <Text style={styles.sectionTitle}>Образ жизни</Text>
-            </View>
-            <View style={styles.lifestyleStack}>
-              {lifeStyle.map((item) => (
-                <View key={item.id} style={styles.lifestyleCard}>
-                  <View style={styles.lifestyleTopRow}>
-                    <View style={[styles.lifestyleIconWrap, { backgroundColor: `${item.iconColor}1F` }]}>
-                      <Ionicons name={item.icon as any} size={18} color={item.iconColor} />
-                    </View>
-                    <Text style={[styles.lifestyleValue, { color: item.statusColor }]}>
-                      {item.value}
-                    </Text>
-                  </View>
-                  <Text style={styles.tagTitle}>{item.title}</Text>
-                  <Text style={styles.lifestyleSubtitle}>{item.subtitle}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </View>
+        </ProfileBlock>
 
         <TouchableOpacity
-          style={[
-            styles.logoutButton,
-            logoutSubmitting && styles.logoutButtonDisabled,
-          ]}
+          style={[styles.logoutBtn, logoutSubmitting && styles.logoutBtnDisabled]}
           onPress={handleLogout}
           activeOpacity={0.85}
           disabled={logoutSubmitting}
         >
           {logoutSubmitting ? (
-            <ActivityIndicator color={COLORS.textInverse} />
+            <ActivityIndicator color={COLORS.primary} />
           ) : (
             <>
-              <Ionicons name="log-out-outline" size={20} color={COLORS.textInverse} />
-              <Text style={styles.logoutText}>
-                Выйти из аккаунта
-              </Text>
+              <Ionicons name="log-out-outline" size={20} color={COLORS.primary} />
+              <Text style={styles.logoutText}>Выйти из аккаунта</Text>
             </>
           )}
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.bgPrimary },
-  container: { flex: 1, backgroundColor: COLORS.bgPrimary },
-  contentContainer: { width: '100%', paddingHorizontal: SPACING.sm - 2, paddingTop: SPACING.sm, paddingBottom: 120 },
-  loaderWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+const cardShadow = Platform.select({
+  android: {
+    elevation: 0,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E8EDF3',
+  },
+  default: {
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+  },
+});
 
-  profileHero: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 28,
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.bgSecondary,
+  },
+  container: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 120,
+    maxWidth: 860,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  loaderWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  hero: {
+    borderRadius: 24,
     padding: 18,
-    marginBottom: 6,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
+    marginBottom: 14,
+    backgroundColor: COLORS.heroStart,
+    overflow: 'hidden',
+    ...Platform.select({
+      android: { elevation: 0 },
+      default: {
+        shadowColor: COLORS.primary,
+        shadowOpacity: 0.2,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 6 },
+      },
+    }),
+  },
+  heroGlow: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: '#FFFFFF18',
+    top: -50,
+    right: -40,
   },
   heroTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
+    gap: 14,
+    marginBottom: 16,
   },
-  heroUserBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    paddingRight: 12,
-  },
-  heroIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF2B',
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF30',
+    borderWidth: 2,
+    borderColor: '#FFFFFF55',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
-  profileTitleWrap: {
+  avatarLetter: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  heroInfo: {
     flex: 1,
+    minWidth: 0,
+    gap: 4,
   },
-  userName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: COLORS.textInverse,
-    marginBottom: 4,
+  heroName: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    lineHeight: 28,
   },
-  profileMetaText: {
-    fontSize: FONT.body,
+  heroMeta: {
+    fontSize: 13,
     color: '#DDEAF8',
   },
-  heroEditRoundButton: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: '#FFFFFF26',
-    borderWidth: 1,
-    borderColor: '#FFFFFF45',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.14,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  heroFactsCard: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#60A5FA',
-    padding: 14,
-  },
-  heroFactsHead: {
+  riskPill: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
+    gap: 5,
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
   },
-  heroFactsTitle: {
-    fontSize: 18,
+  riskPillText: {
+    fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-
-  cardSection: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 18,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#E5EAF3',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  sectionHead: {
+  metricsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  sectionTitle: {
-    fontSize: 19,
-    fontWeight: '700',
-    color: '#233142',
-  },
-  sectionEmoji: {
-    width: 20,
-    textAlign: 'center',
-    fontSize: 18,
-    lineHeight: 20,
-    color: '#1D4ED8',
-  },
-
-  factsGrid: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  factsGridCompact: {
-    flexDirection: 'column',
-    gap: 8,
-  },
-  heroFactItem: {
+  metricCell: {
     flex: 1,
-    backgroundColor: '#FFFFFF1A',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#FFFFFF33',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    minHeight: 98,
-  },
-  heroFactTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  heroFactIconWrap: {
-    width: 34,
-    height: 30,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heroFactValue: {
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  factLabel: {
-    fontSize: 14,
-    color: '#DDEAF8',
-    fontWeight: '600',
-    marginBottom: 3,
-  },
-  factValueRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 4,
-  },
-  factUnit: {
-    fontSize: 12,
-    color: '#BFD0FF',
-  },
-
-  splitRow: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'stretch',
-  },
-  splitRowCompact: {
-    flexDirection: 'column',
-    gap: 0,
-  },
-  splitCard: {
-    flex: 1,
-  },
-  splitCardCompact: {
-    marginTop: 14,
-  },
-  lifestyleStack: {
-    gap: 8,
-  },
-  lifestyleCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E6ECF4',
-    backgroundColor: '#FFFFFF',
-    minHeight: 104,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  lifestyleTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  lifestyleIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tagTitle: {
-    fontSize: 16,
-    color: '#1F2937',
-    fontWeight: '700',
-    lineHeight: 20,
-  },
-  lifestyleSubtitle: {
-    marginTop: 2,
-    fontSize: 12,
-    color: COLORS.textMuted,
-    lineHeight: 16,
-  },
-  lifestyleValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    lineHeight: 22,
-  },
-
-  healthList: {
-    gap: 10,
-  },
-  healthInfoRow: {
+    backgroundColor: '#FFFFFF22',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E6ECF4',
-    backgroundColor: '#F8FBFF',
-    paddingHorizontal: 12,
+    borderColor: '#FFFFFF35',
     paddingVertical: 10,
+    paddingHorizontal: 10,
+  },
+  metricLabel: {
+    fontSize: 11,
+    color: '#DDEAF8',
+    marginBottom: 4,
+  },
+  metricValue: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  metricUnit: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#DDEAF8',
+  },
+  heroEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    minHeight: 46,
+    paddingHorizontal: 14,
+  },
+  heroEditText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+
+  block: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 12,
+    ...cardShadow,
+  },
+  blockTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 10,
+  },
+
+  editRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingVertical: 4,
+  },
+  editRowIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editRowBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 6,
+  },
+  editRowHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
   },
-  healthInfoLeft: {
+  editRowTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B',
     flex: 1,
-    paddingRight: 10,
   },
-  healthInfoLabel: {
-    fontSize: 14,
-    color: '#475467',
+  editRowHint: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  rowDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#EEF2F6',
+    marginVertical: 12,
+    marginLeft: 54,
+  },
+
+  tagList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
+  },
+  tag: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    maxWidth: '100%',
+  },
+  tagText: {
+    fontSize: 12,
     fontWeight: '600',
   },
-  healthInfoDetail: {
-    marginTop: 4,
-    fontSize: 12,
-    color: '#667085',
-    lineHeight: 16,
-  },
-  healthInfoValue: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1D4ED8',
-    maxWidth: 130,
-    textAlign: 'right',
-  },
-  healthNoteText: {
-    marginTop: 10,
-    fontSize: FONT.caption,
-    color: COLORS.textMuted,
+  emptyTags: {
+    fontSize: 13,
+    color: '#94A3B8',
     lineHeight: 18,
   },
 
-  logoutButton: {
-    marginTop: 18,
-    backgroundColor: COLORS.primary,
-    borderRadius: 16,
-    height: 54,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 10,
+  inlineBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
-  logoutText: {
-    color: COLORS.textInverse,
-    fontSize: FONT.body,
+  inlineBadgeText: {
+    fontSize: 13,
     fontWeight: '700',
   },
-  logoutButtonDisabled: { opacity: 0.7 },
+
+  lifeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  lifeTile: {
+    flex: 1,
+    backgroundColor: '#F8FBFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E8EDF3',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    gap: 6,
+  },
+  lifeTileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lifeTileLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  lifeTileValue: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  logoutBtn: {
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 50,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D7E3F4',
+  },
+  logoutBtnDisabled: {
+    opacity: 0.7,
+  },
+  logoutText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
 });

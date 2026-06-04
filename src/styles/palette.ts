@@ -1,3 +1,28 @@
+/** Надёжная прозрачность для Android (8-digit hex там часто даёт артефакты). */
+export function withAlpha(color: string, alpha: number): string {
+  const normalized = color.trim();
+  if (!normalized.startsWith('#')) {
+    return color;
+  }
+  let hex = normalized.slice(1);
+  if (hex.length === 3) {
+    hex = hex
+      .split('')
+      .map((char) => char + char)
+      .join('');
+  }
+  if (hex.length === 8) {
+    hex = hex.slice(0, 6);
+  }
+  if (hex.length !== 6) {
+    return color;
+  }
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export const COLORS = {
   // Light + high-contrast palette
   primary: '#1D4ED8',

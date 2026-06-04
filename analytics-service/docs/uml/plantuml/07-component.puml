@@ -1,0 +1,139 @@
+@startuml analytics-service-component
+' Классический UML + отступы против наложений
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 80
+skinparam ranksep 80
+skinparam padding 14
+skinparam wrapWidth 160
+skinparam minClassWidth 100
+
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam usecase {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam rectangle {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #FEFECE
+  BorderColor black
+  ArrowColor black
+}
+skinparam interface {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+}
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+  ParticipantBorderColor black
+  ParticipantBackgroundColor #FEFECE
+  ActorBackgroundColor white
+  ActorBorderColor black
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 28
+skinparam BoxPadding 14
+skinparam sequenceMessageAlign center
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Диаграмма компонентов — analytics-service
+
+skinparam nodesep 60
+skinparam ranksep 50
+left to right direction
+
+interface "HTTP / PDF" as REST
+
+actor "API Gateway" as GW
+
+package "analytics-service" as SYS {
+
+  component "ReportController" as CTRL
+  component "InternalGatewayFilter" as FILT
+  component "ReportService" as SVC
+  component "UserServiceClient\n(OpenFeign)" as FEIGN
+  component "FeignConfig" as FC
+  component "JasperConfig\n+ JasperReports" as JR
+  component "MedicalReportRepository" as REPO
+
+  component "ReportDataProducer" as PROD
+  component "AiAnalysisConsumer" as CONS
+  component "GigaChatService" as AI
+
+  CTRL -[hidden]right- SVC
+  SVC -[hidden]right- FEIGN
+  FEIGN -[hidden]right- JR
+  PROD -[hidden]down- CONS
+  CONS -[hidden]down- AI
+  FILT -[hidden]down- CTRL
+  FC ..> FEIGN
+}
+
+component "gateway-service" as GS
+queue "Kafka\nreport-data-requests" as Kafka
+cloud "GigaChat API" as Giga
+database "PostgreSQL\n(medical_reports)" as PG
+
+GW --> REST
+REST --> FILT
+FILT --> CTRL
+CTRL --> SVC
+SVC --> FEIGN
+SVC --> JR
+SVC --> PROD
+SVC --> REPO
+FEIGN --> GS : HTTP/JSON\nFeign
+PROD --> Kafka : produce
+Kafka --> CONS : consume
+CONS --> AI
+AI --> Giga : HTTPS\nOAuth + completions
+REPO --> PG : JDBC/JPA
+
+note bottom of PROD
+  topic: report.topic
+  = report-data-requests
+end note
+
+@enduml

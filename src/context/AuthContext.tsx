@@ -6,7 +6,6 @@ import {
   setAccessToken,
   setRefreshToken,
 } from '../api/client';
-
 type AuthContextType = {
   isAuthenticated: boolean;
   isLoading: boolean;

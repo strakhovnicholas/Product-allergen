@@ -1,0 +1,121 @@
+@startuml auth-service-deployment
+' Классический UML + отступы против наложений
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 80
+skinparam ranksep 80
+skinparam padding 14
+skinparam wrapWidth 160
+skinparam minClassWidth 100
+
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam usecase {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam rectangle {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #FEFECE
+  BorderColor black
+  ArrowColor black
+}
+skinparam interface {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+}
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam sequence {
+  ArrowColor black
+  LifeLineBorderColor black
+  ParticipantBorderColor black
+  ParticipantBackgroundColor #FEFECE
+  ActorBackgroundColor white
+  ActorBorderColor black
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 28
+skinparam BoxPadding 14
+skinparam sequenceMessageAlign center
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Диаграмма развёртывания — auth-service
+
+skinparam nodesep 70
+skinparam ranksep 60
+left to right direction
+
+node "<<device>>\nКлиент" as N_Client {
+  artifact "Mobile / Web App" as AppClient
+}
+
+node "<<device>>\nDocker Host" as N_Host {
+
+  node "<<container>>\nauth-service\n:8080" as N_App {
+    artifact "auth-service.jar\nSpring Boot 3.2 / Java 17" as Jar
+  }
+
+  node "<<device>>\nPostgreSQL\n:5432" as N_Pg {
+    database "allergen_pg\n(users)" as DB_Pg
+  }
+
+  node "<<device>>\nRedis\n:6379" as N_Redis {
+    database "refresh tokens" as DB_Redis
+  }
+
+  N_App -[hidden]right- N_Pg
+  N_Pg -[hidden]right- N_Redis
+}
+
+N_Client -[hidden]right- N_Host
+
+AppClient --> Jar : HTTPS\n/auth/*
+Jar --> DB_Pg : JDBC
+Jar --> DB_Redis : TCP
+
+note bottom of N_App
+  Docker image: n1vvas1e/auth-service:v1
+  Network: backend-net
+  Env: JWT_SECRET, SPRING_DATASOURCE_*, SPRING_DATA_REDIS_HOST
+end note
+
+@enduml

@@ -1,0 +1,143 @@
+@startuml analytics-service-class
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam handwritten false
+
+skinparam nodesep 60
+skinparam ranksep 50
+skinparam padding 12
+skinparam classAttributeIconSize 0
+
+skinparam class {
+  BackgroundColor #FEFECE
+  BorderColor black
+  ArrowColor black
+}
+skinparam interface {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+}
+
+title Диаграмма классов — analytics-service
+
+package "controller" {
+  class ReportController {
+    - reportService : ReportService
+    --
+    + generateReport(userId, from, to) : ResponseEntity<byte[]>
+    + downloadReport(reportData) : ResponseEntity<byte[]>
+  }
+}
+
+package "service" {
+  class ReportService {
+    - medicalReportTemplate : JasperReport
+    - userServiceClient : UserServiceClient
+    --
+    + fillReport(userId, from, to) : ReportDataDto
+    + generateMedicalReport(data) : byte[]
+    + transformToAnalysis(food) : AnalysisResultDto
+  }
+  class GigaChatService {
+    - gigaChatClient : GigaChatClient
+    --
+    + analyze(ReportDataDto) : AnalysisResultDto
+    + buildPrompt(dto) : String
+  }
+  class ReportDataProducer {
+    - kafkaTemplate : KafkaTemplate
+    --
+    + publish(ReportDataDto) : void
+  }
+  class AiAnalysisConsumer {
+    - gigaChatService : GigaChatService
+    --
+    + onMessage(ReportDataDto) : void
+  }
+}
+
+package "client" {
+  interface UserServiceClient <<Feign>> {
+    + getUserInfo() : UserInfoDto
+    + getMedicines(from, to) : List<MedicineDto>
+    + getWellbeing(from, to) : List<CommonFeelingRequest>
+    + analyzeFood(from, to) : List<FoodComponentSymptomsResponse>
+  }
+}
+
+package "persistence" {
+  interface MedicalReportRepository {
+    + save(MedicalReport) : MedicalReport
+    + findById(id) : Optional<MedicalReport>
+  }
+  class MedicalReport {
+    - id : Long
+    - userId : UUID
+    - createdAt : LocalDateTime
+    - status : String
+    - pdfContent : byte[]
+  }
+}
+
+package "dto.report" {
+  class ReportDataDto <<DTO>> {
+    + user : UserInfoDto
+    + medicine : List<MedicineDto>
+    + wellbeing : List<CommonFeelingRequest>
+    + foodSymptoms : List<FoodComponentSymptomsResponse>
+    + analysis : AnalysisResultDto
+  }
+}
+
+package "dto.internal" {
+  class UserInfoDto <<DTO>>
+  class MedicineDto <<DTO>>
+  class CommonFeelingRequest <<DTO>>
+  class FoodComponentSymptomsResponse <<DTO>>
+}
+
+package "dto.ai" {
+  class AnalysisResultDto <<DTO>> {
+    + symptoms : List<String>
+    + products : List<String>
+    + dangerousProteins : List<String>
+    + traceElements : List<String>
+    + doctorRecommendations : String
+  }
+}
+
+package "config" {
+  class InternalGatewayFilter
+  class FeignConfig
+  class JasperConfig
+}
+
+ReportController --> ReportService
+ReportService --> UserServiceClient
+ReportService --> ReportDataProducer
+ReportService ..> ReportDataDto
+ReportService ..> AnalysisResultDto
+
+AiAnalysisConsumer --> GigaChatService
+AiAnalysisConsumer ..> ReportDataDto
+GigaChatService ..> AnalysisResultDto
+
+MedicalReportRepository ..> MedicalReport
+
+ReportDataDto --> UserInfoDto
+ReportDataDto --> MedicineDto
+ReportDataDto --> CommonFeelingRequest
+ReportDataDto --> FoodComponentSymptomsResponse
+ReportDataDto --> AnalysisResultDto
+
+JasperConfig ..> ReportService : JasperReport bean
+
+@enduml

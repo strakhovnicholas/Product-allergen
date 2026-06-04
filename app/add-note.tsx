@@ -1,9 +1,10 @@
+import { ScreenSafeArea } from '../components/ScreenSafeArea';
+import { nowAppDateTimeString, parseAppDateTime, toAppDateTimeString } from '../src/utils/datetime';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -46,12 +47,11 @@ export default function NotesScreen() {
 
     setSaving(true);
     try {
-      const baseDate = params.date ? new Date(params.date) : new Date();
       const payload = {
         content: trimmed,
-        date: Number.isNaN(baseDate.getTime())
-          ? new Date().toISOString()
-          : baseDate.toISOString(),
+        date: params.date
+          ? toAppDateTimeString(parseAppDateTime(String(params.date)))
+          : nowAppDateTimeString(),
       };
 
       if (isEdit && params.noteId) {
@@ -72,7 +72,7 @@ export default function NotesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>
           {isEdit ? 'Редактировать заметку' : 'Заметка'}
@@ -140,7 +140,7 @@ export default function NotesScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

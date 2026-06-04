@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from './config';
 
+export { API_BASE_URL };
+
 const BASE_URL = API_BASE_URL;
 
 type ValidationDetail = {
@@ -230,6 +232,43 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshInFlight;
 }
 
+/** Quick connectivity check from the login screen (no auth). */
+export async function pingApiServer(): Promise<{
+  ok: boolean;
+  status: number;
+  message: string;
+}> {
+  const url = `${API_BASE_URL}/auth/login`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'ping@test.local', password: 'ping' }),
+    });
+    // 400/401 = server reached; 0 = network blocked
+    if (res.status >= 400 && res.status < 500) {
+      return { ok: true, status: res.status, message: 'Сервер доступен' };
+    }
+    if (res.ok) {
+      return { ok: true, status: res.status, message: 'Сервер доступен' };
+    }
+    return {
+      ok: false,
+      status: res.status,
+      message: `Сервер ответил: ${res.status}`,
+    };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      status: 0,
+      message: reason.includes('Network request failed')
+        ? 'Нет связи (HTTP заблокирован или нет интернета). Установите новый APK после сборки.'
+        : reason,
+    };
+  }
+}
+
 export async function apiRequest<T>(
   path: string,
   options: {
@@ -255,12 +294,25 @@ export async function apiRequest<T>(
     return headers;
   };
 
-  const sendRequest = (token: string | null) =>
-    fetch(`${BASE_URL}${path}`, {
-      method: options.method || 'GET',
-      headers: buildHeaders(token),
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
+  const sendRequest = async (token: string | null) => {
+    try {
+      return await fetch(`${BASE_URL}${path}`, {
+        method: options.method || 'GET',
+        headers: buildHeaders(token),
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      if (/network request failed|failed to fetch|cleartext/i.test(reason)) {
+        throw new ApiRequestError(
+          'Нет связи с сервером. Проверьте интернет. Для HTTP-сервера нужна сборка с usesCleartextTraffic (пересоберите APK).',
+          0,
+          reason
+        );
+      }
+      throw error;
+    }
+  };
 
   let res = await sendRequest(accessToken);
 

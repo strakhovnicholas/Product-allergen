@@ -1,0 +1,116 @@
+@startuml database-physical-user-postgresql
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 9
+skinparam linetype ortho
+
+skinparam classAttributeIconSize 0
+skinparam entity {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Физическая модель — user-service, PostgreSQL (база user_pg)
+
+hide circle
+hide methods
+
+' ---- Внешний stub: users из auth-service (другая БД) ----
+entity "users (auth-service)\n<<external>>" as users_ext #DDDDDD {
+  * **id** : UUID <<PK>>
+}
+
+' ---- Локальные таблицы user_pg ----
+entity "food" as food {
+  * **id** : BIGSERIAL <<PK>>
+  --
+  * user_id : UUID <<NOT NULL>>
+  * food_name : VARCHAR(200)
+  * category : VARCHAR(20) <<ENUM>>
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+  ..
+  idx_food_user_id (user_id)
+  idx_food_name (food_name)
+}
+
+entity "food_components" as fc {
+  * **food_id** : BIGINT <<FK → food.id>>
+  * **component** : VARCHAR(200)
+}
+
+entity "symptom" as sym {
+  * **id** : BIGSERIAL <<PK>>
+  --
+  * user_id : UUID <<NOT NULL>>
+  * symptom_name : VARCHAR(200)
+  * severity : INTEGER
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+  ..
+  idx_symptom_user_id (user_id)
+}
+
+entity "medicine" as med {
+  * **id** : BIGSERIAL <<PK>>
+  --
+  * user_id : UUID <<NOT NULL>>
+  * medicine_name : VARCHAR(200)
+  * dosage : INTEGER
+  * unit : VARCHAR(20) <<ENUM>>
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+  ..
+  idx_medicine_user_id (user_id)
+}
+
+entity "intake_medicine" as im {
+  * **id** : BIGSERIAL <<PK>>
+  --
+  * user_id : UUID <<NOT NULL>>
+  * medicine_name : VARCHAR(200)
+  * dosage : INTEGER
+  * unit : VARCHAR(20)
+  * intake_date : TIMESTAMP
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+  ..
+  idx_intake_user_id (user_id)
+  idx_intake_date (intake_date)
+  idx_intake_user_date (user_id, intake_date)
+}
+
+' ---- Внутри-БД связь (физический FK) ----
+food ||--|{ fc : FK food_id
+
+' ---- Меж-БД логические связи (пунктир, без физического FK) ----
+users_ext ||..o{ food            : "user_id"
+users_ext ||..o{ sym             : "user_id"
+users_ext ||..o{ med             : "user_id"
+users_ext ||..o{ im              : "user_id"
+
+note right of users_ext
+  Сущность из auth-service (allergen_pg).
+  В user_pg отсутствует как физическая таблица.
+  Связь обеспечивается приложением (один UUID
+  на весь жизненный цикл пользователя).
+end note
+
+note bottom of food
+  @ElementCollection → food_components.
+  Справочник продуктов пользователя.
+end note
+
+note bottom of im
+  Журнал приёма лекарств.
+  Композитный индекс (user_id, intake_date)
+  ускоряет выборку «приёмы пользователя за период».
+end note
+
+@enduml

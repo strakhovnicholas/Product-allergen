@@ -1,0 +1,237 @@
+@startuml database-logical-model
+' Логическая модель данных — сводная по микросервисам.
+' Цель: показать атрибуты и локальные связи без привязки к физической СУБД.
+' Межсервисные связи по user_id выведены в текстовую легенду, чтобы избежать
+' пересечений линий через всю диаграмму.
+
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam linetype ortho
+
+skinparam classAttributeIconSize 0
+skinparam nodesep 30
+skinparam ranksep 50
+skinparam packagePadding 14
+
+skinparam entity {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+}
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Логическая модель данных (сводная по микросервисам)
+
+hide methods
+hide circle
+
+' ============================================================
+' 1) auth-service
+' ============================================================
+package "auth-service" as P_AUTH #F5F5F5 {
+
+  entity "users" as L_users {
+    * **id** : UUID <<PK>>
+    --
+    * email : VARCHAR(255) <<UK>>
+    * password : VARCHAR <<BCrypt>>
+    is_active : BOOLEAN
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "refresh_token" as L_rt {
+    * **token** : VARCHAR <<PK>>
+    --
+    email : VARCHAR
+    ttl : 7 days
+  }
+
+  L_users ||--o{ L_rt : 1 .. *
+}
+
+' ============================================================
+' 2) user-service / PostgreSQL (справочники)
+' ============================================================
+package "user-service · PostgreSQL" as P_USER_PG #F5F5F5 {
+
+  entity "food" as L_food {
+    * **id** : BIGINT <<PK>>
+    --
+    user_id : UUID
+    * food_name : VARCHAR(200)
+    * category : ENUM
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+  }
+
+  entity "food_components" as L_fc {
+    * **food_id** : BIGINT <<FK>>
+    * **component** : VARCHAR(200)
+  }
+
+  entity "symptom" as L_sym {
+    * **id** : BIGINT <<PK>>
+    --
+    user_id : UUID
+    * symptom_name : VARCHAR(200)
+    severity : INT(1..10)
+  }
+
+  entity "medicine" as L_med {
+    * **id** : BIGINT <<PK>>
+    --
+    user_id : UUID
+    * medicine_name : VARCHAR(200)
+    dosage : INT
+    unit : ENUM
+  }
+
+  entity "intake_medicine" as L_im {
+    * **id** : BIGINT <<PK>>
+    --
+    user_id : UUID
+    * medicine_name : VARCHAR(200)
+    dosage : INT
+    unit : ENUM
+    intake_date : TIMESTAMP
+  }
+
+  L_food ||--|{ L_fc : @ElementCollection
+}
+
+' ============================================================
+' 3) user-service / MongoDB (документы)
+' ============================================================
+package "user-service · MongoDB" as P_USER_MG #F5F5F5 {
+
+  entity "user_info" as L_ui {
+    * **_id** : ObjectId <<PK>>
+    --
+    * user_id : UUID <<UK>>
+    full_name : String
+    age : Int
+    weight : Double
+    height : Int
+    gender : String
+    allergies : Array<String>
+    chronic_diseases : Array<String>
+    registered_at : DateTime
+  }
+
+  entity "food_intakes" as L_fi {
+    * **_id** : ObjectId <<PK>>
+    --
+    food_intake_id : UUID
+    user_id : UUID
+    food_name : String
+    components : Array<String>
+    intake_time : DateTime
+  }
+
+  entity "symptoms" as L_sy {
+    * **_id** : ObjectId <<PK>>
+    --
+    symptoms_id : UUID
+    user_id : UUID
+    symptom_name : String
+    severity : Int
+    start_time : DateTime
+    end_time : DateTime
+  }
+
+  entity "common_feelings" as L_cf {
+    * **_id** : ObjectId <<PK>>
+    --
+    user_id : UUID
+    date_time : DateTime
+    wellbeing_score : Int
+  }
+
+  entity "notes" as L_no {
+    * **_id** : ObjectId <<PK>>
+    --
+    note_id : UUID
+    user_id : UUID
+    content : String
+    date : DateTime
+  }
+}
+
+' ============================================================
+' 4) analytics-service
+' ============================================================
+package "analytics-service" as P_AN #F5F5F5 {
+
+  entity "medical_reports" as L_mr {
+    * **id** : BIGINT <<PK>>
+    --
+    user_id : UUID
+    created_at : TIMESTAMP
+    status : VARCHAR
+    pdf_content : BYTEA
+  }
+}
+
+' ============================================================
+' 5) scan-service
+' ============================================================
+package "scan-service" as P_SCAN #F5F5F5 {
+
+  entity "label_scan_history" as L_sh {
+    * **id** : UUID <<PK>>
+    --
+    user_id : UUID
+    scanned_at : TIMESTAMP
+    result_json : JSON
+    summary : TEXT
+  }
+
+  note bottom of L_sh
+    Основной поток stateless:
+    фото → GigaChat → сопоставление
+    с профилем user-service (Feign)
+  end note
+}
+
+' ============================================================
+' Принудительная расстановка пакетов в две строки
+' (без видимых линий — только для управления layout)
+' ============================================================
+P_AUTH    -[hidden]right- P_USER_PG
+P_USER_PG -[hidden]right- P_USER_MG
+P_AUTH    -[hidden]down-  P_AN
+P_AN      -[hidden]right- P_SCAN
+
+' ============================================================
+' Легенда межсервисных связей (вместо пересекающихся линий)
+' ============================================================
+note as N_CROSS #FFFFCC
+  **Межсервисные логические связи (по user_id)**
+
+  Идентификатор пользователя **users.id** (auth-service)
+  используется как UUID во всех остальных микросервисах:
+
+  • **user-service · PostgreSQL** —  food.user_id,
+       symptom.user_id, medicine.user_id, intake_medicine.user_id
+  • **user-service · MongoDB**    —  user_info.user_id (1:1),
+       food_intakes.user_id, symptoms.user_id,
+       common_feelings.user_id, notes.user_id
+  • **analytics-service**         —  medical_reports.user_id
+  • **scan-service**              —  scan_history.user_id
+
+  Связь поддерживается на уровне приложения: внешние ключи (FK)
+  между разными СУБД не используются (принцип Database per Service).
+end note
+
+@enduml

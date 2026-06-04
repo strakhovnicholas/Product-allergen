@@ -1,8 +1,10 @@
 import { Stack, router, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
+import { ReportPeriodProvider } from '../src/context/ReportPeriodContext';
 
 function RootNavigation() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -60,9 +62,8 @@ function RootNavigation() {
       <Stack.Screen
         name="edit-profile"
         options={{
-          presentation: 'transparentModal',
-          animation: 'fade',
-          contentStyle: { backgroundColor: 'transparent' },
+          presentation: 'card',
+          animation: 'slide_from_right',
         }}
       />
       <Stack.Screen name="add-common" />
@@ -76,8 +77,12 @@ function RootNavigation() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootNavigation />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <ReportPeriodProvider>
+          <RootNavigation />
+        </ReportPeriodProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

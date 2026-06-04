@@ -1,0 +1,88 @@
+@startuml product-allergen-sequence-microservices-high-level
+' Рисунок 2.4 — Последовательность взаимодействия, высокий уровень (§2.2.3)
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam handwritten false
+
+skinparam sequence {
+  ArrowColor black
+  ParticipantBackgroundColor #FEFECE
+  ActorBackgroundColor white
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 22
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+  FontSize 8
+}
+
+title Рисунок 2.4 — Взаимодействие микросервисов (последовательность, высокий уровень)
+
+actor "Android-\nприложение" as Client
+participant "gateway-service" as GW
+participant "auth-service" as AUTH
+participant "user-service" as USER
+participant "analytics-service" as AN
+participant "scan-service" as SCAN
+queue "Apache Kafka" as Kafka
+
+Client -> GW : HTTP/JSON + JWT
+activate GW
+GW -> GW : проверка токена,\nвыбор маршрута
+
+alt /auth/** → auth-service
+  GW -> AUTH : REST
+  AUTH --> GW : JWT / результат
+  GW --> Client : ответ
+
+else /api/** → user-service
+  GW -> USER : REST
+  USER --> GW : данные дневника
+  GW --> Client : ответ
+
+else /reports/** → analytics-service
+  GW -> AN : REST
+  activate AN
+  AN -> GW : Feign GET /api/user/info
+  GW -> USER : REST
+  USER --> GW : медицинские данные
+  GW --> AN : данные
+  AN -> Kafka : publish (фоновая AI-задача)
+  AN --> GW : отчёт
+  deactivate AN
+  GW --> Client : PDF / JSON
+
+else /scan/** → scan-service
+  GW -> SCAN : REST (фото)
+  activate SCAN
+  SCAN -> GW : Feign профиль
+  GW -> USER : REST
+  USER --> GW : аллергии, профиль
+  GW --> SCAN : данные
+  SCAN -> Kafka : publish
+  Kafka --> SCAN : consume → GigaChat
+  SCAN --> GW : анализ состава
+  deactivate SCAN
+  GW --> Client : safe / caution / unsafe
+end
+
+deactivate GW
+
+note over GW, USER
+  Синхронно: HTTP через API Gateway.
+  analytics-service получает данные
+  из user-service по REST (Feign).
+end note
+
+note over Kafka
+  Асинхронно: Kafka снижает связанность,
+  поддерживает фоновые задачи
+  и отказоустойчивость.
+end note
+
+@enduml

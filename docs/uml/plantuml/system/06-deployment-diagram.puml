@@ -1,0 +1,163 @@
+@startuml product-allergen-deployment-diagram
+' Рисунок 2.6 — развёртывание, без наложения подписей
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 9
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 65
+skinparam ranksep 55
+skinparam padding 14
+
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+  FontSize 9
+}
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+  FontSize 8
+}
+
+skinparam database {
+  BackgroundColor white
+  BorderColor black
+  FontSize 8
+}
+
+skinparam cloud {
+  BackgroundColor white
+  BorderColor black
+  FontSize 9
+}
+
+skinparam frame {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+  FontSize 9
+}
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+  FontSize 8
+}
+
+title Рисунок 2.6 — Диаграмма развёртывания программного комплекса
+
+top to bottom direction
+
+actor "Пользователь" as User
+
+node "<<device>>\nAndroid-устройство" as N_Phone {
+  artifact "Мобильное приложение" as App
+}
+
+cloud "Интернет" as NET
+
+node "<<executionEnvironment>>\nVPS, Docker Host" as VPS {
+
+  frame "backend-net" as BACKEND {
+
+    together {
+      node "<<container>>\ngateway-service" as C_GW {
+        artifact "gateway-service.jar\n:8080 published" as J_GW
+      }
+      node "<<container>>\nauth-service" as C_AUTH {
+        artifact "auth-service.jar\n:8080 internal" as J_AUTH
+      }
+      node "<<container>>\nuser-service" as C_USER {
+        artifact "user-service.jar\n:8080 internal" as J_USER
+      }
+      node "<<container>>\nanalytics-service" as C_AN {
+        artifact "analytics-service.jar\n:8080 internal" as J_AN
+      }
+      node "<<container>>\nscan-service" as C_SCAN {
+        artifact "scan-service.jar\n:8080 internal" as J_SCAN
+      }
+    }
+
+    together {
+      node "<<container>>\nPostgreSQL" as C_PG {
+        database "allergen_pg, user_pg,\nreport_pg" as DB_PG
+      }
+      node "<<container>>\nMongoDB" as C_MONGO {
+        database "health_tracker" as DB_MONGO
+      }
+      node "<<container>>\nRedis" as C_REDIS {
+        database "refresh tokens" as DB_REDIS
+      }
+      node "<<container>>\nApache Kafka" as C_KAFKA {
+        database ":9092 internal" as DB_KAFKA
+      }
+    }
+
+    C_GW -[hidden]right- C_AUTH
+    C_AUTH -[hidden]right- C_USER
+    C_USER -[hidden]right- C_AN
+    C_AN -[hidden]right- C_SCAN
+    C_GW -[hidden]down- C_PG
+    C_PG -[hidden]right- C_MONGO
+    C_MONGO -[hidden]right- C_REDIS
+    C_REDIS -[hidden]right- C_KAFKA
+  }
+}
+
+cloud "<<external>>\nGigaChat API" as GIGA
+
+' --- клиент → сервер (вертикально, подписи на отдельных отрезках) ---
+User -down-> App
+App -down-> NET : HTTPS
+NET -down-> J_GW : :8080
+
+' --- внутри backend-net (без подписей на каждой стрелке) ---
+J_GW --> J_AUTH
+J_GW --> J_USER
+J_GW --> J_AN
+J_GW --> J_SCAN
+
+J_AUTH --> DB_PG
+J_AUTH --> DB_REDIS
+J_USER --> DB_PG
+J_USER --> DB_MONGO
+J_AN --> DB_PG
+J_AN --> DB_KAFKA
+J_SCAN --> DB_KAFKA
+
+J_AN --> GIGA
+J_SCAN --> GIGA
+
+' --- раскладка: GigaChat справа от VPS ---
+VPS -[hidden]right- GIGA
+N_Phone -[hidden]right- VPS
+
+note right of NET
+  Клиент обращается
+  через Интернет.
+end note
+
+note right of C_GW
+  Единственный порт,
+  опубликованный на VPS (:8080).
+  Остальные контейнеры — только
+  внутри backend-net (изолированная сеть).
+end note
+
+note bottom of VPS
+  Все микросервисы и БД — отдельные
+  Docker-контейнеры на одном VPS.
+end note
+
+@enduml

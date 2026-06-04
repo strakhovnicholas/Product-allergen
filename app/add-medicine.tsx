@@ -1,10 +1,11 @@
+import { ScreenSafeArea } from '../components/ScreenSafeArea';
+import { nowAppDateTimeString } from '../src/utils/datetime';
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   Alert,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -111,7 +112,7 @@ export default function AddMedicineScreen() {
       medicineName: name,
       dosage: parsedDosage,
       unit: mapUnit(unit), // 🔥 ФИКС
-      intakeDate: params.intakeDate ?? new Date().toISOString(),
+      intakeDate: params.intakeDate ?? nowAppDateTimeString(),
     };
 
     setIsSubmitting(true);
@@ -132,7 +133,7 @@ export default function AddMedicineScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>
           {isEdit ? 'Редактировать лекарство' : 'Лекарство'}
@@ -233,7 +234,7 @@ export default function AddMedicineScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

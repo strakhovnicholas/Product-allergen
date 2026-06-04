@@ -1,0 +1,16 @@
+# Не отправлять на EAS (ускоряет загрузку, меньше сбоев архива)
+android/
+ios/
+.gradle/
+**/build/
+node_modules/.cache/
+
+# Лишние папки в корне репозитория (не часть Expo-приложения)
+auth-service/
+analytics-service/
+gateway/
+docs/
+*.docx
+
+# Локальная сборка
+.local/

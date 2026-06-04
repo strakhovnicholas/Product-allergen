@@ -1,0 +1,70 @@
+@startuml scan-service-sequence-gigachat
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam handwritten false
+skinparam sequence {
+  ArrowColor black
+  ParticipantBackgroundColor #FEFECE
+  BoxBackgroundColor #F5F5F5
+  BoxBorderColor black
+}
+skinparam ParticipantPadding 32
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Диаграмма последовательности — UC-S-04 GigaChat Vision (вызов из Kafka consumer)
+
+box "scan-service" #F5F5F5
+  participant "ScanKafkaConsumer" as Cons
+  participant "GigaChatVisionService" as Svc
+  participant "PromptBuilder" as PB
+  participant "GigaChatClient" as Client
+end box
+
+participant "GigaChat API\n(Sber)" as Giga
+
+Cons -> Svc : analyzeImage(imageBytes, userId)
+activate Svc
+
+Svc -> PB : buildVisionPrompt()\n(извлечь состав, JSON-формат)
+activate PB
+PB --> Svc : prompt
+deactivate PB
+
+Svc -> Client : getAccessToken()
+activate Client
+Client -> Giga : POST /oauth\n(scope GIGACHAT_API_PERS)
+activate Giga
+Giga --> Client : access_token
+deactivate Giga
+
+Client -> Giga : POST chat/completions\nили Vision API\n+ image base64
+activate Giga
+
+alt успешный ответ
+  Giga --> Client : content: JSON string\n[{ "name": "...", "risk": "..." }, ...]
+  Client --> Svc : raw JSON
+  Svc -> Svc : parseIngredients()\n→ List<IngredientDto>
+  Svc --> Cons : ingredients
+else ошибка API / таймаут
+  Giga --> Client : 4xx / 5xx
+  Svc --> Cons : ScanAnalysisException
+end
+
+deactivate Giga
+deactivate Client
+deactivate Svc
+
+note right of Svc
+  Промпт требует строгий JSON
+  без markdown-обёртки;
+  при ошибке парсинга —
+  повтор или fallback
+end note
+
+@enduml

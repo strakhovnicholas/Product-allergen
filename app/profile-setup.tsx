@@ -1,10 +1,10 @@
+import { ScreenSafeArea } from '../components/ScreenSafeArea';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
@@ -127,7 +127,7 @@ export default function ProfileSetup() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.contentContainer}>
         <TouchableOpacity
           style={styles.backButton}
@@ -183,7 +183,7 @@ export default function ProfileSetup() {
           )}
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 

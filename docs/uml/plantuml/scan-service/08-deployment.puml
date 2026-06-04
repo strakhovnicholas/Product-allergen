@@ -1,0 +1,75 @@
+@startuml scan-service-deployment
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam handwritten false
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam cloud {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+left to right direction
+
+node "<<device>>\nКлиент" as N_Client {
+  artifact "Mobile App\n(Expo / scan tab)" as AppClient
+}
+
+node "<<device>>\nDocker Host (VPS)" as N_Host {
+
+  node "<<container>>\nAPI Gateway\n:8080" as N_GW {
+    artifact "gateway-service.jar" as JarGW
+  }
+
+  node "<<container>>\nscan-service\n:8080 (internal)" as N_App {
+    artifact "scan-service.jar\nSpring Boot / Java 17" as Jar
+  }
+
+  node "<<device>>\nKafka\n:9092" as N_Kafka {
+    database "scan-image-requests\n(+ scan-image-results)" as Topic
+  }
+
+  N_GW -[hidden]right- N_App
+  N_App -[hidden]right- N_Kafka
+}
+
+node "<<external>>\nGigaChat (Sber)" as N_Giga {
+  artifact "OAuth + Vision API" as GigaAPI
+}
+
+node "<<container>>\nuser-service\n(internal)" as N_US {
+  artifact "user-service.jar" as JarUS
+}
+
+N_Client --> JarGW : HTTPS :443\nPOST /scan/analyze
+JarGW --> Jar : backend-net\nJWT → headers
+Jar --> JarGW : Feign /api/user/info
+JarGW --> JarUS
+Jar --> Topic : producer + consumer
+Jar --> GigaAPI : HTTPS\nGIGACHAT_AUTH_KEY
+
+note bottom of N_App
+  Порт не публикуется наружу.
+  Env: INTERNAL_SECRET,
+  KAFKA_BOOTSTRAP_SERVERS,
+  GIGACHAT_AUTH_KEY
+end note
+
+@enduml

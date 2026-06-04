@@ -1,3 +1,4 @@
+import { ScreenSafeArea } from '../components/ScreenSafeArea';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -6,7 +7,6 @@ import {
     Alert,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 
 import { loginApi } from '../src/api/authApi';
+import { API_BASE_URL, pingApiServer } from '../src/api/client';
 import { useAuth } from '../src/context/AuthContext';
 
 export default function LoginScreen() {
@@ -26,6 +27,20 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverCheck, setServerCheck] = useState<string | null>(null);
+  const [isCheckingServer, setIsCheckingServer] = useState(false);
+
+  const handleCheckServer = async () => {
+    setIsCheckingServer(true);
+    setServerCheck(null);
+    const result = await pingApiServer();
+    setServerCheck(
+      result.ok
+        ? `✓ ${result.message} (${API_BASE_URL})`
+        : `✗ ${result.message}\n${API_BASE_URL}`
+    );
+    setIsCheckingServer(false);
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -62,7 +77,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ScreenSafeArea style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -109,6 +124,23 @@ export default function LoginScreen() {
             />
 
             <TouchableOpacity
+              style={styles.checkServerButton}
+              onPress={handleCheckServer}
+              disabled={isSubmitting || isCheckingServer}
+              activeOpacity={0.85}
+            >
+              {isCheckingServer ? (
+                <ActivityIndicator color="#2563EB" />
+              ) : (
+                <Text style={styles.checkServerText}>Проверить связь с сервером</Text>
+              )}
+            </TouchableOpacity>
+
+            {serverCheck ? (
+              <Text style={styles.serverCheckHint}>{serverCheck}</Text>
+            ) : null}
+
+            <TouchableOpacity
               style={styles.loginButton}
               onPress={handleLogin}
               activeOpacity={0.85}
@@ -132,7 +164,7 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </ScreenSafeArea>
   );
 }
 
@@ -228,13 +260,34 @@ const styles = StyleSheet.create({
     color: '#101828',
     marginBottom: 16,
   },
+  checkServerButton: {
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  checkServerText: {
+    color: '#2563EB',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  serverCheckHint: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 18,
+    marginBottom: 12,
+  },
   loginButton: {
     height: 56,
     borderRadius: 18,
     backgroundColor: '#1D4ED8',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
     marginBottom: 14,
     shadowColor: '#1D4ED8',
     shadowOpacity: 0.25,

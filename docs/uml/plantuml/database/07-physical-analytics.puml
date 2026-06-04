@@ -1,0 +1,88 @@
+@startuml database-physical-analytics
+allowmixing
+
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam linetype ortho
+
+skinparam classAttributeIconSize 0
+skinparam entity {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam queue {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam cloud {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Физическая модель — analytics-service (PostgreSQL report_pg)
+
+hide circle
+hide methods
+
+' ---- Внешние stubs ----
+entity "users (auth-service)\n<<external>>" as users_ext #DDDDDD {
+  * **id** : UUID <<PK>>
+}
+
+entity "user-service\n<<external>>" as user_ext #DDDDDD {
+  * **REST via Feign** : gateway /api/**
+}
+
+' ---- Локальная таблица ----
+entity "medical_reports" as mr {
+  * **id** : BIGSERIAL <<PK>>
+  --
+  * user_id : UUID <<NOT NULL>>
+  * created_at : TIMESTAMP
+  * status : VARCHAR(20)
+  pdf_content : BYTEA <<LOB>>
+  ..
+  idx_mr_user_id (user_id)
+}
+
+' ---- Асинхронный канал (Kafka + GigaChat) ----
+queue "Kafka: report-data-requests" as kafka
+
+cloud "GigaChat API" as giga
+
+' ---- Связи ----
+users_ext ||..o{ mr : "user_id"
+user_ext ..> mr : "поставляет данные"
+mr ..> kafka : publish
+kafka ..> giga : AI enrichment
+
+note right of mr
+  JPA @Entity MedicalReport.
+  Hibernate ddl-auto=update.
+  Порт PostgreSQL: 5433 (docker).
+end note
+
+note bottom of kafka
+  Топик: report-data-requests
+  message: ReportDataDto (JSON)
+  consumer: AiAnalysisConsumer
+  Producer: ReportService.
+end note
+
+note bottom of user_ext
+  Эндпоинты через gateway-service:
+  GET /api/user-info/{userId}
+  GET /api/food-intakes/{userId}
+  GET /api/symptoms/{userId}
+  GET /api/common-feelings/{userId}
+  Заголовки: X-User-Id, X-Internal-Gateway-Token
+end note
+
+@enduml

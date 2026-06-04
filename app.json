@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "allergy-tracker",
+    "name": "Product-allergen",
     "slug": "allergy-tracker",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,9 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "ru.productallergen.app"
     },
     "android": {
+      "package": "ru.productallergen.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -26,7 +28,16 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
       "expo-router",
+      "expo-sqlite",
       [
         "expo-splash-screen",
         {
@@ -44,6 +55,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "be8bd19a-2876-4305-94f0-0e079dd62ea6"
+      }
+    },
+    "owner": "klaus_rsreu"
   }
 }

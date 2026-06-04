@@ -1,0 +1,151 @@
+@startuml product-allergen-logical-architecture
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam linetype ortho
+skinparam handwritten false
+
+skinparam nodesep 100
+skinparam ranksep 85
+skinparam padding 18
+
+skinparam actorStyle stickman
+skinparam actor {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+}
+
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+
+skinparam node {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam database {
+  BackgroundColor white
+  BorderColor black
+}
+
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Логическая архитектура (детализация) — Product-allergen
+
+top to bottom direction
+
+actor "Пользователь" as User
+
+package "Клиент" {
+  component "Мобильное / Web\nприложение" as App
+}
+
+package "API Gateway" {
+  component "gateway-service :8080\nмаршрутизация, JWT, CORS" as GW
+}
+
+package "auth-service" as P1 {
+  component "AuthController\nAuthService\nJwtService" as AUTH
+}
+
+package "user-service" as P2 {
+  component "REST API\nдневник" as USER
+  component "FoodAnalyzer" as ANALYZER
+}
+
+package "analytics-service" as P3 {
+  component "ReportService\nJasperReports" as AN
+  component "UserServiceClient\nFeign" as FEIGN
+}
+
+package "scan-service" as P4 {
+  component "ScanController\nGigaChat Vision" as SCAN
+  component "UserProfileClient\nFeign" as SCAN_FEIGN
+}
+
+package "Данные auth" as D1 {
+  database "PostgreSQL\nallergen_pg" as DB_AUTH
+  database "Redis" as DB_REDIS
+}
+
+package "Данные user" as D2 {
+  database "PostgreSQL\nuser_pg" as DB_USER_PG
+  database "MongoDB\nhealth_tracker" as DB_MONGO
+}
+
+package "Данные analytics" as D3 {
+  database "PostgreSQL\nreport_pg" as DB_REPORT
+  node "Kafka" as KAFKA
+  node "GigaChat API" as GIGA
+}
+
+package "Внешние API scan" as D4 {
+  node "GigaChat Vision API" as GIGA_SCAN
+}
+
+' раскладка: сетка сервисов 2x2
+P1 -[hidden]right- P2
+P3 -[hidden]right- P4
+P1 -[hidden]down- P3
+P2 -[hidden]down- P4
+
+' раскладка: данные под сервисами
+P1 -[hidden]down- D1
+P2 -[hidden]down- D2
+P3 -[hidden]down- D3
+P4 -[hidden]down- D4
+
+D1 -[hidden]right- D2
+D2 -[hidden]right- D3
+D3 -[hidden]right- D4
+
+DB_AUTH -[hidden]down- DB_REDIS
+DB_USER_PG -[hidden]down- DB_MONGO
+DB_REPORT -[hidden]down- KAFKA
+KAFKA -[hidden]down- GIGA
+
+' вертикаль: клиент -> шлюз -> сервисы
+User -down-> App : HTTPS
+App -down-> GW
+GW -down-> P1 : /auth/**
+GW -down-> P2 : /api/**
+GW -down-> P3 : /reports/**
+GW -down-> P4 : /scan/**
+
+USER -down-> ANALYZER
+
+AUTH -down-> DB_AUTH
+AUTH -down-> DB_REDIS
+USER -down-> DB_USER_PG
+USER -down-> DB_MONGO
+AN -down-> DB_REPORT
+AN --> KAFKA : publish
+AN --> GIGA : AI
+SCAN --> GIGA_SCAN : Vision API
+SCAN_FEIGN ..> GW : Feign
+
+' Feign: через шлюз (пунктир, без -up->)
+FEIGN ..> GW : Feign
+SCAN_FEIGN ..> GW : /api/user/info
+GW ..> USER : /api/*
+
+note right of GW
+  /auth/** - без JWT
+  /api/** - JWT + X-User-Id
+  + X-Internal-Gateway-Token
+end note
+
+@enduml

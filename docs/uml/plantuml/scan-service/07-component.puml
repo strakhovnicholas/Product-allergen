@@ -1,0 +1,71 @@
+@startuml scan-service-component
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam handwritten false
+skinparam component {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+skinparam linetype ortho
+
+title Диаграмма компонентов — scan-service
+
+actor "Клиент\n(Mobile App)" as Client
+component "gateway-service\n:8080" as GW
+
+package "scan-service" {
+  component "REST\nPOST /scan/analyze" as REST
+  component "InternalGatewayFilter" as FILT
+  component "ScanController" as CTRL
+  component "ScanService" as SVC
+  component "ScanKafkaProducer" as PROD
+  component "ScanKafkaConsumer" as CONS
+  component "ScanResultRegistry" as REG
+  component "GigaChatVisionService" as GIGA
+  component "IngredientSafetyService" as SAFE
+  component "UserProfileClient\n(OpenFeign)" as FEIGN
+  REST --> FILT
+  FILT --> CTRL
+  CTRL --> SVC
+  SVC --> PROD
+  SVC --> REG
+  SVC --> FEIGN
+  SVC --> SAFE
+  PROD --> CONS : Kafka
+  CONS --> GIGA
+  CONS --> SAFE
+  CONS --> REG
+}
+
+database "Kafka\nscan-image-requests" as Kafka
+component "user-service" as US
+cloud "GigaChat API\n(Vision + OAuth)" as GigaAPI
+
+Client --> GW : HTTPS\nфото + JWT
+GW --> REST : X-User-Id,\ninternal token
+FEIGN --> GW : GET /api/user/info
+GW --> US
+PROD --> Kafka : produce
+Kafka --> CONS : consume
+GIGA --> GigaAPI : image + prompt → JSON
+
+note bottom of SVC
+  HTTP-поток ждёт результат
+  (Future / reply-topic),
+  затем отдаёт клиенту
+  safe / caution / unsafe
+end note
+
+@enduml
