@@ -10,6 +10,8 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres_analytics_db:5433/report_pg
       - SPRING_DATASOURCE_USERNAME=ANALYTICS-REPORT-POSTGRES-VELOSIPED
       - SPRING_DATASOURCE_PASSWORD=MW+D0uI2lX2P3q3WHw21sA==
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - GIGACHAT_AUTH_KEY=${GIGACHAT_AUTH_KEY}
     networks:
       - backend-net
 

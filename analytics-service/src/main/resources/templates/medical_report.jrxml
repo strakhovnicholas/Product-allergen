@@ -203,79 +203,79 @@
             </componentElement>
         </band>
 
-        <band height="150">
+        <band height="220">
             <staticText>
                 <reportElement positionType="Float" x="0" y="15" width="555" height="25" style="SubTitle"/>
                 <textElement verticalAlignment="Middle"/>
                 <text><![CDATA[Результаты анализа]]></text>
             </staticText>
             <frame>
-                <reportElement x="0" y="45" width="555" height="95"/>
+                <reportElement positionType="Float" stretchType="RelativeToBandHeight" x="0" y="45" width="555" height="165"/>
                 <box><pen lineWidth="0.5" lineColor="#DEE2E6"/></box>
                 <staticText>
-                    <reportElement x="15" y="10" width="130" height="20" style="Detail" forecolor="#0056B3"/>
+                    <reportElement positionType="Float" x="15" y="10" width="130" height="20" style="Detail" forecolor="#0056B3"/>
                     <textElement verticalAlignment="Middle"><font isBold="true"/></textElement>
                     <text><![CDATA[Симптомы:]]></text>
                 </staticText>
-                <textField isBlankWhenNull="true">
-                    <reportElement x="160" y="10" width="380" height="20" style="Detail"/>
-                    <textElement verticalAlignment="Middle"/>
+                <textField textAdjust="StretchHeight" isBlankWhenNull="true">
+                    <reportElement positionType="Float" x="160" y="10" width="380" height="30" style="Detail"/>
+                    <textElement verticalAlignment="Top"/>
                     <textFieldExpression><![CDATA[$F{analysis}.getSymptoms() == null || $F{analysis}.getSymptoms().isEmpty() ? "Отсутствуют" : String.join(", ", $F{analysis}.getSymptoms())]]></textFieldExpression>
                 </textField>
                 <staticText>
-                    <reportElement x="15" y="35" width="130" height="20" style="Detail" forecolor="#D90429"/>
+                    <reportElement positionType="Float" x="15" y="45" width="130" height="20" style="Detail" forecolor="#D90429"/>
                     <textElement verticalAlignment="Middle"><font isBold="true"/></textElement>
                     <text><![CDATA[Потенциальные продукты:]]></text>
                 </staticText>
-                <textField isBlankWhenNull="true">
-                    <reportElement x="160" y="35" width="380" height="20" style="Detail" forecolor="#D90429"/>
-                    <textElement verticalAlignment="Middle"><font isBold="true"/></textElement>
+                <textField textAdjust="StretchHeight" isBlankWhenNull="true">
+                    <reportElement positionType="Float" x="160" y="45" width="380" height="50" style="Detail" forecolor="#D90429"/>
+                    <textElement verticalAlignment="Top"><font isBold="true"/></textElement>
                     <textFieldExpression><![CDATA[$F{analysis}.getProducts() == null || $F{analysis}.getProducts().isEmpty() ? "Не выявлены" : String.join(", ", $F{analysis}.getProducts())]]></textFieldExpression>
                 </textField>
                 <line>
-                    <reportElement x="15" y="60" width="525" height="1" forecolor="#EEEEEE"/>
+                    <reportElement positionType="Float" x="15" y="100" width="525" height="1" forecolor="#EEEEEE"/>
                 </line>
                 <staticText>
-                    <reportElement x="15" y="65" width="130" height="20" style="Detail" forecolor="#0056B3"/>
+                    <reportElement positionType="Float" x="15" y="108" width="130" height="20" style="Detail" forecolor="#0056B3"/>
                     <textElement verticalAlignment="Middle"><font isBold="true"/></textElement>
                     <text><![CDATA[Белки-аллергены:]]></text>
                 </staticText>
-                <textField isBlankWhenNull="true">
-                    <reportElement x="160" y="65" width="110" height="20" style="Detail"/>
-                    <textElement verticalAlignment="Middle"/>
+                <textField textAdjust="StretchHeight" isBlankWhenNull="true">
+                    <reportElement positionType="Float" x="160" y="108" width="250" height="40" style="Detail"/>
+                    <textElement verticalAlignment="Top"/>
                     <textFieldExpression><![CDATA[$F{analysis}.getDangerousProteins() == null || $F{analysis}.getDangerousProteins().isEmpty() ? "—" : String.join(", ", $F{analysis}.getDangerousProteins())]]></textFieldExpression>
                 </textField>
                 <staticText>
-                    <reportElement x="300" y="65" width="130" height="20" style="Detail" forecolor="#0056B3"/>
+                    <reportElement positionType="Float" x="15" y="152" width="130" height="20" style="Detail" forecolor="#0056B3"/>
                     <textElement verticalAlignment="Middle"><font isBold="true"/></textElement>
                     <text><![CDATA[Микроэлементы:]]></text>
                 </staticText>
-                <textField isBlankWhenNull="true">
-                    <reportElement x="440" y="65" width="100" height="20" style="Detail"/>
-                    <textElement verticalAlignment="Middle"/>
+                <textField textAdjust="StretchHeight" isBlankWhenNull="true">
+                    <reportElement positionType="Float" x="160" y="152" width="380" height="40" style="Detail"/>
+                    <textElement verticalAlignment="Top"/>
                     <textFieldExpression><![CDATA[$F{analysis}.getTraceElements() == null || $F{analysis}.getTraceElements().isEmpty() ? "—" : String.join(", ", $F{analysis}.getTraceElements())]]></textFieldExpression>
                 </textField>
             </frame>
         </band>
 
-        <band height="120">
+        <band height="160">
             <staticText>
                 <reportElement positionType="Float" x="0" y="10" width="555" height="25" style="SubTitle"/>
                 <textElement verticalAlignment="Middle"/>
                 <text><![CDATA[Рекомендации приложения для врача]]></text>
             </staticText>
             <frame>
-                <reportElement x="0" y="40" width="555" height="70" mode="Opaque" backcolor="#F0F7FF"/>
+                <reportElement positionType="Float" stretchType="RelativeToBandHeight" x="0" y="40" width="555" height="110" mode="Opaque" backcolor="#F0F7FF"/>
                 <box><leftPen lineWidth="3.0" lineColor="#007BFF"/></box>
                 <staticText>
-                    <reportElement x="15" y="10" width="525" height="15" forecolor="#007BFF" style="Detail"/>
+                    <reportElement positionType="Float" x="15" y="10" width="525" height="15" forecolor="#007BFF" style="Detail"/>
                     <textElement verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
-                    <text><![CDATA[Сгенерировано системой анализа ПродуктовыйАллерген:]]></text>
+                    <text><![CDATA[Клиническая аналитика для врача (ИИ, требует верификации):]]></text>
                 </staticText>
                 <textField textAdjust="StretchHeight" isBlankWhenNull="true">
-                    <reportElement x="15" y="30" width="525" height="30" style="Detail"/>
+                    <reportElement positionType="Float" x="15" y="28" width="525" height="75" style="Detail"/>
                     <textElement verticalAlignment="Top" markup="html"/>
-                    <textFieldExpression><![CDATA[$F{analysis}.getDoctorRecommendations() != null ? $F{analysis}.getDoctorRecommendations() : "На основе текущих данных рекомендаций не сформировано."]]></textFieldExpression>
+                    <textFieldExpression><![CDATA[$F{analysis}.getDoctorRecommendations() != null ? $F{analysis}.getDoctorRecommendations() : "На основе текущих данных клиническое заключение не сформировано."]]></textFieldExpression>
                 </textField>
             </frame>
         </band>

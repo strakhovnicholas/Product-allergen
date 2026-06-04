@@ -11,6 +11,22 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
+    open-in-view: false
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: analytics-service
+      auto-offset-reset: earliest
+      properties:
+        spring.json.trusted.packages: ru.productallergen.analytics.*
+    producer:
+      properties:
+        spring.json.add.type.headers: false
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
 
 internal:
   api:
@@ -18,7 +34,16 @@ internal:
 
 report:
   template-path: templates/medical_report.jrxml
-  topic: "report-data-requests"
+  kafka:
+    request-topic: report-ai-requests
+    response-topic: report-ai-results
+    wait-timeout-seconds: 90
+
+gigachat:
+  auth-key: ${GIGACHAT_AUTH_KEY:}
+  verify-ssl-certs: false
+  # API id, not SDK constant name: use GigaChat-2-Max, GigaChat-2-Pro, GigaChat-2-Lite
+  model: ${GIGACHAT_MODEL:GigaChat-2-Max}
 
 app:
   security:
@@ -27,3 +52,9 @@ app:
   internal:
     api:
       secret: ${INTERNAL_API_SECRET:my-default-secret}
+
+logging:
+  level:
+    ru.productallergen.analytics: INFO
+    ru.productallergen.analytics.kafka: INFO
+    ru.productallergen.analytics.service.GigaChatAnalysisService: INFO
