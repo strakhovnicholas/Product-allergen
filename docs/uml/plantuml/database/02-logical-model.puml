@@ -173,14 +173,34 @@ package "user-service · MongoDB" as P_USER_MG #F5F5F5 {
 ' ============================================================
 package "analytics-service" as P_AN #F5F5F5 {
 
-  entity "medical_reports" as L_mr {
+  entity "report_snapshots" as L_rs {
     * **id** : BIGINT <<PK>>
     --
-    user_id : UUID
-    created_at : TIMESTAMP
-    status : VARCHAR
-    pdf_content : BYTEA
+    * user_id : UUID
+    * period_from : TIMESTAMP
+    * period_to : TIMESTAMP
+    * created_at : TIMESTAMP
+    * report_data : JSONB <<ReportData>>
   }
+
+  entity "ReportData\n(в JSONB)" as L_rd {
+    user : UserInfo
+    medicine : List
+    wellbeing : List
+    foodSymptoms : List
+    analysis : AnalysisResult
+  }
+
+  entity "AnalysisResult" as L_ar {
+    symptoms : List<String>
+    products : List<String>
+    dangerous_proteins : List<String>
+    trace_elements : List<String>
+    doctor_recommendations : String
+  }
+
+  L_rs ||--|| L_rd : report_data
+  L_rd *-- "0..1" L_ar
 }
 
 ' ============================================================
@@ -188,19 +208,30 @@ package "analytics-service" as P_AN #F5F5F5 {
 ' ============================================================
 package "scan-service" as P_SCAN #F5F5F5 {
 
-  entity "label_scan_history" as L_sh {
-    * **id** : UUID <<PK>>
+  entity "scan_history" as L_sh {
+    * **id** : BIGINT <<PK>>
     --
-    user_id : UUID
-    scanned_at : TIMESTAMP
-    result_json : JSON
-    summary : TEXT
+    * user_id : UUID
+    * scan_date : TIMESTAMP
+    image_file_name : VARCHAR
+    risk_level : VARCHAR
+    * analysis_result : JSONB <<ScanAnalysisResult>>
   }
 
+  entity "ScanAnalysisResult\n(в JSONB)" as L_sar {
+    product_name : String
+    composition : List<String>
+    dangerous_components : List<String>
+    risk_level : String
+    clinical_note_for_doctor : String
+  }
+
+  L_sh ||--|| L_sar : analysis_result
+
   note bottom of L_sh
-    Основной поток stateless:
-    фото → GigaChat → сопоставление
-    с профилем user-service (Feign)
+    По умолчанию in-memory;
+    SCAN_PERSISTENCE_ENABLED=true → PostgreSQL.
+    Фото → GigaChat Vision + UserProfile (Feign).
   end note
 }
 
@@ -227,8 +258,9 @@ note as N_CROSS #FFFFCC
   • **user-service · MongoDB**    —  user_info.user_id (1:1),
        food_intakes.user_id, symptoms.user_id,
        common_feelings.user_id, notes.user_id
-  • **analytics-service**         —  medical_reports.user_id
+  • **analytics-service**         —  report_snapshots.user_id
   • **scan-service**              —  scan_history.user_id
+  • **user-service (для scan)**   —  UserProfile только по Feign, не в БД scan
 
   Связь поддерживается на уровне приложения: внешние ключи (FK)
   между разными СУБД не используются (принцип Database per Service).

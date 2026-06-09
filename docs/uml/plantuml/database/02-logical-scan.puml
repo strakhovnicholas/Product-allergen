@@ -1,0 +1,89 @@
+@startuml database-logical-scan
+' Рисунок 2.Х — Логическая модель данных scan-service
+
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+skinparam entity {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+}
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+}
+
+title Логическая модель данных scan-service
+
+hide methods
+hide circle
+
+package "scan-service" as P_SCAN #F5F5F5 {
+
+  entity "ScanHistory" as L_sh {
+    * **id** : Long <<PK>>
+    --
+    * user_id : UUID
+    * scan_date : LocalDateTime
+    image_file_name : String
+    risk_level : String
+    * analysis_result : JSONB
+  }
+
+  entity "ScanAnalysisResult" as L_sar {
+    product_name : String
+    composition : List<String>
+    dangerous_components : List<String>
+    risk_level : String
+    clinical_note_for_doctor : String
+  }
+
+  entity "ScanHistorySummary" as L_sum {
+    id : Long
+    scan_date : LocalDateTime
+    risk_level : String
+    product_name : String
+  }
+
+  L_sh ||--|| L_sar : analysis_result
+  L_sh ..> L_sum : «список истории»
+}
+
+package "user-service <<external>>" as P_US #DDDDDD {
+
+  entity "UserProfile" as L_ui {
+    full_name : String
+    age : Integer
+    gender : String
+    allergies : List<String>
+    chronic_diseases : List<String>
+  }
+}
+
+L_ui ..> L_sar : «персонализация\nанализа»
+
+note bottom of L_sh
+  Хранение: PostgreSQL (scan_history)
+  при SCAN_PERSISTENCE_ENABLED=true;
+  иначе — in-memory (до 100 записей
+  на пользователя). Изображение
+  этикетки не сохраняется.
+end note
+
+note bottom of L_ui
+  Запрашивается через gateway:
+  GET /api/user/info.
+  В scan-service не персистируется.
+end note
+
+@enduml

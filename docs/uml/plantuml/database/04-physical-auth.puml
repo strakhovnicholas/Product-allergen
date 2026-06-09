@@ -1,14 +1,20 @@
 @startuml database-physical-auth
+allowmixing
+
 skinparam shadowing false
 skinparam roundcorner 0
 skinparam backgroundColor white
 skinparam defaultFontName Arial
 skinparam defaultFontSize 10
 skinparam linetype ortho
-
 skinparam classAttributeIconSize 0
+
 skinparam entity {
   BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor #E8F4FC
   BorderColor black
 }
 skinparam note {
@@ -21,56 +27,69 @@ title Физическая модель — auth-service (PostgreSQL allergen_pg
 hide circle
 hide methods
 
-' ---- PostgreSQL ----
+database "PostgreSQL\nallergen_pg :5432" as pg
+
+database "Redis\n:6379" as redis_db
+
 entity "users" as users {
   * **id** : UUID <<PK>>
   --
   * email : VARCHAR(255) <<UNIQUE, NOT NULL>>
   * password : VARCHAR(60) <<BCrypt, NOT NULL>>
-  is_active : BOOLEAN
+  is_active : BOOLEAN <<NOT NULL, default true>>
   created_at : TIMESTAMP
   updated_at : TIMESTAMP
   ..
   UNIQUE (email)
 }
 
-' ---- Redis (один логический "ключ" = одна сущность) ----
-entity "Redis: refresh tokens" as redis {
+entity "refresh_token\n<<Redis STRING>>" as rt_key {
   * **key** : refresh_token <<PK>>
   --
   value : email
-  TTL : 604800000 ms (7 дней)
+  TTL : 7 дней
 }
 
-entity "Redis: user_tokens:<email>" as redis_set {
+entity "user_tokens:<email>\n<<Redis SET>>" as rt_set {
   * **key** : user_tokens:<email>
   --
-  value : SET<refresh_token>
-  TTL : 604800000 ms (7 дней)
+  members : SET<refresh_token>
+  TTL : 7 дней
 }
 
-' ---- Связи (логические, между PostgreSQL и Redis) ----
-users ||..o{ redis : "1 .. *\nemail → token"
-users ||..o{ redis_set : "1 .. 1\nemail"
-redis_set ||..o{ redis : содержит
+pg .. users : schema public
+redis_db .. rt_key
+redis_db .. rt_set
+
+users ||..o{ rt_key : "1 .. *\nemail в value"
+users ||..|| rt_set : "1 .. 1\nпо email"
+rt_set ||..o{ rt_key : содержит токены
 
 note right of users
-  Таблица **users**, схема public.
-  Hibernate: ddl-auto=update.
-  Индекс UNIQUE (email).
+  JPA @Entity User.
+  Hibernate ddl-auto=update.
+  id генерируется UUID.
+  Пароль — BCrypt (Spring Security).
 end note
 
-note right of redis
-  Запись делается через
-  RefreshTokenService.saveRefreshToken().
-  Удаление при logout / повторном login.
+note right of rt_key
+  RefreshTokenService.saveRefreshToken():
+  SET token → email.
+  Проверка при /auth/refresh.
+  Удаление при logout.
 end note
 
-note bottom of redis_set
-  Set всех активных refresh-токенов
-  одного пользователя — нужен для
-  revokeOldTokensByEmail() (logout
-  со всех устройств при новом входе).
+note bottom of rt_set
+  Индекс активных refresh-токенов
+  пользователя. Используется в
+  revokeOldTokensByEmail() при
+  повторном login (одна сессия).
+end note
+
+note as N_JWT #FFFFCC
+  **Access-токен (JWT)** в БД не хранится —
+  stateless, срок 15 мин (jwt.access.expiration).
+  Refresh-токен — JWT + запись в Redis.
 end note
 
 @enduml

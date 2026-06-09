@@ -1,25 +1,26 @@
 @startuml database-physical-analytics
 allowmixing
 
+top to bottom direction
 skinparam shadowing false
 skinparam roundcorner 0
 skinparam backgroundColor white
 skinparam defaultFontName Arial
 skinparam defaultFontSize 10
 skinparam linetype ortho
-
 skinparam classAttributeIconSize 0
+skinparam nodesep 50
+skinparam ranksep 55
+skinparam packagePadding 12
+
 skinparam entity {
   BackgroundColor #FEFECE
   BorderColor black
 }
-skinparam queue {
+skinparam package {
   BackgroundColor white
   BorderColor black
-}
-skinparam cloud {
-  BackgroundColor white
-  BorderColor black
+  FontStyle bold
 }
 skinparam note {
   BackgroundColor #FFFFCC
@@ -31,58 +32,63 @@ title Физическая модель — analytics-service (PostgreSQL report
 hide circle
 hide methods
 
-' ---- Внешние stubs ----
-entity "users (auth-service)\n<<external>>" as users_ext #DDDDDD {
-  * **id** : UUID <<PK>>
+package "Внешние системы" as P_EXT #F0F0F0 {
+
+  entity "users\n<<auth-service>>" as users_ext #DDDDDD {
+    * **id** : UUID <<PK>>
+  }
+
+  entity "user-service\n<<Feign>>" as user_ext #DDDDDD {
+    api : REST via gateway
+  }
+
+  entity "GigaChat API\n<<external>>" as giga #DDDDDD {
+    role : AI-обогащение analysis
+  }
 }
 
-entity "user-service\n<<external>>" as user_ext #DDDDDD {
-  * **REST via Feign** : gateway /api/**
+package "PostgreSQL · report_pg :5433" as P_PG #F8FCFF {
+
+  entity "report_snapshots" as rs {
+    * **id** : BIGSERIAL <<PK>>
+    --
+    * user_id : UUID
+    * period_from : TIMESTAMP
+    * period_to : TIMESTAMP
+    * created_at : TIMESTAMP
+    * report_data : JSONB
+    ..
+    idx_report_snapshots_user_id
+  }
 }
 
-' ---- Локальная таблица ----
-entity "medical_reports" as mr {
-  * **id** : BIGSERIAL <<PK>>
-  --
-  * user_id : UUID <<NOT NULL>>
-  * created_at : TIMESTAMP
-  * status : VARCHAR(20)
-  pdf_content : BYTEA <<LOB>>
-  ..
-  idx_mr_user_id (user_id)
-}
+users_ext -[hidden]right- user_ext
+user_ext -[hidden]right- giga
+P_EXT -[hidden]down- P_PG
 
-' ---- Асинхронный канал (Kafka + GigaChat) ----
-queue "Kafka: report-data-requests" as kafka
+users_ext ..> rs : user_id
+user_ext ..> rs : данные за период
+giga ..> rs : analysis
 
-cloud "GigaChat API" as giga
-
-' ---- Связи ----
-users_ext ||..o{ mr : "user_id"
-user_ext ..> mr : "поставляет данные"
-mr ..> kafka : publish
-kafka ..> giga : AI enrichment
-
-note right of mr
-  JPA @Entity MedicalReport.
-  Hibernate ddl-auto=update.
-  Порт PostgreSQL: 5433 (docker).
-end note
-
-note bottom of kafka
-  Топик: report-data-requests
-  message: ReportDataDto (JSON)
-  consumer: AiAnalysisConsumer
-  Producer: ReportService.
+note right of rs
+  **report_data (JSONB):**
+  user, medicine[], wellbeing[],
+  foodSymptoms[], analysis
+  (symptoms, products,
+  dangerousProteins,
+  traceElements,
+  doctorRecommendations)
 end note
 
 note bottom of user_ext
-  Эндпоинты через gateway-service:
-  GET /api/user-info/{userId}
-  GET /api/food-intakes/{userId}
-  GET /api/symptoms/{userId}
-  GET /api/common-feelings/{userId}
-  Заголовки: X-User-Id, X-Internal-Gateway-Token
+  GET /api/user/info
+  GET /api/feelings/*
+  GET /api/food-analyzer/analyze
+end note
+
+note bottom of P_PG
+  PDF не хранится в БД (Jasper on-demand).
+  MongoDB не используется.
 end note
 
 @enduml

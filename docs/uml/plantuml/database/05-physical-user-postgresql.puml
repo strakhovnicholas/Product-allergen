@@ -1,14 +1,20 @@
 @startuml database-physical-user-postgresql
+allowmixing
+
 skinparam shadowing false
 skinparam roundcorner 0
 skinparam backgroundColor white
 skinparam defaultFontName Arial
 skinparam defaultFontSize 9
 skinparam linetype ortho
-
 skinparam classAttributeIconSize 0
+
 skinparam entity {
   BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor #E8F4FC
   BorderColor black
 }
 skinparam note {
@@ -21,12 +27,12 @@ title Физическая модель — user-service, PostgreSQL (база u
 hide circle
 hide methods
 
-' ---- Внешний stub: users из auth-service (другая БД) ----
+database "PostgreSQL\nuser_pg" as pg
+
 entity "users (auth-service)\n<<external>>" as users_ext #DDDDDD {
   * **id** : UUID <<PK>>
 }
 
-' ---- Локальные таблицы user_pg ----
 entity "food" as food {
   * **id** : BIGSERIAL <<PK>>
   --
@@ -48,9 +54,9 @@ entity "food_components" as fc {
 entity "symptom" as sym {
   * **id** : BIGSERIAL <<PK>>
   --
-  * user_id : UUID <<NOT NULL>>
+  user_id : UUID
   * symptom_name : VARCHAR(200)
-  * severity : INTEGER
+  * severity : INTEGER (1..10)
   created_at : TIMESTAMP
   updated_at : TIMESTAMP
   ..
@@ -86,31 +92,40 @@ entity "intake_medicine" as im {
   idx_intake_user_date (user_id, intake_date)
 }
 
-' ---- Внутри-БД связь (физический FK) ----
+pg .. food
+pg .. fc
+pg .. sym
+pg .. med
+pg .. im
+
 food ||--|{ fc : FK food_id
 
-' ---- Меж-БД логические связи (пунктир, без физического FK) ----
-users_ext ||..o{ food            : "user_id"
-users_ext ||..o{ sym             : "user_id"
-users_ext ||..o{ med             : "user_id"
-users_ext ||..o{ im              : "user_id"
+users_ext ||..o{ food : user_id
+users_ext ||..o{ sym : user_id
+users_ext ||..o{ med : user_id
+users_ext ||..o{ im : user_id
 
 note right of users_ext
-  Сущность из auth-service (allergen_pg).
-  В user_pg отсутствует как физическая таблица.
-  Связь обеспечивается приложением (один UUID
-  на весь жизненный цикл пользователя).
+  Таблица users — в auth-service
+  (allergen_pg). В user_pg физического
+  FK нет; связь по UUID в приложении.
 end note
 
 note bottom of food
-  @ElementCollection → food_components.
   Справочник продуктов пользователя.
+  @ElementCollection → food_components.
+end note
+
+note bottom of sym
+  Справочник названий симптомов
+  (/api/symptoms). Записи дневника
+  симптомов — в MongoDB (symptoms).
 end note
 
 note bottom of im
   Журнал приёма лекарств.
-  Композитный индекс (user_id, intake_date)
-  ускоряет выборку «приёмы пользователя за период».
+  idx_intake_user_date ускоряет выборку
+  за период для analytics-service.
 end note
 
 @enduml

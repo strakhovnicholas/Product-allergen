@@ -1,0 +1,171 @@
+@startuml database-logical-analytics
+' Логическая модель данных — analytics-service (актуальная).
+' Постоянное хранение: report_snapshots (JSONB).
+' PDF не персистируется; MedicalReport — устаревшая сущность.
+
+top to bottom direction
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 9
+skinparam linetype ortho
+skinparam nodesep 35
+skinparam ranksep 38
+skinparam packagePadding 8
+skinparam classAttributeIconSize 0
+
+skinparam entity {
+  BackgroundColor #FEFECE
+  BorderColor black
+}
+skinparam package {
+  BackgroundColor white
+  BorderColor black
+  FontStyle bold
+}
+skinparam note {
+  BackgroundColor #FFFFCC
+  BorderColor black
+  FontSize 8
+}
+
+title Логическая модель данных — analytics-service
+
+hide methods
+hide circle
+
+package "analytics-service · PostgreSQL" as P_AN #F5F5F5 {
+
+  entity "ReportSnapshot" as L_rs {
+    * **id** : Long <<PK>>
+    --
+    * user_id : UUID
+    * period_from : LocalDateTime
+    * period_to : LocalDateTime
+    * created_at : LocalDateTime
+    * report_data : JSONB <<ReportData>>
+    ..
+    idx_report_snapshots_user_id
+  }
+
+  entity "MedicalReport\n<<deprecated>>" as L_mr {
+    * **id** : Long <<PK>>
+    --
+    user_id : UUID
+    created_at : LocalDateTime
+    status : String
+    pdf_content : BYTEA
+  }
+
+  L_rs -[hidden]down- L_mr
+}
+
+package "Транзитный агрегат ReportData" as P_RD #F8F8FF {
+
+  entity "ReportData" as L_rd {
+    user : UserInfo
+    medicine : List<MedicineIntake>
+    wellbeing : List<WellbeingEntry>
+    foodSymptoms : List<FoodSymptomLink>
+    analysis : AnalysisResult
+  }
+
+  entity "UserInfo\n<<external copy>>" as L_ui {
+    full_name : String
+    age : Integer
+    weight : Double
+    gender : String
+    smoker : Boolean
+    alcohol : Boolean
+    sports : Boolean
+    chronic_diseases : List<String>
+    allergies : List<String>
+  }
+
+  entity "MedicineIntake\n<<external copy>>" as L_med {
+    id : String
+    name : String
+    dosage : String
+    unit : String
+    intake_date : LocalDateTime
+  }
+
+  entity "WellbeingEntry\n<<external copy>>" as L_wb {
+    feeling_id : UUID
+    date_time : LocalDateTime
+    score : Integer
+  }
+
+  entity "FoodSymptomLink\n<<external copy>>" as L_fs {
+    food_component_name : String
+    symptoms_name : List<String>
+  }
+
+  entity "AnalysisResult\n<<local>>" as L_ar {
+    symptoms : List<String>
+    products : List<String>
+    dangerous_proteins : List<String>
+    trace_elements : List<String>
+    doctor_recommendations : String
+  }
+
+  L_rd -[hidden]down- L_ui
+  L_ui -[hidden]right- L_med
+  L_med -[hidden]right- L_wb
+  L_ui -[hidden]down- L_fs
+  L_fs -[hidden]right- L_ar
+
+  L_rd *-- L_ui
+  L_rd *-- "0..*" L_med
+  L_rd *-- "0..*" L_wb
+  L_rd *-- "0..*" L_fs
+  L_rd *-- "0..1" L_ar
+}
+
+package "Kafka (опционально)" as P_KF #F5F5F5 {
+
+  entity "ReportAiKafkaMessage" as L_km {
+    request_id : UUID
+    user_id : UUID
+    period_from : LocalDateTime
+    period_to : LocalDateTime
+    report_data : ReportData
+  }
+}
+
+package "user-service\n<<external>>" as P_US #DDDDDD {
+  entity "REST API" as L_api {
+    GET /api/user/info
+    GET /api/feelings/medicines
+    GET /api/feelings/common
+    GET /api/food-analyzer/analyze
+  }
+}
+
+P_AN -[hidden]down- P_RD
+P_RD -[hidden]down- P_KF
+P_KF -[hidden]right- P_US
+
+L_rs ||--|| L_rd : report_data
+L_api ..> L_rd : Feign via gateway
+L_rd ..> L_km : publish
+L_km ..> L_ar : GigaChat enrich
+
+note right of L_rs
+  Таблица report_snapshots.
+  PDF генерируется on-demand
+  (JasperReports), не хранится в БД.
+end note
+
+note bottom of L_mr
+  Устаревшая сущность;
+  в рабочем сценарии не используется.
+end note
+
+note bottom of L_api
+  Данные не реплицируются
+  постоянно — только в снимке JSONB.
+end note
+
+@enduml

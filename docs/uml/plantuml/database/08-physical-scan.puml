@@ -9,6 +9,7 @@ skinparam defaultFontSize 10
 skinparam linetype ortho
 skinparam classAttributeIconSize 0
 skinparam entity { BackgroundColor #FEFECE BorderColor black }
+skinparam queue { BackgroundColor white BorderColor black }
 skinparam cloud { BackgroundColor white BorderColor black }
 skinparam note { BackgroundColor #FFFFCC BorderColor black }
 
@@ -25,34 +26,48 @@ entity "user-service\n<<external>>" as user_ext #DDDDDD {
   * **REST via Feign** : GET /api/user/info
 }
 
-cloud "GigaChat API\n<<external>>" as giga
+cloud "GigaChat Vision\n<<external>>" as giga
 
-entity "label_scan_history" as hist {
-  * **id** : UUID <<PK>>
+entity "scan_history" as hist {
+  * **id** : BIGSERIAL <<PK>>
   --
   * user_id : UUID <<NOT NULL>>
-  scanned_at : TIMESTAMP
-  result_json : JSONB
-  summary : TEXT
+  * scan_date : TIMESTAMP
+  image_file_name : VARCHAR
+  risk_level : VARCHAR(20)
+  analysis_result : JSONB
   ..
-  idx_scan_user_id (user_id)
-  idx_scan_user_date (user_id, scanned_at)
+  idx_scan_history_user_id (user_id)
 }
 
+queue "Kafka: scan-ai-requests" as kafka_req
+queue "Kafka: scan-ai-results" as kafka_res
+
 users_ext ||..o{ hist : "user_id"
-user_ext ..> hist : "профиль для анализа"
-giga ..> hist : "источник распознавания"
+user_ext ..> hist : "UserProfile для анализа"
+giga ..> hist : "ScanAnalysisResult"
+
+hist ..> kafka_req : ScanAiKafkaMessage
+kafka_req ..> giga : vision (image <= 400 KB)
+giga ..> kafka_res : optional publish
+hist ..> giga : fallback direct call
 
 note right of hist
-  Сервис stateless по умолчанию.
-  Таблица опциональна — для истории
-  анализов на VPS (PostgreSQL scan_pg).
+  JPA @Entity ScanHistory.
+  SCAN_PERSISTENCE_ENABLED=false:
+  InMemoryScanHistoryStore (без таблицы).
+  Изображение не сохраняется.
 end note
 
 note bottom of user_ext
-  allergies[], predisposition,
-  chronicDiseases — через gateway
+  allergies[], chronicDiseases[]
+  через gateway:
   X-User-Id, X-Internal-Gateway-Token
+end note
+
+note bottom of kafka_req
+  SCAN_KAFKA_ENABLED=false по умолчанию.
+  POST /scans/analyze — multipart image
 end note
 
 @enduml

@@ -1,10 +1,19 @@
 @startuml scan-service-use-case
+' UC scan-service — вертикальная компоновка под A4 (портрет)
+
+top to bottom direction
 skinparam shadowing false
 skinparam roundcorner 0
 skinparam backgroundColor white
 skinparam defaultFontName Arial
-skinparam defaultFontSize 11
-skinparam handwritten false
+skinparam defaultFontSize 10
+skinparam linetype ortho
+
+skinparam nodesep 55
+skinparam ranksep 48
+skinparam padding 10
+skinparam wrapWidth 120
+
 skinparam actorStyle stickman
 skinparam actor {
   BackgroundColor white
@@ -23,40 +32,62 @@ skinparam note {
   BorderColor black
 }
 
-left to right direction
 title Диаграмма вариантов использования — scan-service
 
 actor "Пользователь\n(Mobile App)" as User
-actor "GigaChat API\n(Sber)" as Giga
+actor "GigaChat API" as Giga
+
+User -[hidden]right- Giga
 
 rectangle "scan-service" {
-  usecase "UC-S-01\nСканировать состав\n(фото этикетки)" as UC1
-  usecase "UC-S-02\nОтправить задачу\nв Kafka" as UC2
-  usecase "UC-S-03\nЗагрузить профиль\n(Feign → user-service)" as UC3
-  usecase "UC-S-04\nAI-анализ изображения\n(Kafka consumer → GigaChat)" as UC4
-  usecase "UC-S-05\nРазобрать JSON\nи классифицировать\nингредиенты" as UC5
-  usecase "UC-S-06\nВернуть результат\nклиенту (safe / caution / unsafe)" as UC6
+
+  usecase "UC-S-01\nСканирование состава\n(фото этикетки)" as UC1
+
+  usecase "Проверка\nтокена шлюза" as UC_GW
+  usecase "Загрузка профиля\n(Feign → user)" as UC3
+  usecase "AI-анализ изображения\n(Vision)" as UC4
+  usecase "Разбор JSON\nи оценка риска" as UC5
+  usecase "Сохранение\nистории скана" as UC_SAVE
+  usecase "Возврат результата\nклиенту" as UC6
+
+  usecase "Отправка в Kafka\n(опционально)" as UC_Kafka
+
+  UC1 -[hidden]down- UC_GW
+  UC_GW -[hidden]down- UC3
+  UC3 -[hidden]down- UC4
+  UC4 -[hidden]down- UC5
+  UC5 -[hidden]down- UC_SAVE
+  UC_SAVE -[hidden]down- UC6
 }
 
 User --> UC1
-UC1 ..> UC2 : <<include>>
-UC1 ..> UC3 : <<include>>
-UC2 ..> UC4 : <<include>>
-UC4 ..> Giga : HTTPS Vision
-UC4 ..> UC5 : <<include>>
-UC5 ..> UC6 : <<include>>
 User <-- UC6
+UC4 ..> Giga : HTTPS Vision
 
-note right of UC2
-  Топик: scan-image-requests
-  Payload: image (base64/URL),
-  userId, correlationId
+UC1 ..> UC_GW : <<include>>
+UC1 ..> UC3 : <<include>>
+UC1 ..> UC4 : <<include>>
+UC1 ..> UC5 : <<include>>
+UC1 ..> UC_SAVE : <<include>>
+UC1 ..> UC6 : <<include>>
+UC1 ..> UC_Kafka : <<extend>>
+
+note right of UC_Kafka
+  SCAN_KAFKA_ENABLED=true
+  Топик: scan-ai-requests
+  Иначе — прямой вызов GigaChat
 end note
 
 note bottom of UC5
-  Ответ GigaChat — JSON со списком
-  компонентов; сопоставление
-  с аллергиями и предрасположенностью
+  ScanAnalysisResultDto:
+  composition, dangerousComponents,
+  riskLevel (LOW/MEDIUM/HIGH),
+  clinicalNoteForDoctor
+end note
+
+note as API_REF #FFFFCC
+  **API:** POST /scans/analyze (multipart image)
+  GET /scans/{id} · GET /scans/history
 end note
 
 @enduml
